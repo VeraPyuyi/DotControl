@@ -14,7 +14,7 @@ import (
 )
 
 func verifyCua(ctx context.Context, path string) error {
-	if exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--deep", "--strict", "-R", `anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"`, path).Run() != nil {
+	if exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--deep", "--strict", "-R", `=anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"`, path).Run() != nil {
 		return errors.New("signature_invalid")
 	}
 	return nil

@@ -1,5 +1,6 @@
 """Portable control-flow tests; these do not validate an actual macOS signature."""
 import os
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -18,6 +19,14 @@ def shell_path(path):
 
 
 class SignatureGateTests(unittest.TestCase):
+    @unittest.skipUnless(platform.system() == "Darwin", "native codesign parser")
+    def test_native_inline_requirement_syntax(self):
+        # A mock cannot catch -R treating unprefixed text as a filename.
+        result = subprocess.run(['/usr/bin/codesign', '--verify', '--strict',
+                                 '-R', '=anchor apple', '/usr/bin/true'],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def run_gate(self, status):
         with tempfile.TemporaryDirectory(prefix="dotcontrol-signature-test-") as tmp:
             log = Path(tmp) / "arguments.txt"
@@ -49,7 +58,7 @@ printf 'protected-operation-reached\n'
         self.assertEqual(args[-1], target)
         for flag in ("--verify", "--deep", "--strict", "-R"):
             self.assertIn(flag, args)
-        self.assertIn('anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"', args)
+        self.assertIn('=anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"', args)
         self.assertNotIn("--sign", args)
 
     def test_invalid_signature_stops_before_protected_operation(self):

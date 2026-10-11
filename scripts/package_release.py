@@ -101,7 +101,7 @@ def main():
             apps = list(extract.glob('*/CuaDriver.app'))
             if len(apps) != 1: raise RuntimeError('missing_CuaDriver_app')
             run('codesign', '--verify', '--deep', '--strict', '-R',
-                'anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"', apps[0])
+                '=anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"', apps[0])
             for app, source, binary, identifier in [
                 ('DotControlActivity', 'Activity.swift', 'DotControlActivity', 'org.dotcontrol.activity'),
                 ('DotControlMenu', 'Menu.swift', 'DotControlMenu', 'org.dotcontrol.menu')]:

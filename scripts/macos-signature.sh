@@ -5,7 +5,7 @@
 verify_cua_macos_signature() {
   local target="$1"
   if ! codesign --verify --deep --strict --verbose=2 \
-    -R 'anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"' "$target"; then
+    -R '=anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"' "$target"; then
     printf 'cua_signature_verification_failed: %s\n' "$target" >&2
     printf '%s\n' 'Stopped. Compare this copy with the checksum-verified release archive before replacing it. Do not re-sign it or disable signature verification.' >&2
     return 1

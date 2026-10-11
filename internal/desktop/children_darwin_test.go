@@ -51,6 +51,7 @@ func TestMacOwnedChildrenExitWithParent(t *testing.T) {
 				t.Fatal(e)
 			}
 			parent.Stderr = os.Stderr
+			parent.Stdout = os.Stderr // surface subprocess assertion failures in CI
 			if e = parent.Start(); e != nil {
 				t.Fatal(e)
 			}
@@ -118,7 +119,10 @@ func TestMacOwnedChildrenExitWithParent(t *testing.T) {
 				t.Fatal(e)
 			}
 			select {
-			case <-wait:
+			case err := <-wait:
+				if mode == "graceful" && err != nil {
+					t.Fatalf("normal parent exit: %v", err)
+				}
 			case <-time.After(10 * time.Second):
 				t.Fatal("owned parent did not terminate")
 			}
@@ -191,7 +195,9 @@ func TestMacChildrenHelper(t *testing.T) {
 			t.Fatal(e)
 		}
 		command := exec.Command(os.Args[0], "-test.run=^TestMacChildrenHelper$", "--", "stdin")
-		transport := &mcp.CommandTransport{Command: command, TerminateDuration: 100 * time.Millisecond}
+		// A race-instrumented Go child intentionally waits before exiting.
+		// Allow its orderly exit rather than testing SDK forced termination.
+		transport := &mcp.CommandTransport{Command: command, TerminateDuration: 3 * time.Second}
 		connection, e := transport.Connect(context.Background())
 		if e != nil {
 			t.Fatal(e)
