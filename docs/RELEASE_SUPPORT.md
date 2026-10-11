@@ -1,31 +1,47 @@
-# 0.2.0-alpha.1 support and acceptance
+# 0.2.0-alpha.1 支持与验收
 
-Status is evidence-bound. This page must be updated after the final release bytes
-are downloaded and tested; earlier source and 0.1 acceptance are not substituted.
+[预发布下载](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.1) · [安装指南](INSTALL.md)
 
-| Check | Windows 11 x64 | Mac Apple Silicon | Mac Intel |
+本版交付 Windows EXE、Mac 两种架构的 DMG 和 Codex 安装助手。
+目标端原生 Codex 委派仍关闭。以下“通过”仅覆盖所列检查，不代表完整计划验收。
+
+| 检查 | Windows x64 | Mac Apple Silicon | Mac Intel |
 |---|---|---|---|
-| Go source build | passed locally | cross-build passed | cross-build passed |
-| Automated engine/UI tests | passed locally; review ongoing | CI pending | CI pending |
-| Self-contained installer | first EXE packaged, final bytes pending | native build/signature gate pending | native build/signature gate pending |
-| Clean system install | not verified | not verified | not verified |
-| 0.2 actual cross-device and image delivery | not verified | not verified | not verified |
-| Official Codex native discovery | passed on current official binary | not verified | not verified |
-| Official Codex task/approval/interruption/images | not verified; disabled | not verified; disabled | not verified; disabled |
+| 原生构建、单元测试、竞态检测、vet | 通过 | macOS 14 runner 通过 | macOS 15 runner 通过 |
+| 自包含安装包 | EXE，43 个清单文件 | DMG，46 个清单文件 | DMG，46 个清单文件 |
+| Cua 上游签名、固定归档哈希 | 归档哈希通过 | 原生签名与哈希通过 | 原生签名与哈希通过 |
+| 从 GitHub Actions 下载后执行包内校验 | 通过 | 原生挂载 DMG 后通过 | 原生挂载 DMG 后通过 |
+| 实际包安装、两次修复、卸载保留状态 | Windows 11 隔离目录通过 | 未验证 | 未验证 |
+| 暂停/撤销重启保留、驱动与活动检测 | Windows 11 通过 | 用户桌面未验证 | 用户桌面未验证 |
+| 干净系统、安装图形流程、登录重启 | 未验证 | 未验证 | 未验证 |
+| 新版双向操作与源 Dot 图片交付 | 未验证 | 未验证 | 未验证 |
+| 官方 Codex 原生应用发现 | 当前官方客户端已验证 | 未验证 | 未验证 |
+| Codex 委派动作、审批、中断、图片 | 未验证，关闭 | 未验证，关闭 | 未验证，关闭 |
 
-## Known limits
+安装包构建源提交：`339b16031ac7b0b7e4f2d42a94d684ed33c4e547`。
+公开证据：[三平台构建与下载校验](validation/installer-build-0.2.0-alpha.1.json)、
+[Windows 实际安装包测试](validation/windows-installer-0.2.0-alpha.1.json)。
+源码与安装包保留第三方许可证；未发布本地凭据、设备标识或私人截图。
 
-- Login, local runtime-key entry, OS permissions and official acknowledgements
-  remain user actions. Webpage assistance uses supported host browser tools.
-- Alpha installers are not publisher-signed/notarized. Cua's upstream signature
-  must independently pass. The previously disputed 0.34.1 Mac archive must pass
-  the native packaging gate; do not suppress that gate to produce a DMG.
-- Direct Mac tunnel binaries now replace Homebrew; hashes are pinned separately
-  for Apple Silicon and Intel in dependencies.lock.json.
-- MCP image return, local viewing, cloud attachment creation and actual source
-  display are separate states. No legacy Python uploader is bundled.
-- There is no public gateway product, marketplace publication or forced update.
-- A legacy running agent without graceful-shutdown support must be stopped before
-  migration; installers never forcibly kill an uncertain in-flight desktop action.
+Windows 测试使用实际下载的 EXE，在中文及空格路径中安装并验证全部组件哈希；
+三次启动/正常退出、暂停和撤销保留均通过。卸载保留配置、账本与撤销标记原始字节。
+测试时全局登录启动项原本不存在，确认它未被更改；不能据此声称实测了另一台已登记设备的启动项。
+本轮没有发送桌面输入、截图或使用实际隧道凭据。
 
-See IMPLEMENTATION_0_2.md for historical failures and the regression mapping.
+Mac 原生构建环境重新验证了 0.34.1 上游应用签名，未重签 CuaDriver。
+这不能倒推之前用户 Mac 上的签名错误原因，也不能替代用户 macOS 26 环境的实际安装与权限测试。
+初始 Mac CI 发现的系统临时目录别名、codesign 内联参数与竞态测试退出时限问题均已修复并复验。
+
+## 已知限制与升级
+
+- 登录、运行密钥本机录入、系统权限及官方确认仍需用户完成；无需开发工具或手工编辑配置。
+- 发布者未签名或公证。系统来源提示可能出现；不删除隔离属性、不关闭系统安全检查。
+- Mac 必须通过 Cua 签名检查。未知权限不显示为已授权；权限授权不等于截图已经成功。
+- 0.1 的成功跨电脑记录只适用于旧实例。中文文本、浏览器、多屏、物理接管、长时间断网恢复仍待新版真机验收。
+- 关闭向导不停止代理。自动修复不恢复暂停、撤销，不重放不确定动作。升级等待执行结束再替换程序。
+- 老代理若没有正常关闭接口，需要用户先退出；安装器不会强杀可能正在产生副作用的桌面任务。旧网关配置迁移目前拒绝执行。
+- 本机查看、MCP 图片返回、云端附件与源 Dot 实际显示分别记录。未捆绑旧 Python 上传脚本。
+- 原生 Codex 委派只交付关闭状态下的协议与任务记录能力，不提供强制开启开关；不是完整委派执行器。
+- 首发不包含网关产品化、公共插件市场上架或强制更新。更新只提示，由用户选择安装。
+
+发布后使用 `verify-published-installers` 工作流再次下载 Release 资产，并在各目标系统执行包内校验；该检查同样不等于桌面验收。

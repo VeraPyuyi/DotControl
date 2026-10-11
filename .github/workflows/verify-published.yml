@@ -1,0 +1,50 @@
+name: verify-published-installers
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published prerelease tag
+        required: true
+        default: v0.2.0-alpha.1
+permissions:
+  contents: read
+jobs:
+  downloaded:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows-amd64
+            asset: DotControl-0.2.0-alpha.1-windows-amd64-setup.exe
+          - runner: macos-14
+            platform: macos-arm64
+            asset: DotControl-0.2.0-alpha.1-macos-arm64.dmg
+          - runner: macos-15-intel
+            platform: macos-amd64
+            asset: DotControl-0.2.0-alpha.1-macos-amd64.dmg
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact published asset and checksum
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ASSET: ${{ matrix.asset }}
+        run: gh release download "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" -p "$RELEASE_ASSET" -p "$RELEASE_ASSET.sha256" -D downloaded
+      - name: Verify released bytes on their target OS
+        shell: bash
+        env:
+          RELEASE_ASSET: ${{ matrix.asset }}
+        run: python scripts/verify_release_payload.py "downloaded/$RELEASE_ASSET" > released-payload.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: released-payload-${{ matrix.platform }}
+          path: released-payload.json
+      # This executes the shipped verifier, not desktop actions. Native GUI,
+      # permissions and cross-computer image acceptance remain separate gates.

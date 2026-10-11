@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.1",
+  "source_commit": "339b16031ac7b0b7e4f2d42a94d684ed33c4e547",
+  "build_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38170002825",
+  "test_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38170001656",
+  "all_three_platforms_unit_race_vet": "passed",
+  "macos_upstream_cua_signature_requirement": "=anchor apple generic and certificate leaf[subject.OU] = \"YCK386LBJ7\"",
+  "macos_upstream_signature_gate": "passed on both native build runners, without modifying CuaDriver",
+  "downloaded_ci_artifacts": [
+    {
+      "sha256": "88735470c8fd2fe65994edf3d917b12594060ec702ecdd73dcd080b9ea96aca4",
+      "bytes": 93735273,
+      "payload": {
+        "arch": "amd64",
+        "files": 46,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.1"
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "sha256": "18f34266b43301faaf56b966dc5188d084f8dca7a60b939a32c2fcf06cbbd42c",
+      "bytes": 50322432,
+      "payload": {
+        "arch": "amd64",
+        "files": 43,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.1"
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "sha256": "59a2d93ffa48be1c828f2378624e6ce8a6193add8a1f548ac753ad35515b7061",
+      "bytes": 92927546,
+      "payload": {
+        "arch": "arm64",
+        "files": 46,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.1"
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  ],
+  "clean_system_install": "not_verified",
+  "native_codex_desktop_delegation": "disabled; native action, approval, interruption and image acceptance incomplete",
+  "cross_computer_0_2": "not_verified"
+}

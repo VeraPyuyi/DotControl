@@ -8,16 +8,18 @@ Target prerelease: `VeraPyuyi/DotControl`, `v0.2.0-alpha.1`.
 ## Work tracking
 
 - [x] Preserve 0.1 baseline and run existing Go tests.
-- [ ] Record official App Server native Computer Use capability probe.
-- [ ] Transactional install, recovery, retained identity and uninstall.
-- [ ] Local onboarding, OS credential entry and independent connection checks.
-- [ ] User-session startup, process recovery and persistent pause/revoke.
-- [ ] Windows installer, Mac prebuilt app/DMG and tray/menu bar.
-- [ ] Codex onboarding plugin and webpage assistance.
-- [ ] Capability-gated Codex MCP contract.
-- [ ] Security/regression reviews, packaging and downloaded-byte verification.
+- [x] Record official App Server native Computer Use capability probe.
+- [x] Transactional install, recovery, retained identity and uninstall.
+- [x] Local onboarding, OS credential entry and independent connection checks.
+- [x] User-session startup, process recovery and persistent pause/revoke.
+- [x] Windows installer, Mac prebuilt app/DMG and tray/menu bar.
+- [x] Codex onboarding plugin and webpage assistance.
+- [x] Capability-gated Codex MCP contract.
+- [x] Security/regression reviews, packaging and downloaded-byte verification.
 - [ ] Real Windows and Mac installation and cross-device acceptance.
 - [ ] GitHub prerelease and explicit support matrix.
+
+Implementation checks mean the code and focused automated checks are complete, not that a new installation has passed desktop acceptance. The App Server probe found a partial native route; native execution remains disabled.
 
 ## Evidence rules
 
@@ -41,6 +43,9 @@ that platform. No Cua substitution, hidden approval or unknown-action replay.
 | Missing or unchanged expect | New observed postcondition guidance; immutable unknown receipts |
 | Python 3.9 and absent Library interface | No legacy Python uploader; native MCP images and actual host attachment capabilities |
 | Multiple installs / upgrade interruption | Discovery, explicit instance selection, staged versions and pointer rollback |
+| Mac OS `/var` and `/tmp` temporary aliases rejected | Normalize only verified system aliases; native install and containment regressions |
+| Inline codesign requirement mistaken for a file | Prefix requirement with `=`; exercise real codesign parser in Mac CI |
+| Race-instrumented synthetic process slow to exit | Bounded graceful-exit fixture budget and explicit child exit errors |
 | Native CU inferred from app-server availability | Actual native capability gate, blocked reason exposed to Dot |
 
 Private logs, screenshots, credentials and local machine identifiers are not
