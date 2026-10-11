@@ -115,6 +115,10 @@ func canonicalInstallPath(p string) (string, error) {
 	if e != nil {
 		return "", e
 	}
+	abs, e = normalizeSystemPath(abs)
+	if e != nil {
+		return "", e
+	}
 	// Check the original spelling before resolving it, so resolving a short name
 	// never hides an existing junction or symlink from the link prohibition.
 	if e = checkAncestors(abs); e != nil {

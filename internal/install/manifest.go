@@ -268,10 +268,15 @@ func openRegular(p string) (*os.File, error) {
 	return f, nil
 }
 
-// checkAncestors refuses existing symlinks/reparse points, including aliases in
-// parent directories. This is intentionally stricter than resolving aliases.
+// checkAncestors refuses existing symlinks/reparse points after normalizing
+// only Darwin's verified /var and /tmp system mappings. Arbitrary aliases in
+// parent directories are never resolved away.
 func checkAncestors(p string) error {
 	abs, e := filepath.Abs(p)
+	if e != nil {
+		return e
+	}
+	abs, e = normalizeSystemPath(abs)
 	if e != nil {
 		return e
 	}

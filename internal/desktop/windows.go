@@ -53,7 +53,17 @@ func OwnChildren() error {
 	return nil
 }
 func Autostart(executable, state string, enable bool) error {
-	key, e := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE|registry.QUERY_VALUE)
+	const path = `Software\Microsoft\Windows\CurrentVersion\Run`
+	var key registry.Key
+	var e error
+	if enable {
+		key, _, e = registry.CreateKey(registry.CURRENT_USER, path, registry.SET_VALUE|registry.QUERY_VALUE)
+	} else {
+		key, e = registry.OpenKey(registry.CURRENT_USER, path, registry.SET_VALUE|registry.QUERY_VALUE)
+		if e == registry.ErrNotExist {
+			return nil
+		}
+	}
 	if e != nil {
 		return errors.New("autostart_unavailable")
 	}

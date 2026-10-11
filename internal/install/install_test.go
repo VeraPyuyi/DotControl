@@ -237,10 +237,24 @@ func TestInstallSerializesRoot(t *testing.T) {
 	o := opts(t, bundle(t, "0.2.0", "one"))
 	entered := make(chan struct{})
 	release := make(chan struct{})
+	releaseHealth := func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}
+	defer releaseHealth()
 	done := make(chan error, 1)
 	o.Health = func(context.Context, Current) error { close(entered); <-release; return nil }
 	go func() { _, e := Apply(context.Background(), o); done <- e }()
-	<-entered
+	select {
+	case <-entered:
+	case e := <-done:
+		t.Fatalf("first install ended before health callback: %v", e)
+	case <-time.After(15 * time.Second):
+		t.Fatal("first install did not reach health callback within 15 seconds")
+	}
 	second := o
 	second.Health = nil
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -249,9 +263,14 @@ func TestInstallSerializesRoot(t *testing.T) {
 	if !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatalf("parallel install not blocked: %v", e)
 	}
-	close(release)
-	if e = <-done; e != nil {
-		t.Fatal(e)
+	releaseHealth()
+	select {
+	case e = <-done:
+		if e != nil {
+			t.Fatal(e)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("first install did not finish after releasing health callback")
 	}
 }
 

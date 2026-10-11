@@ -50,6 +50,7 @@ type runtimeOwner struct {
 	native                   *driver.Cua
 	sup                      *tunnel.Supervisor
 	tunnelError, driverError string
+	permissions              permissionStatus
 	proof                    connectionProof
 	revoked, noTunnel        bool
 	repair                   chan struct{}
@@ -285,6 +286,9 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 			if !connected || !d.Activity.Available || d.Activity.Locked {
 				return nil, errors.New("local_checks_not_ready")
 			}
+			if !o.permissions.ready() {
+				return nil, errors.New("permissions_not_ready")
+			}
 		}
 		if e := o.eng.Pause(action == "pause"); e != nil {
 			return nil, e
@@ -362,7 +366,7 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	ts.Configured = o.cfg.TunnelID != ""
 	d := o.eng.Device()
 	d.Name = o.cfg.Name
-	return map[string]any{"device": d, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": false, "reason": "Codex 桌面委派暂不可用：此版本尚未通过官方 Computer Use、审批与中断验收。"}}, nil
+	return map[string]any{"device": d, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": false, "reason": "Codex 桌面委派暂不可用：此版本尚未通过官方 Computer Use、审批与中断验收。"}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	o.mu.Lock()
@@ -372,7 +376,7 @@ func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 		ds = o.native.Diagnostic()
 	}
 	d := o.eng.Device()
-	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "native_codex": "not_verified"}, nil
+	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "native_codex": "not_verified"}, nil
 }
 func (o *runtimeOwner) maintain() {
 	ticker := time.NewTicker(10 * time.Second)
@@ -423,6 +427,10 @@ func (o *runtimeOwner) maintain() {
 			o.sup = sup
 			o.mu.Unlock()
 		}
+		permissions := checkPermissions(o.ctx, c.DriverPath)
+		o.mu.Lock()
+		o.permissions = permissions
+		o.mu.Unlock()
 		// Serialize credential reads and publishing the supervisor with Connect
 		// and revoke. A stale snapshot must never start a previously revoked ID.
 		o.mu.Lock()
@@ -450,6 +458,9 @@ func (o *runtimeOwner) baseStatus() model.Capability {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.native != nil && o.native.Diagnostic()["connected"] == true {
+		if !o.permissions.ready() {
+			return model.Capability{State: "unavailable", Code: "permissions_" + o.permissions.State}
+		}
 		return model.Capability{Available: true, State: "connected"}
 	}
 	return model.Capability{State: "unavailable", Code: o.driverError}
