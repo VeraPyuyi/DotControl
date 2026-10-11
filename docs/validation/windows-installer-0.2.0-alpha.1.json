@@ -2,7 +2,9 @@
   "schema": 2,
   "candidate_commit": "339b16031ac7b0b7e4f2d42a94d684ed33c4e547",
   "ci_run": 38170002825,
-  "scope": "actual Windows packaged-byte isolated smoke",
+  "release_tag_commit": "4383e9a",
+  "published_payload_ci_run": 38170631830,
+  "scope": "actual GitHub Release bytes isolated Windows smoke",
   "checks": [
     {
       "check": "shipped_verify_payload",
@@ -151,11 +153,11 @@
   "uninstall_performed": true,
   "clean_vm": false,
   "native_gui_acceptance": "not_performed",
-  "started_utc": "2026-10-11T19:58:47.844812+00:00",
+  "started_utc": "2026-10-11T20:06:11.193677+00:00",
   "setup_sha256": "18f34266b43301faaf56b966dc5188d084f8dca7a60b939a32c2fcf06cbbd42c",
   "setup_bytes": 50322432,
   "result": "passed",
   "global_autostart_unchanged": true,
-  "finished_utc": "2026-10-11T19:59:16.520343+00:00",
-  "artifact_status": "exact prerelease EXE; clean GUI and cross-computer acceptance remain pending"
+  "finished_utc": "2026-10-11T20:06:40.208351+00:00",
+  "artifact_status": "public GitHub Release EXE reinstalled and tested; clean GUI and cross-computer acceptance remain pending"
 }

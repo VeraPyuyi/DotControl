@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "release": "https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.1",
+  "tag_commit": "4383e9a96f13f8dd6ed6c9e81e94c75fae1ae20b",
+  "code_build_commit": "339b16031ac7b0b7e4f2d42a94d684ed33c4e547",
+  "published_native_verification": "https://github.com/VeraPyuyi/DotControl/actions/runs/38170631830",
+  "all_three_native_payload_checks": "passed",
+  "public_downloads": [
+    {
+      "name": "DotControl-0.2.0-alpha.1-macos-amd64.dmg",
+      "bytes": 93735273,
+      "sha256": "88735470c8fd2fe65994edf3d917b12594060ec702ecdd73dcd080b9ea96aca4",
+      "equal_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.1-macos-arm64.dmg",
+      "bytes": 92927546,
+      "sha256": "59a2d93ffa48be1c828f2378624e6ce8a6193add8a1f548ac753ad35515b7061",
+      "equal_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.1-windows-amd64-setup.exe",
+      "bytes": 50322432,
+      "sha256": "18f34266b43301faaf56b966dc5188d084f8dca7a60b939a32c2fcf06cbbd42c",
+      "equal_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.1.zip",
+      "bytes": 4284,
+      "sha256": "909f81262ccf2c6081716f06a1a98e3097be7a754047e218a8086cbb39897176",
+      "equal_to_tested_candidate": true
+    }
+  ],
+  "mac_user_install": "not_verified",
+  "clean_system_gui_acceptance": "not_verified",
+  "cross_computer_0_2": "not_verified",
+  "native_codex_delegation": "disabled",
+  "native_released_payload_reports": [
+    {
+      "sha256": "88735470c8fd2fe65994edf3d917b12594060ec702ecdd73dcd080b9ea96aca4",
+      "bytes": 93735273,
+      "payload": {
+        "arch": "amd64",
+        "files": 46,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.1"
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "sha256": "59a2d93ffa48be1c828f2378624e6ce8a6193add8a1f548ac753ad35515b7061",
+      "bytes": 92927546,
+      "payload": {
+        "arch": "arm64",
+        "files": 46,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.1"
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "sha256": "18f34266b43301faaf56b966dc5188d084f8dca7a60b939a32c2fcf06cbbd42c",
+      "bytes": 50322432,
+      "payload": {
+        "arch": "amd64",
+        "files": 43,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.1"
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  ]
+}

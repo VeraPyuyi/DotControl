@@ -17,7 +17,7 @@ Target prerelease: `VeraPyuyi/DotControl`, `v0.2.0-alpha.1`.
 - [x] Capability-gated Codex MCP contract.
 - [x] Security/regression reviews, packaging and downloaded-byte verification.
 - [ ] Real Windows and Mac installation and cross-device acceptance.
-- [ ] GitHub prerelease and explicit support matrix.
+- [x] GitHub prerelease and explicit support matrix.
 
 Implementation checks mean the code and focused automated checks are complete, not that a new installation has passed desktop acceptance. The App Server probe found a partial native route; native execution remains disabled.
 
