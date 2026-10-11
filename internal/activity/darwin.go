@@ -33,7 +33,10 @@ func Start(ctx context.Context, helper string) (*Monitor, error) {
 		cancel()
 		return m, err
 	}
+	done := make(chan struct{})
+	m.close = func() { cancel(); <-done }
 	go func() {
+		defer close(done)
 		defer cmd.Wait()
 		s := bufio.NewScanner(stdout)
 		s.Buffer(make([]byte, 4096), 8192)

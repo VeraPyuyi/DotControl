@@ -1,0 +1,9 @@
+{
+  "name": "dotcontrol-onboarding",
+  "version": "0.2.0-alpha.1",
+  "description": "Install and connect DotControl on Windows and macOS using the shared local installer.",
+  "author": {"name": "VeraPyuyi"},
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {"displayName": "DotControl 安装助手", "shortDescription": "连接多台电脑，让 Dot 跨设备工作", "defaultPrompt": "帮我安装并连接 DotControl"}
+}

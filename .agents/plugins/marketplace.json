@@ -1,0 +1,5 @@
+{
+  "name": "dotcontrol",
+  "owner": {"name": "VeraPyuyi"},
+  "plugins": [{"name": "dotcontrol-onboarding", "source": "./plugins/dotcontrol-onboarding", "description": "Install DotControl and assist with official tunnel/plugin setup."}]
+}

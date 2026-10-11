@@ -262,7 +262,7 @@ func Handler(backend service.Backend) http.Handler {
 			return
 		}
 		switch input.Method {
-		case "devices", "apps", "observe", "execute", "task", "cancel":
+		case "devices", "apps", "observe", "execute", "task", "cancel", "codex_submit", "codex_job", "codex_cancel":
 		default:
 			http.Error(w, "unknown_method", 400)
 			return

@@ -15,6 +15,7 @@
     "version": "0.0.16",
     "repository": "https://github.com/openai/tunnel-client",
     "windows_amd64": {"file": "tunnel-client-v0.0.16-windows-amd64.zip", "sha256": "edef7241b0c647fcb30f1a80ff376b6b25c51927960f257a3f01e21b17c2aba6"},
-    "macos_install": "Official Homebrew distribution only; installer checks 0.0.16 and stops on version drift. No Gatekeeper bypass."
+    "macos_amd64": {"file": "tunnel-client-v0.0.16-darwin-amd64.zip", "sha256": "57b3dd73f2d042c7aeb5664681f7538078359f55538b9e048640f1df71a0c83f"},
+    "macos_arm64": {"file": "tunnel-client-v0.0.16-darwin-arm64.zip", "sha256": "a160820d45089b5253d8d671fe2a689bde0f73d78c135d1497a7b33f28a3ac62"}
   }
 }

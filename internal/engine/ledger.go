@@ -96,7 +96,12 @@ func (e *Engine) openLedger() error {
 		return fail("storage_unavailable")
 	}
 	if !hasWAL {
-		if err = e.appendEvent(ledgerEvent{Type: "init", DeviceID: e.cfg.DeviceID}); err != nil {
+		e.paused = e.cfg.InitialPaused
+		initial := ledgerEvent{Type: "init", DeviceID: e.cfg.DeviceID}
+		if e.paused {
+			initial.Paused = &e.paused
+		}
+		if err = e.appendEvent(initial); err != nil {
 			return err
 		}
 		return syncDirectory(e.cfg.StateDir)
@@ -162,8 +167,11 @@ func (e *Engine) openLedger() error {
 func (e *Engine) replay(event ledgerEvent) error {
 	switch event.Type {
 	case "init":
-		if event.Receipt != nil || event.TaskID != "" || event.Paused != nil {
+		if event.Receipt != nil || event.TaskID != "" {
 			return fail("ledger_corrupt")
+		}
+		if event.Paused != nil {
+			e.paused = *event.Paused
 		}
 	case "receipt":
 		if event.Receipt == nil || event.TaskID != "" || event.Paused != nil || event.DeviceID != "" {

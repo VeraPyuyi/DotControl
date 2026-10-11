@@ -8,3 +8,7 @@ dist/
 coverage.out
 .DS_Store
 /dotcontrol
+/cmd/dotcontrol-setup/assets/payload.zip
+/dotcontrol-setup
+__pycache__/
+*.pyc

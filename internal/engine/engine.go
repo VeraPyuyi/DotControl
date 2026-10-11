@@ -26,6 +26,7 @@ import (
 type Config struct {
 	DeviceID, Name, StateDir                     string
 	IdleThreshold, ObservationTTL, ActionTimeout time.Duration
+	InitialPaused                                bool // Used only when creating a new ledger, never on replay.
 }
 
 // Error contains only a stable public code; native driver and filesystem errors
@@ -54,6 +55,7 @@ type Engine struct {
 	receipts               map[string]model.Receipt
 	cancelled              map[string]bool
 	observations           map[string]model.Observation
+	observationGeneration  uint64
 	latest                 map[model.Target]string
 	activeTask             string
 	activeCancel           context.CancelFunc
@@ -140,12 +142,13 @@ func (e *Engine) unlock() { e.gate <- struct{}{} }
 func (e *Engine) Device() model.Device {
 	e.mu.Lock()
 	paused := e.paused
+	name := e.cfg.Name
 	e.mu.Unlock()
 	nonce := randomID()
 	if nonce == "" {
 		nonce = e.nonce
 	}
-	return model.Device{ID: e.cfg.DeviceID, Name: e.cfg.Name, OS: runtime.GOOS, Version: model.Version, Paused: paused, Activity: e.monitor.Snapshot(), Nonce: nonce}
+	return model.Device{ID: e.cfg.DeviceID, Name: name, OS: runtime.GOOS, Version: model.Version, Paused: paused, Activity: e.monitor.Snapshot(), Nonce: nonce}
 }
 func (e *Engine) Apps(ctx context.Context) (json.RawMessage, error) {
 	if err := e.acquire(ctx); err != nil {
@@ -189,6 +192,7 @@ func (e *Engine) Observe(ctx context.Context, t model.Target) (model.Observation
 	}
 	defer e.unlock()
 	e.mu.Lock()
+	generation := e.observationGeneration
 	err := e.healthyLocked()
 	if err == nil && e.paused {
 		err = fail("paused")
@@ -219,6 +223,9 @@ func (e *Engine) Observe(ctx context.Context, t model.Target) (model.Observation
 	}
 	if e.paused {
 		return model.Observation{}, fail("paused")
+	}
+	if generation != e.observationGeneration {
+		return model.Observation{}, fail("stale_observation")
 	}
 	if old := e.latest[t]; old != "" {
 		delete(e.observations, old)
@@ -658,6 +665,7 @@ func (e *Engine) Pause(paused bool) error {
 		e.paused = paused
 	}
 	if paused {
+		e.observationGeneration++
 		e.observations = map[string]model.Observation{}
 		e.latest = map[model.Target]string{}
 		if e.activeCancel != nil {
@@ -688,6 +696,9 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	err := e.file.Close()
+	if closer, ok := e.driver.(io.Closer); ok {
+		_ = closer.Close()
+	}
 	lockErr := e.lock.Unlock()
 	if err != nil || lockErr != nil {
 		return fail("storage_unavailable")

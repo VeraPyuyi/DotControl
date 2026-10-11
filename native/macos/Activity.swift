@@ -3,6 +3,11 @@ import AppKit
 import CoreGraphics
 import Foundation
 
+if CommandLine.arguments.contains("--request-permission") {
+    _ = CGRequestListenEventAccess()
+    exit(0)
+}
+
 struct Activity: Encodable {
     let available: Bool
     let locked: Bool

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const Version = "0.1.0-dev"
+const Version = "0.2.0-alpha.1"
 
 type Target struct {
 	PID      int    `json:"pid"`
@@ -83,11 +83,57 @@ type Driver interface {
 	Release(context.Context) error
 }
 type Device struct {
-	ID       string   `json:"device_id"`
-	Name     string   `json:"name"`
-	OS       string   `json:"os"`
-	Version  string   `json:"version"`
-	Paused   bool     `json:"paused"`
-	Activity Activity `json:"activity"`
-	Nonce    string   `json:"nonce"`
+	ID           string             `json:"device_id"`
+	Name         string             `json:"name"`
+	OS           string             `json:"os"`
+	Version      string             `json:"version"`
+	Paused       bool               `json:"paused"`
+	Activity     Activity           `json:"activity"`
+	Nonce        string             `json:"nonce"`
+	Capabilities DeviceCapabilities `json:"capabilities"`
+}
+
+// Capability separates a live connection from acceptance of desktop execution.
+// Available is never inferred from an installed skill or tool inventory.
+type Capability struct {
+	Available bool   `json:"available"`
+	State     string `json:"state"`
+	Code      string `json:"code,omitempty"`
+}
+type DeviceCapabilities struct {
+	Base                Capability `json:"base"`
+	CodexConnection     Capability `json:"codex_connection"`
+	OfficialComputerUse Capability `json:"official_computer_use"`
+	CodexDelegation     Capability `json:"codex_delegation"`
+}
+type CodexCapabilities = DeviceCapabilities
+
+type CodexSubmit struct {
+	DeviceID    string   `json:"device_id"`
+	RequestID   string   `json:"request_id"`
+	Prompt      string   `json:"prompt"`
+	AllowedApps []string `json:"allowed_apps"`
+	WorkingDirs []string `json:"working_dirs"`
+}
+
+// CodexJob never contains prompts, app names, paths, screenshots, or model text.
+// Hashes use a random per-store HMAC key; they are not unsalted prompt digests.
+type CodexJob struct {
+	JobID           string    `json:"job_id"`
+	DeviceID        string    `json:"device_id"`
+	RequestID       string    `json:"request_id"`
+	State           string    `json:"state"`
+	Code            string    `json:"code"`
+	Message         string    `json:"message"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	PromptHash      string    `json:"prompt_hash"`
+	RequestHash     string    `json:"request_hash"`
+	CancelRequested bool      `json:"cancel_requested"`
+}
+
+type CodexUnsupported struct {
+	DeviceID string `json:"device_id"`
+	State    string `json:"state"`
+	Code     string `json:"code"`
 }

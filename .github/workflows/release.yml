@@ -1,0 +1,44 @@
+name: package-alpha
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v0.2.0-alpha.*']
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            os: windows
+            arch: amd64
+          - runner: macos-14
+            os: darwin
+            arch: arm64
+          - runner: macos-15-intel
+            os: darwin
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.2'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: go test -count=1 ./...
+      - run: go vet ./...
+      - name: Build self-contained installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/package_release.py --os ${{ matrix.os }} --arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/v0.2.0-alpha.1/*
+          if-no-files-found: error
+      # Publishing is separate: download and verify the actual artifacts first.
+      # CI success is not native desktop / cross-computer acceptance.

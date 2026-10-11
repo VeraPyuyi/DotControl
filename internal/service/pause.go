@@ -30,7 +30,7 @@ func (s *Switch) SetPaused(paused bool) {
 func (s *Switch) Paused() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.paused }
 func (s *Switch) Call(ctx context.Context, method string, r Request) (any, error) {
 	s.mu.Lock()
-	if s.paused && method != "devices" && method != "task" && method != "cancel" {
+	if s.paused && method != "devices" && method != "task" && method != "cancel" && method != "codex_job" && method != "codex_cancel" {
 		s.mu.Unlock()
 		return nil, errors.New("gateway_paused")
 	}

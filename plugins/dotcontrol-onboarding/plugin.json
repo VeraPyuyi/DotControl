@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotcontrol-onboarding",
+  "version": "0.2.0-alpha.1",
+  "description": "Install and connect DotControl on this Windows or Mac through the same verified local installer and official setup pages.",
+  "author": {"name": "VeraPyuyi"},
+  "license": "MIT",
+  "extensions": {"com.openai": {"interface": {
+    "displayName": "DotControl 安装助手",
+    "shortDescription": "连接多台电脑，让 Dot 跨设备工作",
+    "longDescription": "安装代理和固定组件，打开本地向导，协助填写官方隧道与私有插件页面。运行密钥仅在本机输入，系统授权由用户完成。",
+    "developerName": "VeraPyuyi",
+    "category": "Developer Tools",
+    "defaultPrompt": "帮我安装并连接 DotControl"
+  }}}
+}

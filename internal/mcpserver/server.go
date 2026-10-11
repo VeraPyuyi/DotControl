@@ -24,6 +24,10 @@ type TaskArgs struct {
 	DeviceID string `json:"device_id"`
 	TaskID   string `json:"task_id"`
 }
+type CodexJobArgs struct {
+	DeviceID string `json:"device_id"`
+	JobID    string `json:"job_id"`
+}
 
 // json.RawMessage is []byte to the schema generator. Expose a JSON object at
 // the MCP boundary, then serialize it for the engine's canonical request hash.
@@ -61,6 +65,15 @@ func New(backend service.Backend) *mcp.Server {
 	})
 	mcp.AddTool(s, &mcp.Tool{Name: "cancel", Description: "Permanently cancel this task's future actions and request interruption of its in-flight action. Already-issued native input cannot be undone; inspect unknown outcomes.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a TaskArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "cancel", service.Request{DeviceID: a.DeviceID, TaskID: a.TaskID})
+	})
+	mcp.AddTool(s, &mcp.Tool{Name: "codex_submit", Description: "Submit a bounded task to this device's owned Codex job store with stable request_id, prompt, exact allowed_apps, and absolute working_dirs. Returns an immediate durable job; identical retries return it, changed request bodies conflict. This release blocks native delegation pending official Computer Use acceptance. Blocked is not completed, and Codex connection or inventory alone is not native acceptance. Never retry an unknown outcome under a new request_id.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a model.CodexSubmit) (*mcp.CallToolResult, any, error) {
+		return call(ctx, backend, "codex_submit", service.Request{DeviceID: a.DeviceID, Codex: &a})
+	})
+	mcp.AddTool(s, &mcp.Tool{Name: "codex_job", Description: "Read a durable Codex job owned by this DotControl device. Accepts only returned job_id values; never reads or imports the user's other Codex threads. A blocked/rejected job has started no desktop work.", Annotations: read}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {
+		return call(ctx, backend, "codex_job", service.Request{DeviceID: a.DeviceID, JobID: a.JobID})
+	})
+	mcp.AddTool(s, &mcp.Tool{Name: "codex_cancel", Description: "Record cancellation intent for a Codex job owned by this device. Terminal blocked/rejected jobs preserve their original state. Cancellation intent does not prove a native interruption or undo an effect; foreign thread IDs are refused.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {
+		return call(ctx, backend, "codex_cancel", service.Request{DeviceID: a.DeviceID, JobID: a.JobID})
 	})
 	return s
 }

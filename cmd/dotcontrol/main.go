@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/activity"
+	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
 	"github.com/dotcontrol/dotcontrol/internal/config"
+	"github.com/dotcontrol/dotcontrol/internal/desktop"
 	"github.com/dotcontrol/dotcontrol/internal/driver"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
 	"github.com/dotcontrol/dotcontrol/internal/gateway"
@@ -35,6 +37,13 @@ import (
 )
 
 func main() {
+	if handled, err := desktop.RunChildGuardian(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "DotControl:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if e := run(os.Args[1:]); e != nil {
 		fmt.Fprintln(os.Stderr, "DotControl:", e)
 		os.Exit(1)
@@ -59,8 +68,33 @@ func run(args []string) error {
 		fmt.Println(model.Version)
 		return nil
 	}
+	if args[0] == "codex-probe" {
+		f := flags("codex-probe")
+		binary := f.String("binary", "codex", "Official local Codex binary")
+		working := f.String("working-dir", "", "Probe directory; never reads existing threads")
+		if e := f.Parse(args[1:]); e != nil {
+			return e
+		}
+		if *working == "" {
+			*working, _ = os.Getwd()
+		}
+		resolved, err := exec.LookPath(*binary)
+		if err != nil {
+			return errors.New("codex_binary_missing")
+		}
+		*binary, _ = filepath.Abs(resolved)
+		*working, _ = filepath.Abs(*working)
+		check, stop := context.WithTimeout(ctx, 30*time.Second)
+		defer stop()
+		report, err := codexbridge.Probe(check, codexbridge.ProbeConfig{Binary: *binary, WorkingDir: *working})
+		output(report)
+		return err
+	}
 	if args[0] == "setup" {
 		return setup(*dir, args[1:])
+	}
+	if args[0] == "install" || args[0] == "uninstall" || (args[0] == "repair" && len(args) > 1) {
+		return installation(ctx, *dir, args[0], args[1:])
 	}
 	c, e := config.Load(*dir)
 	if e != nil {
@@ -68,6 +102,17 @@ func run(args []string) error {
 	}
 	v := vault.New(*dir)
 	switch args[0] {
+	case "quit":
+		token, e := v.Get("admin-token")
+		if e != nil {
+			return errors.New("local_credential_missing")
+		}
+		_, e = (localapi.Client{Address: c.Listen, Token: token}).Post(ctx, "/admin/shutdown", map[string]any{})
+		return e
+	case "onboard":
+		return launchOnboarding(ctx, *dir, c, v, args[1:])
+	case "repair":
+		return repairLocal(ctx, *dir, c, v)
 	case "serve":
 		return serve(ctx, *dir, c, v, args[1:])
 	case "doctor":
@@ -127,6 +172,10 @@ func usage() {
 	fmt.Println(`DotControl — private desktop tools for official Dot
 
 dotcontrol [--state DIRECTORY] COMMAND
+  install     Install a verified prebuilt bundle; retains device data
+  onboard     Open the protected local connection wizard
+  repair      Reconnect local components without resuming desktop tasks
+  uninstall   Remove owned program files; retain device data by default
   setup       Guided setup (or --name/--driver/--tunnel/--tunnel-id flags)
   credential  Store a tunnel runtime key in the operating-system vault
   doctor      Check local prerequisites; --online also runs official tunnel doctor
@@ -248,7 +297,7 @@ func (unavailableDriver) Execute(context.Context, model.Action, model.View, stri
 }
 func (unavailableDriver) Release(context.Context) error { return nil }
 
-func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
+func serveLegacy(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
 	f := flags("serve")
 	gatewayMode := f.Bool("gateway", false, "Serve the explicitly paired device directory")
 	withoutTunnel := f.Bool("no-tunnel", false, "Local development/diagnostics only")
@@ -424,7 +473,11 @@ func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, arg
 		}
 		return s
 	}
-	checks["driver_version"] = version(c.DriverPath)
+	if err := driver.ValidateExecutable(ctx, c.DriverPath); err != nil {
+		checks["driver_version"] = err.Error()
+	} else {
+		checks["driver_version"] = version(c.DriverPath)
+	}
 	checks["tunnel_version"] = version(c.TunnelPath)
 	key, keyErr := v.Get("tunnel-key")
 	checks["runtime_key_in_os_vault"] = keyErr == nil && key != ""

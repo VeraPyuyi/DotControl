@@ -90,11 +90,13 @@ func proc(name string, args ...uintptr) uintptr {
 func Start(ctx context.Context, _ string) (*Monitor, error) {
 	m := &Monitor{}
 	ctx, cancel := context.WithCancel(ctx)
-	m.close = cancel
+	done := make(chan struct{})
+	m.close = func() { cancel(); <-done }
 	ready := make(chan error, 1)
 	// Raw input is delivered to a hidden message-only window even when our app
 	// isn't focused. We never read or persist RAWINPUT payloads.
 	go func() {
+		defer close(done)
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		name, _ := windows.UTF16PtrFromString("DotControlActivityWindow")

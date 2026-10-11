@@ -19,6 +19,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/dotcontrol/dotcontrol/internal/desktop"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -48,9 +49,13 @@ func (v *versionOutput) Write(p []byte) (int, error) {
 }
 
 func checkPinnedVersion(ctx context.Context, path string) error {
+	if err := ValidateExecutable(ctx, path); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, path, "--version")
+	desktop.HideConsole(command)
 	var output versionOutput
 	command.Stdout = &output
 	command.Stderr = io.Discard
@@ -88,6 +93,7 @@ func New(ctx context.Context, path string) (*Cua, error) {
 		return nil, err
 	}
 	command := exec.Command(path, "mcp")
+	desktop.HideConsole(command)
 	command.Stderr = io.Discard
 	client := mcp.NewClient(&mcp.Implementation{Name: "dotcontrol-driver", Version: model.Version}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)

@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-12",
+  "scope": "Windows official Codex App Server stdio feasibility for DotControl 0.2",
+  "researchStatus": "DONE",
+  "nativeComputerUseAcceptance": "PARTIAL_NOT_ACCEPTED",
+  "summary": "The current app-bundled official App Server supports stdio, completes a model turn, and successfully imports the official native Windows Computer Use API and calls sky.list_apps through public MCP RPC. No targetable Calculator was returned. Native screenshots, input, approval round trips, and interruption remain untested; the implementation gate must stay closed.",
+  "installedCodexVersion": "0.162.0-alpha.17.2",
+  "transport": "stdio",
+  "sources": [
+    "https://learn.chatgpt.com/docs/app-server",
+    "https://learn.chatgpt.com/docs/computer-use"
+  ],
+  "versionMatchedExperimentalSchema": {
+    "generation": "PASS",
+    "protocolBundleSha256": "de869a65e1b8153a3d306ac82c7e8d4b8b0d52387f51df5d409922203502324e",
+    "v2BundleSha256": "bff504aada804072a51f42c94478375c46273cf30195069ec4514f56a913663c",
+    "directNativeComputerUseRpcMethodFound": false,
+    "interpretation": "Native methods are accessible through the public mcpServer/tool/call method and the officially exposed node_repl plugin; absence of a dedicated desktop RPC is not native-tool absence."
+  },
+  "verifiedRuntime": {
+    "initialize": "PASS",
+    "ephemeralThreadStart": "PASS",
+    "approvalPolicy": "on-request",
+    "approvalsReviewer": "user",
+    "sandbox": "read-only",
+    "computerUseFeature": {
+      "enabled": true,
+      "stage": "stable"
+    },
+    "computerUseSkill": {
+      "enabled": true,
+      "name": "computer-use:computer-use"
+    },
+    "computerUsePlugin": {
+      "installed": true,
+      "enabled": true,
+      "localVersion": "26.1007.21434"
+    },
+    "officialMcpInventory": [
+      {
+        "server": "node_repl",
+        "startupStatus": "ready",
+        "toolNames": [
+          "js",
+          "js_add_node_module_dir",
+          "js_reset",
+          "turn_ended"
+        ],
+        "toolInvoked": true,
+        "invokedTool": "js"
+      },
+      {
+        "server": "cua_repl",
+        "startupStatus": "ready",
+        "toolNames": [
+          "js",
+          "js_reset",
+          "turn_ended"
+        ],
+        "toolInvoked": false
+      }
+    ],
+    "inventoryCaveat": "Inventory is not acceptance. The separate native runtime probe below confirms import and one read-only native discovery call only."
+  },
+  "turnProbe": {
+    "attempts": 1,
+    "binaryVersion": "0.162.0-alpha.17.2",
+    "officialComputerUseSkillInjected": true,
+    "turnStart": "PASS",
+    "terminalStatus": "completed",
+    "agentToolCallCount": 0,
+    "agentMessageCount": 1,
+    "approvalRequestCount": 0,
+    "imageCount": 0,
+    "errors": [],
+    "interpretation": "The completed model answer alone did not establish native capability. A public-RPC native runtime probe was needed and succeeded."
+  },
+  "capabilities": {
+    "approvals": {
+      "protocol": "PRESENT",
+      "methods": [
+        "item/commandExecution/requestApproval",
+        "item/fileChange/requestApproval",
+        "item/permissions/requestApproval",
+        "mcpServer/elicitation/request",
+        "item/tool/requestUserInput"
+      ],
+      "liveRoundTrip": "NOT_TESTED",
+      "nativeAppApprovalRouting": "NOT_TESTED",
+      "requirement": "Keep approval requests local to the target device's human. Never automatically return an acceptance decision or treat remote task authorization as an app approval."
+    },
+    "interruption": {
+      "protocol": "PRESENT",
+      "method": "turn/interrupt",
+      "documentedCompletionStatus": "interrupted",
+      "liveInFlightCancellation": "NOT_TESTED",
+      "nativeActionCancellation": "NOT_TESTED"
+    },
+    "images": {
+      "protocol": "PRESENT",
+      "inputTypes": [
+        "image",
+        "localImage"
+      ],
+      "dynamicToolOutputType": "inputImage",
+      "mcpToolResultContent": "Supported by the general MCP result envelope.",
+      "nativeScreenshotDelivery": "NOT_TESTED"
+    },
+    "nativeComputerUse": {
+      "status": "PRESENT_READ_ONLY_DISCOVERY_VERIFIED",
+      "acceptance": "NOT_ACCEPTED",
+      "acceptanceBlocker": "No targetable Calculator window was returned within this no-mutation probe; image delivery, local human approvals, native action, and in-flight cancellation have no acceptance evidence.",
+      "availabilityConclusion": "The official native entry point imports and native app discovery executes successfully on the current app-bundled binary. Native-tool absence is disproved for this route."
+    }
+  },
+  "implementationRecommendation": [
+    "Discover and select the official binary bundled with the running app, then verify its version and generate the matching schema. A stale CLI earlier on PATH can fail with a misleading model-compatibility blocker.",
+    "Use the public stdio protocol and official node_repl plugin. The demonstrated native route is mcpServer/tool/call -> node_repl.js -> import @oai/sky -> sky.list_apps.",
+    "Treat native import/discovery as a distinct capability stage. Keep remote task execution gated until image, native action, local human approval, and interruption acceptance pass.",
+    "For delegated tasks, inject the skill returned by skills/list and clearly name the official node_repl / @oai/sky route. Test that the model actually invokes it; do not rely on self-reported tool availability.",
+    "Route approval requests to the target-local human. Never automatically accept them. A direct MCP call made outside a turn must not inherit unproven turn/interrupt cancellation semantics.",
+    "Keep local activity, pause, target-window identity, and uncertain-outcome guards around future input. Do not replace missing acceptance with a third-party desktop backend.",
+    "Do not execute or redistribute proprietary native helpers or bridge their private protocols."
+  ],
+  "safetyAndPrivacy": {
+    "credentialFilesRead": false,
+    "existingLoginAndSettingsReused": true,
+    "globalSettingsChanged": false,
+    "desktopMutations": 0,
+    "approvalDecisionsSubmitted": 0,
+    "nativeHelperDirectLaunches": 0,
+    "thirdPartyFallbackUsed": false,
+    "productSourceEdited": false,
+    "isolatedEphemeralThreadsOnly": true,
+    "sanitizedPublication": "No user-specific paths, usernames, actual thread identifiers, tokens, screenshots, or private model text are included. Request recipes contain symbolic placeholders only."
+  },
+  "legacyBinaryFinding": {
+    "version": "0.144.1",
+    "schema": {
+      "generation": "PASS",
+      "protocolBundleSha256": "85ea836927d6cfdd3c68a9bda17dba48d2573bbc282ab2d5775a5005e40bc9c3",
+      "v2BundleSha256": "2246de0133897293c12587e5405b45ec558888e57fa0e7a1ac7a700e1f7ed2cd",
+      "directNativeComputerUseRpcMethodFound": false,
+      "interpretation": "No dedicated native desktop method is exposed in the generated request schema. This does not establish absence of Computer Use through tools available to a turn."
+    },
+    "turnProbe": {
+      "attempts": 2,
+      "secondAttemptPurpose": "Authorized diagnostic replay to retain the upstream error message omitted by the first event filter.",
+      "scope": "List actually callable native Computer Use tools; optionally capture an already visible Calculator window with no focus change, desktop input, unrelated-window access, or approval. No fallback allowed.",
+      "turnStart": "PASS",
+      "terminalStatus": "failed",
+      "agentToolCallCount": 0,
+      "agentMessageCount": 0,
+      "approvalRequestCount": 0,
+      "imageCount": 0,
+      "error": {
+        "codexErrorInfo": "other",
+        "upstreamStatus": 400,
+        "upstreamType": "invalid_request_error",
+        "message": "The 'gpt-6-astra' model requires a newer version of Codex. Please upgrade to the latest app or CLI and try again.",
+        "willRetry": false
+      },
+      "classification": "Installed client and configured model compatibility failure before native tool execution.",
+      "nativeComputerUseExposedToModel": "UNKNOWN",
+      "calculatorScreenshotCaptured": false
+    },
+    "resolution": "Selecting the newer official binary used by the running desktop app resolves this model compatibility failure without changing login or model settings."
+  },
+  "nativeRuntimeProbe": {
+    "status": "PASS_READ_ONLY_DISCOVERY",
+    "publicRpcMethod": "mcpServer/tool/call",
+    "server": "node_repl",
+    "tool": "js",
+    "officialEntryPoint": "@oai/sky",
+    "nativeImport": {
+      "isError": false,
+      "skyImported": true,
+      "exportedApiNames": [
+        "target",
+        "activate_window",
+        "get_window_state",
+        "click",
+        "scroll",
+        "drag",
+        "press_key",
+        "type_text",
+        "launch_app",
+        "list_apps",
+        "list_windows",
+        "get_window",
+        "perform_secondary_action",
+        "set_value"
+      ]
+    },
+    "nativeCall": {
+      "method": "sky.list_apps",
+      "isError": false,
+      "resultFilter": "Calculator or 计算器 in returned app identifier or display name",
+      "calculatorAppCount": 0,
+      "calculatorWindowCount": 0
+    },
+    "captureSkippedBecause": "No targetable Calculator window was returned. The probe was not authorized to launch, activate, or mutate desktop apps.",
+    "limitations": [
+      "Import and list_apps prove native runtime availability for read-only discovery only.",
+      "No native input API, screenshot API, permission-prompt response, or cancellation was invoked.",
+      "Direct MCP RPC outside a model turn does not verify delegated agent execution or turn/interrupt cancellation of native work."
+    ]
+  },
+  "implementationGate": {
+    "enabled": false,
+    "status": "BLOCKED_PENDING_ACCEPTANCE",
+    "requiredEvidence": [
+      "Bounded native target observation and actual image delivery",
+      "Delegated native action under local activity and pause guards",
+      "Target-local human approval round trip with no automatic acceptance",
+      "In-flight cancellation and uncertain-outcome handling"
+    ]
+  },
+  "publicRequestSequence": [
+    {
+      "step": 1,
+      "request": "Start the selected official codex app-server --stdio process. Reuse existing login and settings. The version must be the one actually tested."
+    },
+    {
+      "step": 2,
+      "method": "initialize",
+      "params": {
+        "clientInfo": {
+          "name": "dotcontrol_capability_probe",
+          "version": "0.2.0"
+        },
+        "capabilities": {
+          "experimentalApi": true
+        }
+      }
+    },
+    {
+      "step": 3,
+      "notification": "initialized"
+    },
+    {
+      "step": 4,
+      "method": "skills/list",
+      "params": {
+        "cwds": [
+          "<isolated probe directory>"
+        ]
+      },
+      "note": "Resolve the enabled computer-use:computer-use skill and its returned path. Do not hard-code a user-specific plugin path."
+    },
+    {
+      "step": 5,
+      "method": "thread/start",
+      "params": {
+        "cwd": "<isolated probe directory>",
+        "ephemeral": true,
+        "approvalPolicy": "on-request",
+        "approvalsReviewer": "user",
+        "sandbox": "read-only"
+      },
+      "note": "Use restrictive developer instructions for the test. Save returned thread id only in local session state."
+    },
+    {
+      "step": 6,
+      "method": "mcpServerStatus/list",
+      "params": {
+        "threadId": "<returned thread id>",
+        "detail": "toolsAndAuthOnly",
+        "limit": 200
+      },
+      "note": "Require node_repl.js in the returned inventory and read its returned input schema."
+    },
+    {
+      "step": 7,
+      "method": "mcpServer/tool/call",
+      "params": {
+        "threadId": "<returned thread id>",
+        "server": "node_repl",
+        "tool": "js",
+        "arguments": {
+          "code": "if (!globalThis.sky) { const { sky } = await import(\"@oai/sky\"); globalThis.sky = sky; } nodeRepl.write(JSON.stringify({skyImported: !!globalThis.sky}));",
+          "title": "Check official native Computer Use import only"
+        }
+      },
+      "note": "This import was executed successfully. Do not directly execute or copy the proprietary native helper."
+    },
+    {
+      "step": 8,
+      "method": "mcpServer/tool/call",
+      "params": {
+        "threadId": "<returned thread id>",
+        "server": "node_repl",
+        "tool": "js",
+        "arguments": {
+          "code": "globalThis.probeApps = await sky.list_apps(); globalThis.probeCalculatorApps = probeApps.filter(app => /calculator|计算器/i.test(String(app.id)+\" \"+String(app.displayName))); globalThis.probeCalculatorWindows = probeCalculatorApps.flatMap(app => app.windows || []); nodeRepl.write(JSON.stringify({calculatorAppCount: probeCalculatorApps.length, calculatorWindowCount: probeCalculatorWindows.length}));",
+          "title": "Inspect existing Calculator window availability only"
+        }
+      },
+      "note": "This native read-only call was executed successfully. Keep actual returned window objects in the same node_repl session; do not fabricate them."
+    }
+  ],
+  "delegatedTurnRecipe": {
+    "status": "TURN_COMPLETION_VERIFIED_NATIVE_DELEGATION_NOT_VERIFIED",
+    "method": "turn/start",
+    "input": [
+      {
+        "type": "text",
+        "text": "Use the official Windows Computer Use skill and node_repl.js with the documented @oai/sky entry point. Import it and list returned app metadata, printing only Calculator target counts. If exactly one existing Calculator window is returned, observe that window without activation or input; otherwise stop. Do not launch or activate apps, send input, use shell/private helpers/third-party providers/cua_repl, inspect unrelated window content, or approve anything. Stop if local permission is required. A skill entry or model assertion alone is not capability evidence."
+      },
+      {
+        "type": "skill",
+        "name": "<exact enabled skill name from skills/list>",
+        "path": "<returned skill path>"
+      }
+    ],
+    "note": "The stronger explicit native-tool instruction is a proposed next delegated acceptance recipe, not an additional completed model probe. In the completed probe, the skill was injected but no tool was invoked. Do not enable the gate from turn completion alone."
+  }
+}

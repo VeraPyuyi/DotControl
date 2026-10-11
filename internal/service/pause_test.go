@@ -45,7 +45,7 @@ func TestPauseCancelsInflightAndDeniesFutureActions(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("pause failed to cancel inflight context")
 	}
-	for _, method := range []string{"execute", "observe", "apps"} {
+	for _, method := range []string{"execute", "observe", "apps", "codex_submit"} {
 		if _, err := sw.Call(ctx, method, Request{}); err == nil || err.Error() != "gateway_paused" {
 			t.Errorf("paused %s err=%v", method, err)
 		}
@@ -53,7 +53,7 @@ func TestPauseCancelsInflightAndDeniesFutureActions(t *testing.T) {
 	if actions.Load() != 1 {
 		t.Fatal("paused action reached backend")
 	}
-	for _, method := range []string{"devices", "task", "cancel"} {
+	for _, method := range []string{"devices", "task", "cancel", "codex_job", "codex_cancel"} {
 		if v, err := sw.Call(ctx, method, Request{}); err != nil || v != method {
 			t.Errorf("paused recovery method %s: %v %v", method, v, err)
 		}
