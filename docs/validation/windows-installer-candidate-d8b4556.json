@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "scope": "actual Windows packaged-byte isolated smoke",
+  "checks": [
+    {
+      "check": "shipped_verify_payload",
+      "arch": "amd64",
+      "files": 43,
+      "os": "windows",
+      "payload_verified": true,
+      "version": "0.2.0-alpha.1"
+    },
+    {
+      "check": "exact_embedded_zip",
+      "offset": 3504923,
+      "length": 43004264,
+      "files": 43,
+      "sha256": "7aeee7955da29c77998e30d2a09c59a3718b556f87b0613079886ebf421e90e0",
+      "manifest_hashes_verified": true
+    },
+    {
+      "check": "isolated_setup",
+      "separate_identity_created": true,
+      "tunnel_configured": false
+    },
+    {
+      "check": "install",
+      "version": "0.2.0-alpha.1",
+      "reused": false,
+      "identity_retained": true
+    },
+    {
+      "check": "repair",
+      "version": "0.2.0-alpha.1",
+      "reused": true,
+      "identity_retained": true
+    },
+    {
+      "check": "repair",
+      "version": "0.2.0-alpha.1",
+      "reused": true,
+      "identity_retained": true
+    },
+    {
+      "check": "installed_bytes_and_versions",
+      "versions": {
+        "dotcontrol.exe": "0.2.0-alpha.1",
+        "cua-driver.exe": "cua-driver 0.34.1",
+        "tunnel-client.exe": "0.0.16+5f99daabd4aa4a77049e6d81d54a0d8c18335397 (git sha: 5f99daabd4aa4a77049e6d81d54a0d8c18335397)"
+      },
+      "all_manifest_hashes_match": true,
+      "unicode_and_spaces": true
+    },
+    {
+      "check": "first_start_paused",
+      "paused": true,
+      "revoked": false,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false
+    },
+    {
+      "check": "first_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "paused_restart",
+      "paused": true,
+      "revoked": false,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false
+    },
+    {
+      "check": "revoke",
+      "paused": true,
+      "revoked": true,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false
+    },
+    {
+      "check": "second_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "revoked_restart",
+      "paused": true,
+      "revoked": true,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false
+    },
+    {
+      "check": "final_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "preservation",
+      "identity_retained": true,
+      "global_autostart_unchanged": true,
+      "all_owned_agents_stopped": true,
+      "state_retained": true,
+      "uninstall_not_run": true
+    }
+  ],
+  "desktop_actions_performed": false,
+  "screenshots_or_observations_performed": false,
+  "real_tunnel_credentials_used": false,
+  "uninstall_performed": false,
+  "clean_vm": false,
+  "native_gui_acceptance": "not_performed",
+  "started_utc": "2026-10-11T19:40:39.361637+00:00",
+  "setup_sha256": "d67260f4c543486de425b99bfaef305573987a714e333bd2f27cfc1469603d4f",
+  "setup_bytes": 50318336,
+  "result": "passed",
+  "global_autostart_unchanged": true,
+  "finished_utc": "2026-10-11T19:41:09.611621+00:00",
+  "source_commit": "d8b45566e30c101c7419008b9a69180c2b12bb5b",
+  "artifact_status": "candidate; not final release acceptance"
+}

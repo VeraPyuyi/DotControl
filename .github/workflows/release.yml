@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: go test -count=1 ./...
+      - run: go test -timeout 3m -count=1 ./...
       - run: go vet ./...
       - name: Build self-contained installer
         env:
@@ -40,5 +40,16 @@ jobs:
           name: installer-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/v0.2.0-alpha.1/*
           if-no-files-found: error
+      - name: Download the uploaded bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download ${{ github.run_id }} -R ${{ github.repository }} -n installer-${{ matrix.os }}-${{ matrix.arch }} -D downloaded
+      - name: Verify downloaded installer payload
+        shell: bash
+        run: |
+          for artifact in downloaded/*.exe downloaded/*.dmg; do
+            [ -f "$artifact" ] || continue
+            python scripts/verify_release_payload.py "$artifact"
+          done
       # Publishing is separate: download and verify the actual artifacts first.
       # CI success is not native desktop / cross-computer acceptance.

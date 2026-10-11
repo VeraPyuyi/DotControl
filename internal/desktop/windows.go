@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"os/exec"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -52,12 +53,22 @@ func OwnChildren() error {
 	return nil
 }
 func Autostart(executable, state string, enable bool) error {
-	key, e := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
+	key, e := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE|registry.QUERY_VALUE)
 	if e != nil {
 		return errors.New("autostart_unavailable")
 	}
 	defer key.Close()
 	if !enable {
+		current, _, readErr := key.GetStringValue("DotControl")
+		if readErr == registry.ErrNotExist {
+			return nil
+		}
+		if readErr != nil {
+			return errors.New("autostart_unavailable")
+		}
+		if !strings.Contains(current, " --state "+QuotedWindows(state)+" serve") {
+			return nil
+		}
 		e = key.DeleteValue("DotControl")
 		if e == registry.ErrNotExist {
 			return nil

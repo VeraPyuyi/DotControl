@@ -1,15 +1,21 @@
-# DotControl 0.1 接口
+# DotControl 0.2 接口
 
 MCP Streamable HTTP 位于本机 `/mcp`，由官方 Go SDK 处理协商、初始化、工具列表与调用；本机调试还提供 `dotcontrol mcp` stdio 桥。外部通过官方隧道连接，不暴露匿名公网 HTTP。SDK 协议版本不是本项目接口版本。
 
 | 工具 | 输入 | 输出 |
 | --- | --- | --- |
-| devices | `{}` | 当前入口设备列表，含 device_id/name/os/version/paused/activity/nonce |
+| devices | `{}` | 当前入口设备列表，含 device_id/name/os/version/paused/activity/nonce/capabilities |
 | apps | device_id | 该设备的应用和窗口发现数据，包含 pid/window_id |
 | observe | device_id、target | observation_id、created_at、expires_at、窗口可访问性数据、MCP image 内容 |
 | execute | 下述 Action | 一条持久回执 |
 | task | device_id、task_id | 该任务的动作回执 |
 | cancel | device_id、task_id | 永久阻止该任务后续动作，并请求取消当前动作 |
+| codex_submit | device_id、request_id、prompt、allowed_apps、working_dirs | 持久作业编号；本版返回 blocked / official_cu_acceptance_required |
+| codex_job | device_id、job_id | 仅查询本入口创建的作业 |
+| codex_cancel | device_id、job_id | 记录取消意图；不虚构已运行或已停止的原生任务 |
+
+`capabilities` 分别报告基础桌面、Codex 连接、官方 Computer Use 和原生委派状态。
+原生能力未通过平台验收时不提交执行轮次，也没有可绕过的启用配置。契约、去重与实际限制见 [Codex 委派](CODEX_DELEGATION.md)。
 
 `target` 是 `{"pid":1234,"window_id":"5678"}`，必须来自该设备发现结果。window_id 使用字符串避免整数精度丢失。名字不作为路由键。独立入口遇到其他 device_id 会拒绝，不猜测目的设备。
 

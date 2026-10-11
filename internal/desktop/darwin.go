@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -27,6 +28,16 @@ func xmlText(value string) string {
 func Autostart(executable, state string, enable bool) error {
 	p := plistPath()
 	if !enable {
+		data, readErr := os.ReadFile(p)
+		if os.IsNotExist(readErr) {
+			return nil
+		}
+		if readErr != nil {
+			return errors.New("autostart_unavailable")
+		}
+		if !strings.Contains(string(data), "<string>--state</string><string>"+xmlText(state)+"</string>") {
+			return nil
+		}
 		e := os.Remove(p)
 		if os.IsNotExist(e) {
 			return nil

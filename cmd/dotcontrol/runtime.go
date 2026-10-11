@@ -268,6 +268,8 @@ func (o *runtimeOwner) requestRepair() {
 }
 func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 	switch action {
+	case "check_update":
+		return availableRelease(ctx)
 	case "repair":
 		o.requestRepair()
 	case "pause", "resume":
