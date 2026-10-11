@@ -1,0 +1,42 @@
+{
+  "recorded_at_utc": "2026-10-11T14:51:17Z",
+  "local_date": "2026-10-11",
+  "follows": "mac-official-calculator-diagnosis-2026-10-11.json",
+  "source": "User-provided report from the original Mac task; this session did not run the uploader",
+  "python_compatibility": {
+    "interpreter": "<user-home>/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3.12",
+    "version": "3.12.14",
+    "uploader_import_check": "passed",
+    "previous_union_annotation_import_error_resolved": true,
+    "system_python_modified": false
+  },
+  "upload_retry": {
+    "original_arguments_and_images_preserved": true,
+    "exit_code": 1,
+    "error": "library upload failed: hosted apps tools/list request failed: DNS",
+    "reported_failure_stage": "hosted apps tool discovery during attachment upload",
+    "attachment_ids_obtained": false,
+    "both_original_screenshots_delivered": false,
+    "request_hostname_port_and_underlying_exception": "pending",
+    "local_resolver_proxy_or_remote_service_failure": "not_yet_distinguished",
+    "network_configuration_changed": false
+  },
+  "calculator_retest": {
+    "started": false,
+    "new_task_id_used": false,
+    "dotcontrol_tools_called": false,
+    "new_expect_or_click_sent": false,
+    "old_unknown_receipts_changed": false
+  },
+  "interpretation": {
+    "python_import_compatibility": "resolved in the reported Mac retry",
+    "attachment_delivery": "blocked at reported DNS failure",
+    "dotcontrol_tunnel_is_broken": "not_established_by_this_error",
+    "mac_system_dns_is_broken": "not_established_without_target_and_resolver_evidence",
+    "task_network_restriction_is_cause": "not_established",
+    "complete_official_acceptance_passed": false
+  },
+  "next_step": "Read uploader failure site and actual destination/proxy host; compare same-runtime getaddrinfo with macOS host resolution; inspect explicit task network denials without changing DNS, proxy or TLS settings",
+  "runtime_or_network_changes_by_this_session": false,
+  "privacy": "User-home redacted; no request URLs with tokens, headers, credentials, screenshot bytes or resolver addresses recorded"
+}

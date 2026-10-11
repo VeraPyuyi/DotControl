@@ -1,0 +1,27 @@
+{
+  "tested_at": "2026-10-10T14:43:04.3758123Z",
+  "entry": "DotControl authenticated loopback API via probe CLI",
+  "official_dot": false,
+  "os": "Windows x64, existing interactive user session",
+  "driver": "cua-driver 0.34.1",
+  "fixture": "demos/windows/Fixture.cs",
+  "checks": {
+    "image_and_accessibility_observation": "passed",
+    "background_chinese_text_write": "passed",
+    "background_save_button_click": "passed",
+    "saved_utf8_file_equals_requested_text": "passed",
+    "counter_increment_and_duplicate_action_retry": "passed: only one increment",
+    "foreground_window_before_equals_after": "passed",
+    "real_physical_takeover_during_input": "not_tested",
+    "multimonitor_and_moved_window_gui": "not_tested",
+    "locked_desktop_gui": "not_tested",
+    "official_dot_invocation": "not_verified"
+  },
+  "notes": [
+    "No screenshots or entered test text were written by the agent journal.",
+    "The disposable test application's explicit Save operation writes its test output file.",
+    "Dependency documentation advertised tree_format but the installed Windows release rejected it; adapter now negotiates advertised schema.",
+    "Independent review corrected pause/resume observation invalidation and expiry during journal fsync."
+  ],
+  "binary_sha256": "4ef300e5330069eed577662b865a3e6d886c9705ca1af98dc9a5309a5f790557"
+}

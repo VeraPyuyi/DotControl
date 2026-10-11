@@ -1,0 +1,62 @@
+{
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "clear_uncertain_calculation_not_completed",
+  "official_attempt": {
+    "source": "User-provided report from the official Mac local task",
+    "source_os": "Darwin",
+    "target_os": "windows",
+    "official_attached_computer_after_attempt": "Mac",
+    "windows_local_task_created": false,
+    "paused": false,
+    "activity_available": true,
+    "locked": false,
+    "task_id": "official-dot-mac-to-win-20261012-calc49-0115",
+    "clear_all": {
+      "send_count": 1,
+      "expect": "显示为 0",
+      "state": "unknown",
+      "mode": "background",
+      "code": "execution_uncertain"
+    },
+    "initial_and_subsequent_display": "显示为 0",
+    "initial_and_subsequent_images_identical": true,
+    "unsent_actions": ["digit-4", "multiply", "digit-9", "equals"],
+    "image_delivery": {
+      "initial_and_stopped_images_saved_to_library": "reported_by_user",
+      "native_attachments_submitted": "reported_by_user",
+      "client_rendering": "not_independently_verified",
+      "successful_result_image": false
+    }
+  },
+  "independent_check": {
+    "source": "Current Windows session read-only cloud plugin task query",
+    "receipt_count": 1,
+    "receipt": {
+      "action_id": "clear-all",
+      "state": "unknown",
+      "mode": "background",
+      "code": "execution_uncertain",
+      "updated_at": "2026-10-11T17:51:56.8191262Z"
+    },
+    "desktop_actions_submitted": false,
+    "original_images_or_ax_read": false,
+    "runtime_or_configuration_changed": false
+  },
+  "interpretation": {
+    "source": "internal/driver/cua.go Execute verification condition",
+    "rule": "If the driver has not independently confirmed an effect, an expect value that was already visible before the action cannot promote the receipt to succeeded.",
+    "conclusion": "The reported unchanged zero display is consistent with this evidence rule and does not establish whether clear executed.",
+    "exclusive_root_cause_confirmed": false,
+    "limitations": "Raw native action and immediate verification responses were not retained; other causes of unknown cannot be excluded from the public receipt alone."
+  },
+  "continuation": [
+    "Keep the original clear-all receipt unchanged and do not resend clear under the same or a new identifier",
+    "In the original official Mac task, rediscover and observe the full current Windows Calculator state",
+    "Only if the display is zero and no pending expression is present, use that observed baseline to continue with the previously unsent digit-4, multiply, digit-9 and equals actions",
+    "Use fresh observations, exact Windows AX expectations and one dispatch per action; inspect uncertain effects before deciding whether a distinct next action is justified",
+    "Report the original unknown separately from any newly verified actions and the final result; do not claim five successful receipts",
+    "For a separate clear-specific test, first establish a verified nonzero state so that clearing produces an observable transition"
+  ],
+  "privacy": "Device identifiers, nonce, private paths, cloud file identifiers, images and input contents omitted from public record"
+}

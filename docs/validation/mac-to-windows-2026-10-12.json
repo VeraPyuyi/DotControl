@@ -1,0 +1,120 @@
+{
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "core_mac_to_windows_calculation_and_dot_image_delivery_passed_with_two_unknown_receipts",
+  "scope": "Official Dot stays attached to the Mac source; its local task uses DotControl Windows Validation to operate the separate Windows target",
+  "task_id": "official-dot-mac-to-win-20261012-calc49-0115",
+  "evidence_sources": {
+    "official_execution": "User report corroborated by the final report read in the official Dot web conversation in this session",
+    "durable_receipts": "This session independently read the Windows plugin task tool; all five records match the official report",
+    "screenshot_rendering": "This session opened calc49-final-36.png in the official Dot image viewer and visually confirmed 4 × 9 = and 36",
+    "final_ax": "Official task report, not independently re-observed by this session",
+    "attachment_state": "Official parent Dot final report states its end-of-task computer-list check; not a new attachment-state query by this session"
+  },
+  "official_route": {
+    "source_os": "Darwin",
+    "target_os": "windows",
+    "source_mac_attached_after_test": true,
+    "target_windows_attached_after_test": false,
+    "windows_local_task_used_for_calculation": false,
+    "execution_plugin": "DotControl Windows Validation",
+    "target_preflight": {
+      "paused": false,
+      "activity_available": true,
+      "locked": false
+    }
+  },
+  "actions": [
+    {
+      "action_id": "clear-all",
+      "state": "unknown",
+      "mode": "background",
+      "code": "execution_uncertain",
+      "updated_at": "2026-10-11T17:51:56.8191262Z"
+    },
+    {
+      "action_id": "digit-4",
+      "state": "succeeded",
+      "mode": "background",
+      "code": "verified",
+      "updated_at": "2026-10-11T18:15:54.6767022Z"
+    },
+    {
+      "action_id": "multiply",
+      "state": "unknown",
+      "mode": "background",
+      "code": "execution_uncertain",
+      "updated_at": "2026-10-11T18:16:30.9639176Z"
+    },
+    {
+      "action_id": "digit-9",
+      "state": "succeeded",
+      "mode": "background",
+      "code": "verified",
+      "updated_at": "2026-10-11T18:16:52.6771669Z"
+    },
+    {
+      "action_id": "equals",
+      "state": "succeeded",
+      "mode": "background",
+      "code": "verified",
+      "updated_at": "2026-10-11T18:17:15.6775003Z"
+    }
+  ],
+  "continuation": {
+    "clear_all_not_resent_or_rewritten": true,
+    "fresh_starting_state": {
+      "display": "显示为 0",
+      "expression_empty": true
+    },
+    "subsequent_action_send_count_each": 1,
+    "multiply": {
+      "expect": "显示为 4",
+      "expect_unchanged_from_before_action": true,
+      "subsequent_observation": "表达式为 4 × ",
+      "subsequent_observation_confirms_expression_transition": true,
+      "original_unknown_preserved": true,
+      "resend": false
+    },
+    "provenance": "Official task and user report; immutable receipts independently read back",
+    "history_preserved": "The clear-all state, code, mode and timestamp match the earlier clear-uncertain validation record"
+  },
+  "final_result": {
+    "expression": "4 × 9=",
+    "display": "显示为 36",
+    "value": "36",
+    "screenshot_matches_reported_ax": true,
+    "screenshot_rendered_in_official_dot_independently_confirmed": true,
+    "library_upload_and_native_submission": "Reported by official task; this session verified the delivered image through the official Dot UI",
+    "original_filename": "calc49-final-36.png",
+    "original_png_bytes_and_sha256": "Not independently retrieved or verified",
+    "browser_proof_path": ".state/validation/mac-to-windows-2026-10-12/official-dot-image-delivered.jpg",
+    "browser_proof_is_original_png": false
+  },
+  "acceptance": {
+    "core_remote_calculation": true,
+    "dot_user_visible_image_delivery": true,
+    "all_five_action_receipts_verified": false,
+    "verified_receipt_count": 3,
+    "unknown_receipt_count": 2,
+    "all_receipts_background": true,
+    "full_project_acceptance": false,
+    "explanation": "The final calculation is supported by independent final observation reported by the official task, the verified equals receipt and the image rendered in Dot. It does not retroactively verify either uncertain action."
+  },
+  "independent_check": {
+    "desktop_actions_submitted": 0,
+    "old_receipts_changed": false,
+    "runtime_or_configuration_changed": false,
+    "official_attached_computer_changed": false
+  },
+  "remaining_scope": [
+    "All-five-verified reverse-direction action acceptance",
+    "Broader native applications",
+    "Physical human takeover",
+    "Full supported OS matrix",
+    "Repeated stability and fault-injection acceptance",
+    "Real two-device gateway",
+    "Automatic installation and onboarding"
+  ],
+  "privacy": "Computer names, device identifiers, nonce, cloud file identifiers and unrelated conversation content omitted; browser proof stays in ignored local storage"
+}

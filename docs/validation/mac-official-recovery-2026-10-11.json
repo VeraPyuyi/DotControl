@@ -1,0 +1,32 @@
+{
+  "local_date": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "official_computer_entry": {
+    "source": "user explicitly confirmed the target Mac now shows Connected in the official Dot computer list",
+    "status": "connected_user_reported",
+    "independently_observed_here": false,
+    "recovery_cause": "not_established",
+    "sustained_connection": "not_tested"
+  },
+  "dotcontrol_connection": {
+    "source": "fresh devices call from this Codex session",
+    "checked_at_utc_approximately": "2026-10-11T03:56:42Z",
+    "device_matches_previously_verified_mac": true,
+    "os": "darwin",
+    "version": "0.1.0-dev",
+    "paused": false,
+    "locked": false,
+    "activity_monitor_available": true,
+    "fresh_nonce_received": true,
+    "counts_as_official_dot_call": false
+  },
+  "acceptance": {
+    "official_dot_mac_gui": "not_verified",
+    "official_local_task_created_this_turn": false,
+    "desktop_actions_this_turn": 0,
+    "next_step": "Have official Dot start an authorized task on this Mac, inspect whether DotControl is available in that task, and validate Calculator 8 x 9 = 72 through DotControl with fresh observations, receipts and final screenshot. Native-only execution does not count as DotControl acceptance."
+  },
+  "changes_to_runtime_or_network": false,
+  "raw_images_logs_or_credentials_saved": false,
+  "prior_network_record": "mac-official-network-2026-10-11.json"
+}

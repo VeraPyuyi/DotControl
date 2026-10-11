@@ -1,0 +1,52 @@
+{
+  "recorded_at_utc": "2026-10-11T04:29:40Z",
+  "local_date": "2026-10-11",
+  "native_comparison": {
+    "source": "user-provided Mac local diagnostic; not executed by this Windows session",
+    "installed_command": "codesign --verify --deep --strict --verbose=4 /Applications/CuaDriver.app",
+    "fresh_command": "codesign --verify --deep --strict --verbose=4 <new-temporary-directory>/cua-driver-rs-0.34.1-darwin-arm64/CuaDriver.app",
+    "both_exit_codes": 1,
+    "both_errors": "invalid signature (code or signature have been modified); In architecture: arm64",
+    "archive_sha256": "83ffed8d41ef0f133976d594b02eb86dd59ef4a8721396b6e25078a59c6056d6",
+    "cached_and_bundled_archives_match": true,
+    "both_main_binary_sha256": "12d4f43b9db80af6fe1dc295f362a50891121be964ec52b032f84b0ffd50640a",
+    "whole_installed_vs_fresh_bundle_comparison": "pending",
+    "launched_overwritten_or_resigned": false
+  },
+  "independent_static_inspection": {
+    "host": "Windows; original pinned archive read without running its executables",
+    "method": "Python struct/hashlib parsed FAT Mach-O slices, LC_CODE_SIGNATURE and SHA-256 CodeDirectory entries with zero scatter offset; recomputed each covered code page. CMS blobs were checked with OpenSSL against their corresponding CodeDirectory bytes.",
+    "components": [
+      {"component": "bundle main executable", "architecture": "arm64", "code_pages": 2133, "page_bytes": 16384, "page_hash_mismatches": 0, "cms_mathematical_signature": "passed"},
+      {"component": "bundle main executable", "architecture": "x86_64", "code_pages": 9168, "page_bytes": 4096, "page_hash_mismatches": 0, "cms_mathematical_signature": "passed"},
+      {"component": "bundle cursor helper", "architecture": "arm64", "code_pages": 153, "page_hash_mismatches": 0, "cms_mathematical_signature": "passed"},
+      {"component": "bundle cursor helper", "architecture": "x86_64", "code_pages": 680, "page_hash_mismatches": 0, "cms_mathematical_signature": "passed"},
+      {"component": "standalone CLI", "architecture": "arm64", "code_pages": 2133, "page_hash_mismatches": 0, "cms_mathematical_signature": "passed"},
+      {"component": "standalone CLI", "architecture": "x86_64", "code_pages": 9168, "page_hash_mismatches": 0, "cms_mathematical_signature": "passed"}
+    ],
+    "bundle_main_special_slots": {
+      "both_architectures_match": true,
+      "slots": ["Info.plist", "requirements", "CodeResources", "XML entitlements", "DER entitlements"]
+    },
+    "resource_manifest_hashes": {
+      "AppIcon.icns_sha1_and_sha256": "matched",
+      "embedded.provisionprofile_sha256": "matched",
+      "cursor_nested_cdhash": "matches the arm64 CodeDirectory; nested designated requirement and macOS cross-architecture policy not evaluated"
+    },
+    "cms_command": "openssl cms -verify -inform DER -in <cms.der> -content <code-directory.bin> -binary -noverify -out <verified-content.bin>",
+    "cms_noverify_scope": "Offline mathematical signature inspection only: signer certificate-chain trust is not checked by this command. No Mac security setting or runtime validation was changed.",
+    "not_checked": ["macOS code-signing policy", "certificate trust and revocation", "secure timestamp validation", "notarization ticket", "provisioning-profile policy", "all strict Mach-O layout rules", "native process startup"],
+    "counts_as_native_codesign_pass": false
+  },
+  "conclusions": {
+    "only_installed_main_binary_changed": "not_supported",
+    "ordinary_page_hash_or_cms_signature_mismatch_in_original_main_binary": "not_found",
+    "upstream_archive_fully_valid_on_macos": "not_established",
+    "local_validation_environment_is_root_cause": "not_established",
+    "signature_error_caused_launchservices_minus_10827": "not_established",
+    "mac_apps_or_gui_recovered": false
+  },
+  "next_step": "Obtain macOS version/build and native architecture, per-architecture codesign comparisons, signature metadata, Gatekeeper assessment and full installed-vs-fresh bundle comparison",
+  "source_format_reference": "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/cs_blobs.h",
+  "runtime_or_security_changes": false
+}

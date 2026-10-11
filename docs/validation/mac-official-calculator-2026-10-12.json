@@ -1,0 +1,194 @@
+{
+  "recorded_at_utc": "2026-10-11T16:13:42Z",
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "official_calculator_actions_and_receipts_passed_cloud_image_delivery_pending",
+  "follows": "mac-official-upload-interface-2026-10-11.json",
+  "official_attempt": {
+    "source": "User-provided report from the original official Dot Mac local task; original task transcript and image bytes not inspected by this session",
+    "task_id": "official-dot-mac-20261012-calc78-expect-8a5e601d",
+    "prior_task_id": "official-dot-mac-20261011-1415-calc78",
+    "host_identity_and_same_device_confirmed_by_user_report": true,
+    "os": "darwin",
+    "paused": false,
+    "activity_available": true,
+    "locked": false,
+    "background_accessibility_route_available": true,
+    "tools_used": [
+      "devices",
+      "apps",
+      "observe",
+      "execute",
+      "task"
+    ],
+    "operation": "All Clear; 7; Multiply; 8; Equals",
+    "each_action_sent_once": true,
+    "fresh_observation_and_element_token_each_step": true,
+    "expect_arguments_source": "User reports exact top-level execute fields, decoded strings contain U+200E; receipt API does not return these fields",
+    "expect_arguments": [
+      {
+        "action_id": "clear-all",
+        "expect": "‎0"
+      },
+      {
+        "action_id": "digit-7",
+        "expect": "‎7"
+      },
+      {
+        "action_id": "multiply",
+        "expect": "‎7‎×"
+      },
+      {
+        "action_id": "digit-8",
+        "expect": "‎7‎×‎8"
+      },
+      {
+        "action_id": "equals",
+        "expect": "‎56"
+      }
+    ],
+    "final_accessibility_values": [
+      "‎7‎×‎8",
+      "‎56"
+    ],
+    "final_screenshot_and_ax_agree": "user_reported",
+    "observation_timeout": {
+      "after_action": "digit-7",
+      "tool": "dotcontrol_mac.observe",
+      "error_code": -32603,
+      "message": "MCP request timed out",
+      "recovery": "Repeated observe succeeded and confirmed 7 before remaining actions",
+      "click_replayed": false,
+      "underlying_timeout_cause": "not_identified",
+      "evidence_source": "user report"
+    }
+  },
+  "independent_readback": {
+    "entry": "Current Codex session through DotControl Mac task tool; read-only, not a substitute official invocation",
+    "new_task_isError": false,
+    "new_receipts": [
+      {
+        "action_id": "clear-all",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T16:05:32.443083Z"
+      },
+      {
+        "action_id": "digit-7",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T16:06:06.509247Z"
+      },
+      {
+        "action_id": "multiply",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T16:09:03.632644Z"
+      },
+      {
+        "action_id": "digit-8",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T16:09:28.234932Z"
+      },
+      {
+        "action_id": "equals",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T16:09:52.050609Z"
+      }
+    ],
+    "old_task_isError": false,
+    "old_receipts": [
+      {
+        "action_id": "clear-all",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:17:57.961291Z"
+      },
+      {
+        "action_id": "digit-7",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:18:25.468351Z"
+      },
+      {
+        "action_id": "multiply",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:18:49.638387Z"
+      },
+      {
+        "action_id": "digit-8",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:19:12.433748Z"
+      },
+      {
+        "action_id": "equals",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:19:37.918232Z"
+      }
+    ],
+    "matches_user_report": true,
+    "old_receipts_match_prior_saved_states_and_timestamps": true,
+    "desktop_actions_by_this_session": 0,
+    "observations_by_this_session": 0
+  },
+  "images": {
+    "evidence_source": "User-provided local display report and original PNG metadata; bytes and hash not independently verified here",
+    "local_display_tool": "view_image",
+    "local_display_reported_success": true,
+    "files": [
+      {
+        "name": "official-dot-mac-20261011-1415-calc78-initial.png",
+        "content": "8×9; 72",
+        "local_display": "user_reported_success",
+        "cloud_delivery": false
+      },
+      {
+        "name": "official-dot-mac-20261011-1415-calc78-final.png",
+        "content": "7×8; 56",
+        "local_display": "user_reported_success",
+        "cloud_delivery": false
+      },
+      {
+        "name": "official-dot-mac-20261012-calc78-expect-8a5e601d-final.png",
+        "content": "7×8; 56",
+        "mime_type": "image/png",
+        "byte_size": 72374,
+        "sha256": "ed4b540cb5281b19bbb0c5e6e4dc203107127e02f1a8ae327a65ef4e4261a935",
+        "origin": "Saved directly from DotControl image data, according to user report",
+        "local_display": "user_reported_success",
+        "cloud_delivery": false
+      }
+    ],
+    "library_file_id_obtained": false,
+    "cloud_screenshot_delivered": false
+  },
+  "conclusions": {
+    "official_calculator_background_action_scenario_passed": true,
+    "five_verified_success_receipts": true,
+    "previous_unknown_receipts_preserved": true,
+    "old_action_replay_reported": false,
+    "local_image_display": "user_reported_success",
+    "cloud_image_delivery_passed": false,
+    "full_official_mac_acceptance_passed": false,
+    "multi_device_goal_proven": false,
+    "physical_takeover_and_broader_application_matrix": "not_verified"
+  },
+  "runtime_or_connection_changes": false,
+  "old_upload_script_run": false,
+  "privacy": "No screenshot bytes, full AX trees, unrelated app titles, private host paths, credentials or device identifiers stored"
+}

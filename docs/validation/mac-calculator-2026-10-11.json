@@ -1,0 +1,91 @@
+{
+  "local_date": "2026-10-11",
+  "first_action_at_utc": "2026-10-10T20:05:51.637807Z",
+  "last_action_at_utc": "2026-10-10T20:08:35.001783Z",
+  "entry": "current Codex session through DotControl Mac MCP plugin",
+  "counts_as_official_dot_invocation": false,
+  "status": "passed_limited_calculator",
+  "device": {
+    "name": "DotControl Mac",
+    "os": "darwin",
+    "dotcontrol_version": "0.1.0-dev",
+    "driver_version": "0.34.1 (prior user diagnostics)",
+    "os_version_and_arch": "not_inspected",
+    "paused_at_start": false,
+    "paused_at_end": false,
+    "activity_available": true,
+    "locked": false
+  },
+  "screenshot": {
+    "status": "passed",
+    "application": "macOS Calculator",
+    "window_scoped": true,
+    "image_width": 460,
+    "image_height": 816,
+    "pixels_per_window_point": 2,
+    "accessibility_buttons": "AXPress",
+    "initial_display": "0",
+    "final_display": "42",
+    "raw_images_persisted": false
+  },
+  "actions": {
+    "operation": "6 × 7 =",
+    "requested_and_receipt_mode": "background",
+    "binding": "observed element tokens, exact pid/window_id, fresh observation after every action",
+    "first_round": {
+      "physical_button_presses": 4,
+      "receipt_states": "all unknown/execution_uncertain",
+      "verification": "fresh screenshot and AXStaticText after each action confirmed 6, 6×, 6×7, 42",
+      "expect_on_equals": "42",
+      "note": "First three actions had no explicit postcondition. Equals used plain 42, which did not match AX text containing U+200E. Unknown receipts retained; effects inspected before proceeding."
+    },
+    "verified_round": {
+      "physical_button_presses": 5,
+      "steps": [
+        "All Clear",
+        "6",
+        "Multiply",
+        "7",
+        "Equals"
+      ],
+      "receipt_states": "all succeeded",
+      "receipt_codes": "all verified",
+      "expected_text_json_escaped": [
+        "\\u200e0",
+        "\\u200e6",
+        "\\u200e6\\u200e×",
+        "\\u200e6\\u200e×\\u200e7",
+        "\\u200e42"
+      ],
+      "verification": "Exact postconditions preserve the AX direction marks; independent screenshot and AX readback show 42. Task lookup confirms all five durable receipts."
+    }
+  },
+  "idempotency": {
+    "status": "passed_limited",
+    "requests": "identical full equals request replayed once in each round; same task/action/observation/args/expect",
+    "receipt_and_timestamp_unchanged": true,
+    "display_after_each_replay": "42",
+    "no_new_action_id_used_for_retry": true
+  },
+  "focus": {
+    "foreground_application_before_and_after": "Terminal",
+    "foreground_pid_equal": true,
+    "continuous_focus_monitoring": false,
+    "physical_human_takeover": "not_tested"
+  },
+  "limits": {
+    "official_dot_mac_gui": "not_verified",
+    "tcc_permission_status_command": "not_rechecked; screenshot and AX execution worked",
+    "tunnel_id_runtime_key_scope": "not_inspected",
+    "text_edit_save_browser_tasks": "not_tested",
+    "multi_monitor_movement_lock_screen": "not_tested",
+    "gateway_disconnect_restart": "not_tested",
+    "new_agent_deployed": false
+  },
+  "privacy": {
+    "device_pid_window_observation_identifiers": "local ignored .state only",
+    "screenshots_and_full_accessibility_trees_saved": false,
+    "credentials_read": false
+  },
+  "implementation_change": "none; exact observed text used for existing expect semantics"
+}

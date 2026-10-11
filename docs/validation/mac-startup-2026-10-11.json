@@ -1,0 +1,32 @@
+{
+  "recorded_date": "2026-10-11",
+  "evidence_source": "user_supplied_mac_terminal_output",
+  "os": "darwin",
+  "os_version_and_architecture": "not_supplied",
+  "dotcontrol_version": "0.1.0-dev",
+  "driver_version": "0.34.1",
+  "agent_running": true,
+  "paused": true,
+  "activity_monitor_available": true,
+  "activity_available": true,
+  "locked": false,
+  "driver_daemon_running": true,
+  "driver_connected": false,
+  "tcc_status": "unknown",
+  "tunnel_id_configured": false,
+  "runtime_key_in_os_vault": false,
+  "tunnel_version": "missing_or_failed",
+  "tunnel_ready": false,
+  "investigation": {
+    "upstream_commit": "0c69d9a2c8abbb5051a2df4a23f0fa166d5385dc",
+    "permission_host_path": "/Applications/CuaDriver.app",
+    "old_installer_path": "~/Applications/CuaDriver.app",
+    "finding": "Installer used a different directory from the pinned driver's hardcoded LaunchServices permission-host path.",
+    "source": "https://github.com/trycua/cua/blob/0c69d9a2c8abbb5051a2df4a23f0fa166d5385dc/libs/cua-driver/rust/crates/cua-driver/src/bundle.rs",
+    "additional_behavior": "Agent attempts one driver connection at startup; restart it after resolving driver readiness.",
+    "causal_limit": "Path incompatibility is confirmed in source. The supplied output alone does not establish the exact MCP handshake failure or exclude additional Mac permission issues."
+  },
+  "repair_on_real_mac": "not_verified",
+  "mac_desktop_action": "not_verified",
+  "official_dot_mac_invocation": "not_verified"
+}

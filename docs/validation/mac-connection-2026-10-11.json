@@ -1,0 +1,36 @@
+{
+  "checked_at_utc": "2026-10-10T20:00:11Z",
+  "local_date": "2026-10-11",
+  "plugin": "DotControl Mac",
+  "official_dot": {
+    "status": "passed_devices_user_reported",
+    "evidence_source": "user_returned_actual_devices_result_after_official_dot_validation_request",
+    "device_matches_prior_mac_terminal_diagnostics": true,
+    "os": "darwin",
+    "paused": true,
+    "nonce_format": "48_hex_characters",
+    "direct_observation_of_official_dot_ui": false
+  },
+  "current_session_connector": {
+    "status": "passed_devices",
+    "tool": "devices",
+    "name": "DotControl Mac",
+    "os": "darwin",
+    "version": "0.1.0-dev",
+    "device_matches_user_report": true,
+    "paused": true,
+    "activity_available": true,
+    "locked": false,
+    "nonce_format": "48_hex_characters",
+    "nonce_differs_from_user_report": true,
+    "counts_as_official_dot_invocation": false
+  },
+  "limits": {
+    "driver_connected": "not_reported_by_devices",
+    "tcc_permissions": "not_verified",
+    "tunnel_id_and_runtime_key_scope": "not_inspected",
+    "screenshot": "not_verified",
+    "desktop_action": "not_verified",
+    "desktop_actions_performed_this_check": false
+  }
+}

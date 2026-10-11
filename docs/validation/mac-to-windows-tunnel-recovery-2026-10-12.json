@@ -1,0 +1,70 @@
+{
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "windows_tunnel_recovered_mac_origin_desktop_retest_pending",
+  "official_attempt": {
+    "source": "User-provided report from the official Mac local task",
+    "source_os": "Darwin",
+    "windows_plugin_tools_exposed": ["devices", "apps", "observe", "execute", "task"],
+    "first_devices_error": "Tunnel-client has not been seen for 300 seconds. Ensure tunnel-client is running and connected.",
+    "http_status": 404,
+    "error_code": "NOT_FOUND",
+    "server_code": "tunnel_client_not_seen",
+    "planned_task_id": "official-dot-mac-to-win-20261012-calc49-0115",
+    "desktop_actions_submitted": false,
+    "official_attached_computer_after_attempt": "Mac"
+  },
+  "local_diagnosis": {
+    "source": "Current Windows session process, listener, configuration and CLI checks",
+    "agent_running_before_recovery": false,
+    "configured_listener_present_before_recovery": false,
+    "tunnel_client_running_before_recovery": false,
+    "default_install_binary_present": false,
+    "existing_validation_configuration_present": true,
+    "configured_tunnel_matches_failed_plugin_entry": true,
+    "runtime_key_in_os_vault": true,
+    "prior_process_exit_cause": "not_determined",
+    "agent_sha256": "5de3bc3f97becf15537b1d4803ae612295203d06471b8dd44bed5e652ab34b91",
+    "driver_version": "0.34.1",
+    "tunnel_client_version": "0.0.16",
+    "independent_plugin_devices_error_before_recovery": "tunnel_client_not_seen"
+  },
+  "recovery": {
+    "action": "Start the previously validated release binary in a hidden background process with the original windows-validation state directory",
+    "local_started_at": "2026-10-12T01:20:23+08:00",
+    "device_identity_recreated": false,
+    "tunnel_or_credentials_changed": false,
+    "network_settings_changed": false,
+    "official_computer_attachment_changed": false,
+    "startup_service_installed": false,
+    "desktop_actions_performed": false,
+    "state_after_recovery": {
+      "driver_connected": true,
+      "activity_available": true,
+      "locked": false,
+      "paused": true,
+      "tunnel_configured": true,
+      "tunnel_running": true,
+      "tunnel_ready": true
+    },
+    "independent_cloud_plugin_devices": {
+      "source": "Current Windows Codex session through the actual DotControl Windows Validation plugin",
+      "isError": false,
+      "device_identity_matches_original": true,
+      "os": "windows",
+      "fresh_nonce_returned": true
+    },
+    "doctor_online": {
+      "status": "failed_check_platform_permissions_and_network",
+      "underlying_error": "not_exposed_by_current_cli",
+      "interpretation": "Composite diagnostic did not pass even though live tunnel readiness and a cloud plugin devices call succeeded. Do not report all diagnostics passed or infer a credentials failure."
+    }
+  },
+  "remaining": [
+    "Resume Windows desktop admission locally before the authorized Calculator test",
+    "Retry devices and the bounded Calculator test from the original official Mac task, keeping Dot attached to Mac",
+    "Verify real result, persistent action receipts and visible image delivery",
+    "Investigate the separate composite doctor result if further diagnosis is needed"
+  ],
+  "privacy": "Device and tunnel identifiers, credentials, nonce and private local paths omitted from public record"
+}

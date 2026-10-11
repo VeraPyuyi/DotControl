@@ -1,0 +1,57 @@
+{
+  "recorded_at_utc": "2026-10-11T12:05:41Z",
+  "local_date": "2026-10-11",
+  "entry": "This Codex session through the DotControl Mac MCP plugin",
+  "trigger": "User reported that the Mac may have recovered and requested a live retest",
+  "device_matches_previously_verified_mac": true,
+  "devices": {
+    "isError": false,
+    "os": "darwin",
+    "version": "0.1.0-dev",
+    "paused": true,
+    "activity_available": false,
+    "locked": false
+  },
+  "apps": {
+    "isError": false,
+    "list_apps_result_type": "complete",
+    "list_windows_result_type": "complete",
+    "calculator": {
+      "bundle_id": "com.apple.calculator",
+      "running": false,
+      "pid": 0,
+      "windows": []
+    }
+  },
+  "previous_driver_unavailable_reproduced": false,
+  "signature_verification_retested": false,
+  "signature_failure_root_cause": "not_established",
+  "observe_called": false,
+  "execute_called": false,
+  "task_called": false,
+  "desktop_actions": 0,
+  "calculator_8_times_9": "not_verified",
+  "counts_as_official_dot_invocation": false,
+  "official_dot_mac_gui_acceptance": "not_verified",
+  "next_step": "Resume the agent locally, open Calculator and restore activity monitoring before screenshot and bounded action verification",
+  "changes_to_runtime_network_or_permissions": false,
+  "follow_up_2026_10_11_1401_utc": {
+    "trigger": "User reported enabling the requested local setting",
+    "devices_isError": false,
+    "paused": true,
+    "activity_available": true,
+    "locked": false,
+    "apps_isError": false,
+    "list_apps_result_type": "complete",
+    "list_windows_result_type": "complete",
+    "calculator_running": true,
+    "calculator_window_found": true,
+    "observe_called": false,
+    "execute_called": false,
+    "desktop_actions": 0,
+    "remaining_blocker": "Local agent is paused; requested local resume because MCP has no resume interface",
+    "permission_change_performed_by_this_session": false,
+    "counts_as_official_dot_invocation": false
+  },
+  "privacy": "No raw screenshots, unrelated application/window lists, credentials or private task identifiers stored"
+}

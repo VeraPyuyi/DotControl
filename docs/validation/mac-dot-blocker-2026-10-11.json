@@ -1,0 +1,61 @@
+{
+  "recorded_at_utc": "2026-10-11T02:05:45Z",
+  "local_date": "2026-10-11",
+  "entry": "official Dot; result pasted by user",
+  "direct_observation_of_dot_ui": false,
+  "requested_task": "Observe Mac Calculator, compute 8 × 9, verify 72 and return screenshot",
+  "devices": {
+    "status": "passed_user_reported",
+    "name": "DotControl Mac",
+    "os": "darwin",
+    "paused": false,
+    "identity_matches_previously_tested_mac": true,
+    "fresh_nonce_supplied": true
+  },
+  "desktop": {
+    "status": "blocked_before_tool_invocation_user_reported",
+    "observe_called": false,
+    "execute_called": false,
+    "apps_call": "not_reported",
+    "receipts_available": false,
+    "final_screenshot_available": false,
+    "result_72": "not_verified",
+    "reported_reason": "Current allowed execution method does not permit direct desktop operation through the plugin"
+  },
+  "attribution": {
+    "actual_tool_denial_observed": false,
+    "automatic_approval_review_rejection_observed": false,
+    "mac_permission_error_observed": false,
+    "background_unsupported_response_observed": false,
+    "root_cause": "unresolved; assistant-reported execution-method restriction is not a transport/driver error"
+  },
+  "inspection_in_this_codex_session": {
+    "exposed_tools": [
+      "devices",
+      "apps",
+      "observe",
+      "execute",
+      "task",
+      "cancel"
+    ],
+    "proves_tools_available_in_dot_session": false,
+    "plugin_permission": {
+      "global": "Allow low-risk actions",
+      "override": "Use my default",
+      "settings_changed": false,
+      "proves_desktop_tools_allowed": false
+    },
+    "mac_actions_executed": false
+  },
+  "prior_calculator_record": "mac-calculator-2026-10-11.json",
+  "plan_implication": "Official Dot to Mac GUI acceptance remains incomplete. Tunnel connectivity and Codex-side GUI success do not establish Dot permission to execute desktop tools.",
+  "next_diagnostic": "Ask Dot which relevant tools are visible and whether the blocker is missing tools, a visible approval/connection request, or an unsupported execution surface. Use supported product workflows only; no permission escalation or tool relabeling.",
+  "official_sources": [
+    "https://developers.openai.com/api/docs/guides/secure-mcp-tunnels",
+    "https://help.openai.com/en/articles/20001530-getting-started-with-your-dot"
+  ],
+  "privacy": {
+    "device_id_and_nonce": "retained only in ignored .state evidence",
+    "credentials_read": false
+  }
+}

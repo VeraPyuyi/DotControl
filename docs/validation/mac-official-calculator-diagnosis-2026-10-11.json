@@ -1,0 +1,49 @@
+{
+  "recorded_at_utc": "2026-10-11T14:38:04Z",
+  "local_date": "2026-10-11",
+  "follows": "mac-official-calculator-2026-10-11.json",
+  "source": "User-provided read-only review from the original Mac local task",
+  "execute_expect_arguments": {
+    "clear-all": "omitted",
+    "digit-7": "omitted",
+    "multiply": "omitted",
+    "digit-8": "omitted",
+    "equals": "omitted"
+  },
+  "receipt_diagnosis": {
+    "mismatched_supplied_expect": false,
+    "explicit_postcondition_verification_requested": false,
+    "precise_native_cua_result_payload_available": false,
+    "explanation": "No expect was supplied, so the adapter did not perform its postcondition readback. An unconfirmed driver effect remains unknown. Later observe calls do not rewrite durable receipts.",
+    "old_receipts_changed": false
+  },
+  "attachment_diagnosis": {
+    "historical_command_interpreter": "/usr/bin/python3",
+    "historical_python_version_recorded": false,
+    "current_read_only_python_version": "3.9.6",
+    "traceback": [
+      {"file": "library_upload.py", "line": 25, "operation": "from library_file_transfer import ..."},
+      {"file": "library_file_transfer.py", "line": 97, "operation": "library_file_id: str | None"}
+    ],
+    "error": "TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'",
+    "failure_phase": "import-time annotation evaluation before upload",
+    "diagnosis": "The union type annotation requires a compatible interpreter; the currently verified Python 3.9.6 does not support this operation",
+    "repair_plan": "Use an existing compatible task-provided Python runtime with its dependencies and the original uploader arguments; upload the already-saved images first",
+    "repair_executed_on_mac": false
+  },
+  "local_changes": {
+    "execute_tool_and_expect_schema_guidance": "strengthened to request exact known UI postconditions and preserve Unicode direction marks",
+    "success_or_unknown_semantics_changed": false,
+    "regression_cases": ["omitted expect remains unknown", "plain digits do not match directional AX text", "literal escape does not match U+200E", "exact new AX text verifies", "unchanged AX text cannot verify an unknown effect"],
+    "mcp_round_trip": "U+200E value preserved through in-memory and HTTP transports",
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "deployed_to_mac": false,
+    "previous_release_zip_updated": false
+  },
+  "desktop_actions_during_diagnosis": 0,
+  "official_verified_receipt_retest": "pending",
+  "screenshot_delivery": "pending",
+  "complete_acceptance_passed": false,
+  "privacy": "Private task directory removed from published traceback; no screenshot bytes or credentials saved"
+}

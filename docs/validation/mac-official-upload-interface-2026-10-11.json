@@ -1,0 +1,75 @@
+{
+  "recorded_at_utc": "2026-10-11T15:50:03Z",
+  "local_date": "2026-10-11",
+  "follows": "mac-official-upload-tool-discovery-2026-10-11.json",
+  "source": "User-provided complete catalog diagnostics and uploader source excerpts from the original Mac task",
+  "catalog": {
+    "pages": 1,
+    "tools": 306,
+    "complete": true,
+    "pending_cursor": false,
+    "connector_openai_library_matches": 0,
+    "prepare_uploads_or_supported_suffix_matches": 0,
+    "equivalent_library_batch_upload_contract_found": false,
+    "pagination_evidence_is_from_this_round_not_the_historical_upload": true
+  },
+  "helper": {
+    "library_upload.py": {
+      "connector_id_line": 45,
+      "connector_id": "connector_openai_library",
+      "prepare_function_lines": "622-659",
+      "prepare_call_lines": "635-639",
+      "requested_tool": "prepare_uploads",
+      "arguments_shape": "uploads: array of request.prepare_payload"
+    },
+    "library_hosted_apps.py": {
+      "discovery_function_lines": "106-141",
+      "page_limit": 100,
+      "cursor_keys_supported": ["nextCursor", "next_cursor"],
+      "repeated_cursor_detected": true,
+      "requires_nonempty_name_and_object_meta": true,
+      "connector_metadata_keys": ["connector_id", "connectorId", "app_id", "appId"],
+      "accepted_name_forms": ["exact", "underscore suffix", "dot suffix"],
+      "call_uses_discovered_full_name": true
+    },
+    "library_file_transfer.py": {"has_tool_discovery_or_prepare_uploads": false}
+  },
+  "alternative_candidates": [
+    {"name": "google drive_upload_file", "destination": "Google Drive", "equivalent": false},
+    {"name": "google drive_update_file", "destination": "Existing Google Drive file", "equivalent": false},
+    {"name": "chatgpt space_upload_artifact_images", "required": ["page_id", "paths"], "destination": "Existing supported Spaces artifact", "equivalent": false},
+    {"name": "chatgpt space_write_page_reference", "required": ["page_id", "file"], "raw_file_parameter": {"type": "object", "required": ["download_url", "file_id"]}, "destination": "Existing writable Page", "equivalent": false},
+    {"name": "chatgpt space_create_page_visualization", "destination": "HTML visualization in a Page", "equivalent": false},
+    {"name": "pets_prepare_pet_upload", "destination": "Pet sprite upload", "equivalent": false},
+    {"name": "gmail_read_attachment", "operation": "read existing attachment", "equivalent": false},
+    {"name": "github_download_user_content", "operation": "download existing content", "equivalent": false}
+  ],
+  "host_contract_comparison": {
+    "current_windows_host_write_page_reference_file_parameter": "absolute local path string; host supplies the file payload",
+    "raw_mac_server_file_parameter": "object containing existing download_url and file_id",
+    "interchangeable_without_host_processing": false,
+    "mac_host_native_file_upload_verified": false
+  },
+  "conclusions": {
+    "immediate_failure": "The helper requires a Library prepare_uploads capability absent from the complete catalog on its invocation channel",
+    "missing_pagination_explains_this_round": false,
+    "name_only_patch_supported_by_evidence": false,
+    "library_globally_removed_or_account_wide_unavailable": "not_established",
+    "other_host_channel_has_library_capability": "not_established",
+    "dotcontrol_image_transport_depends_on_library": false
+  },
+  "next_steps": [
+    "Stop retrying the unchanged Library helper",
+    "Use existing original files with the Mac task's supported native preview if available; record delivery location separately",
+    "Run the already-authorized new calculator receipt validation with exact expect independently of cloud attachment delivery",
+    "Keep full acceptance incomplete until required user-visible screenshot delivery is verified"
+  ],
+  "original_images_unchanged": true,
+  "upload_attempted_in_this_round": false,
+  "prepare_uploads_called_in_this_round": false,
+  "scripts_or_permissions_modified": false,
+  "explicit_expect_calculator_retest_started": false,
+  "old_unknown_receipts_changed": false,
+  "official_complete_acceptance_passed": false,
+  "privacy": "No screenshots, credentials, cursor values, authenticated URLs or private tool defaults stored"
+}

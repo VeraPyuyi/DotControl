@@ -1,0 +1,20 @@
+{
+  "verified_at": "2026-10-10",
+  "go_tested": "1.27.2",
+  "cua_driver": {
+    "version": "0.34.1",
+    "tag": "cua-driver-rs-v0.34.1",
+    "repository": "https://github.com/trycua/cua",
+    "assets": {
+      "windows-x86_64": {"file": "cua-driver-rs-0.34.1-windows-x86_64-binary.zip", "sha256": "021bc2e5330c80a6c5e2c347c305fafbd4defe195d6282e0d20436f2f13c19bb"},
+      "macos-arm64": {"file": "cua-driver-rs-0.34.1-darwin-arm64.tar.gz", "sha256": "83ffed8d41ef0f133976d594b02eb86dd59ef4a8721396b6e25078a59c6056d6"},
+      "macos-x86_64": {"file": "cua-driver-rs-0.34.1-darwin-x86_64.tar.gz", "sha256": "c485781a64b6f75ea46f63d03c5b4f646e0f1dcea2c7547805f235259193a156"}
+    }
+  },
+  "tunnel_client": {
+    "version": "0.0.16",
+    "repository": "https://github.com/openai/tunnel-client",
+    "windows_amd64": {"file": "tunnel-client-v0.0.16-windows-amd64.zip", "sha256": "edef7241b0c647fcb30f1a80ff376b6b25c51927960f257a3f01e21b17c2aba6"},
+    "macos_install": "Official Homebrew distribution only; installer checks 0.0.16 and stops on version drift. No Gatekeeper bypass."
+  }
+}

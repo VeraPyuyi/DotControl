@@ -1,0 +1,38 @@
+{
+  "tested_at": "2026-10-10T14:43:46.5534687Z",
+  "go_version": "go1.27.2 windows/amd64",
+  "normal_tests": "passed",
+  "top_level_passed": 75,
+  "cases_including_subtests_passed": 177,
+  "skipped": [
+    "TestLiveFixtureObservation",
+    "TestCrashDispatchSubprocess"
+  ],
+  "race": "all packages passed; engine repeated after final replay correction",
+  "vet": "passed",
+  "builds": [
+    {
+      "file": "dotcontrol-windows-amd64.exe",
+      "sha256": "4ef300e5330069eed577662b865a3e6d886c9705ca1af98dc9a5309a5f790557",
+      "bytes": 10751488,
+      "desktop_acceptance": "See docs/validation/ACCEPTANCE.md"
+    },
+    {
+      "file": "dotcontrol-darwin-arm64",
+      "sha256": "597823b94037e6bb2ec9eb09fd4c6d67051cabdb661515f8cf6f2450eb863979",
+      "bytes": 9853426,
+      "desktop_acceptance": "See docs/validation/ACCEPTANCE.md"
+    },
+    {
+      "file": "dotcontrol-darwin-amd64",
+      "sha256": "e8c70fe6097ec075ff8bee67aaed8368c5cd283a1888b5cb9c1733a407ec973c",
+      "bytes": 10625312,
+      "desktop_acceptance": "See docs/validation/ACCEPTANCE.md"
+    }
+  ],
+  "windows_installer": "passed in isolated directory with checksum-verified cached official archives",
+  "mac_installer": "bash syntax passed; arm64 archive SHA256 and layout verified; native Swift not compiled",
+  "official_dot": "not_verified",
+  "mac_desktop": "not_verified",
+  "review": "specification and code quality reviews completed, reported defects corrected"
+}

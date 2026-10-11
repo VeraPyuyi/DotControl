@@ -1,0 +1,44 @@
+{
+  "recorded_at_utc": "2026-10-11T15:26:34Z",
+  "local_date": "2026-10-11",
+  "follows": "mac-official-upload-network-policy-2026-10-11.json",
+  "source": "User-provided report from the original Mac task; its tool catalog and uploader source have not been inspected by this session",
+  "network": {
+    "supported_permission_request_approved": true,
+    "approval_mode_reported": "system automatic review",
+    "human_approval_card_generated": false,
+    "public_approval_id_available": false,
+    "tools_list_succeeded": true,
+    "reported_tool_count": 306,
+    "pagination_complete": "not_verified"
+  },
+  "upload": {
+    "error": "library upload failed: Library prepare_uploads is not available",
+    "failed_before_image_transfer": true,
+    "original_images_unchanged": true,
+    "library_file_id_obtained": false,
+    "delivery_completed": false
+  },
+  "current_session_checks": {
+    "generic_library_prepare_uploads_exposed": false,
+    "original_mac_helper_files_available_locally": false,
+    "pages_upload_tools_exposed": ["write_page_reference", "upload_artifact_images"],
+    "pages_upload_tools_require_existing_destination_page": true,
+    "pages_upload_tools_proven_equivalent_to_chat_attachment_upload": false,
+    "plugin_catalog_search_confirmed_equivalent_library_plugin": false,
+    "catalog_search_is_exhaustive": false,
+    "same_tool_inventory_as_original_mac_task": "not_established"
+  },
+  "pending_read_only_evidence": [
+    "Complete tools/list pagination status and total count, without cursor values",
+    "Relevant upload tool names, descriptions and inputSchema with private defaults omitted",
+    "Original helper discovery, matching, pagination and prepare_uploads invocation code"
+  ],
+  "cause": "not_yet_distinguished_between_script_matching_or_pagination_and_missing_equivalent_capability",
+  "original_upload_script_modified": false,
+  "upload_retried_by_this_session": false,
+  "explicit_expect_calculator_retest_started": false,
+  "old_unknown_receipts_changed": false,
+  "official_complete_acceptance_passed": false,
+  "privacy": "No credentials, cursor values, authenticated URLs, screenshot bytes or unrelated tool catalog entries stored"
+}

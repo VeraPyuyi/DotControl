@@ -1,0 +1,110 @@
+{
+  "local_date": "2026-10-11",
+  "entry": "Current Codex session through DotControl Mac MCP plugin",
+  "counts_as_official_dot_invocation": false,
+  "status": "passed_limited_calculator_recovery",
+  "first_action_at_utc": "2026-10-11T14:06:06.292378Z",
+  "last_action_at_utc": "2026-10-11T14:07:32.414288Z",
+  "device": {
+    "os": "darwin",
+    "dotcontrol_version": "0.1.0-dev",
+    "paused_at_start": false,
+    "paused_at_end": false,
+    "activity_available_at_start": true,
+    "activity_available_at_end": true,
+    "locked_at_start": false,
+    "locked_at_end": false
+  },
+  "discovery": {
+    "devices": "passed",
+    "apps": "passed",
+    "calculator_window": "one exact window identified"
+  },
+  "observation": {
+    "window_scoped": true,
+    "image_width": 460,
+    "image_height": 816,
+    "pixels_per_window_point": 2,
+    "initial_display": "6 × 7 = 42",
+    "final_expression": "8 × 9",
+    "final_display": "72",
+    "final_observation_at_utc": "2026-10-11T14:07:40.946802Z",
+    "verification": "Each step checked with a fresh screenshot and AXStaticText; final image and accessibility value both show 72",
+    "raw_images_persisted": false,
+    "raw_accessibility_trees_persisted": false
+  },
+  "actions": {
+    "task_id": "codex-mac-20261011-calculator-1405",
+    "physical_button_presses": 5,
+    "requested_mode": "background",
+    "steps": [
+      "All Clear",
+      "8",
+      "Multiply",
+      "9",
+      "Equals"
+    ],
+    "binding": "Observed enabled AXButton element tokens on exact PID/window; fresh single-use observation for every action",
+    "expected_text": [
+      "‎0",
+      "‎8",
+      "‎8‎×",
+      "‎8‎×‎9",
+      "‎72"
+    ],
+    "receipts": [
+      {
+        "action_id": "01-clear",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T14:06:06.292378Z"
+      },
+      {
+        "action_id": "02-eight",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T14:06:25.990747Z"
+      },
+      {
+        "action_id": "03-multiply",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T14:06:47.736907Z"
+      },
+      {
+        "action_id": "04-nine",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T14:07:13.141895Z"
+      },
+      {
+        "action_id": "05-equals",
+        "state": "succeeded",
+        "mode": "background",
+        "code": "verified",
+        "updated_at": "2026-10-11T14:07:32.414288Z"
+      }
+    ],
+    "task_lookup": "all five durable receipts matched execute results",
+    "unknown_receipts": 0
+  },
+  "focus": {
+    "foreground_pid_equal_before_and_after": true,
+    "target_was_not_foreground_before_or_after": true,
+    "continuous_focus_monitoring": false,
+    "physical_human_takeover_tested": false
+  },
+  "limits": {
+    "official_dot_mac_gui": "not_retested",
+    "code_signature_or_gatekeeper": "not_retested; failure cause not established",
+    "idempotency": "not_retested in this round; earlier limited result recorded separately",
+    "text_save_browser_gateway_faults": "not_tested in this round",
+    "all_project_acceptance_complete": false
+  },
+  "implementation_or_runtime_changes_by_this_session": false,
+  "privacy": "No credentials, unrelated application/window lists, raw screenshots or full accessibility trees saved in this public record"
+}

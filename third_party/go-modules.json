@@ -1,0 +1,152 @@
+[
+  {
+    "module": "al.essio.dev/pkg/shellescape",
+    "version": "v1.5.1",
+    "license_file": "third_party/licenses/al.essio.dev_pkg_shellescape-v1.5.1-LICENSE",
+    "sha256": "01a4609ac3c7ac0a26d65a967c26c0deb146aa01bdcc8531048a70be52695556"
+  },
+  {
+    "module": "github.com/danieljoos/wincred",
+    "version": "v1.2.2",
+    "license_file": "third_party/licenses/github.com_danieljoos_wincred-v1.2.2-LICENSE",
+    "sha256": "1702a813fa31858c0d6c7788216fa3dd202472265716998024654c252fc7bb41"
+  },
+  {
+    "module": "github.com/davecgh/go-spew",
+    "version": "v1.1.1",
+    "license_file": "third_party/licenses/github.com_davecgh_go-spew-v1.1.1-LICENSE",
+    "sha256": "1b93a317849ee09d3d7e4f1d20c2b78ddb230b4becb12d7c224c927b9d470251"
+  },
+  {
+    "module": "github.com/godbus/dbus/v5",
+    "version": "v5.1.0",
+    "license_file": "third_party/licenses/github.com_godbus_dbus_v5-v5.1.0-LICENSE",
+    "sha256": "e4646a82a976369d7ae8f6ed5c11d35dc0af18433a8ccc24c85b459ad8b95128"
+  },
+  {
+    "module": "github.com/gofrs/flock",
+    "version": "v0.12.1",
+    "license_file": "third_party/licenses/github.com_gofrs_flock-v0.12.1-LICENSE",
+    "sha256": "0e46d33e7c6b9d1f58a6b547ec0a0f6341648ac6686f2e775ea5901977e1beaa"
+  },
+  {
+    "module": "github.com/golang-jwt/jwt/v5",
+    "version": "v5.3.1",
+    "license_file": "third_party/licenses/github.com_golang-jwt_jwt_v5-v5.3.1-LICENSE",
+    "sha256": "fe26ca41577b9b2b4448050a24b25e5753af66b5d5945d5d36094e7790bfcb2f"
+  },
+  {
+    "module": "github.com/google/go-cmp",
+    "version": "v0.7.0",
+    "license_file": "third_party/licenses/github.com_google_go-cmp-v0.7.0-LICENSE",
+    "sha256": "17b5d209ba8f9684257ecfcff87df6ceda6194143a8fbd074f29727cff6f0c40"
+  },
+  {
+    "module": "github.com/google/jsonschema-go",
+    "version": "v0.4.3",
+    "license_file": "third_party/licenses/github.com_google_jsonschema-go-v0.4.3-LICENSE",
+    "sha256": "2d56c53449691d85d9aea245eb8dac12713e9075d70d5557b82ae1e94805b357"
+  },
+  {
+    "module": "github.com/google/shlex",
+    "version": "v0.0.0-20191202100458-e7afc7fbc510",
+    "license_file": "third_party/licenses/github.com_google_shlex-v0.0.0-20191202100458-e7afc7fbc510-COPYING",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "module": "github.com/modelcontextprotocol/go-sdk",
+    "version": "v1.7.0",
+    "license_file": "third_party/licenses/github.com_modelcontextprotocol_go-sdk-v1.7.0-LICENSE",
+    "sha256": "af679003d933f045393a6a029f43da113f9ae364eac651d9ae268392985580f5"
+  },
+  {
+    "module": "github.com/pmezard/go-difflib",
+    "version": "v1.0.0",
+    "license_file": "third_party/licenses/github.com_pmezard_go-difflib-v1.0.0-LICENSE",
+    "sha256": "2eb550be6801c1ea434feba53bf6d12e7c71c90253e0a9de4a4f46cf88b56477"
+  },
+  {
+    "module": "github.com/segmentio/asm",
+    "version": "v1.1.3",
+    "license_file": "third_party/licenses/github.com_segmentio_asm-v1.1.3-LICENSE",
+    "sha256": "e2a78de21d6d8ded2dff0f3189cd32e011630d785da127ebfbc8949012c0947b"
+  },
+  {
+    "module": "github.com/segmentio/encoding",
+    "version": "v0.5.4",
+    "license_file": "third_party/licenses/github.com_segmentio_encoding-v0.5.4-LICENSE",
+    "sha256": "d6d71a1f7dc6539e371120cc7af6e3257e55ca79634d473211f217b8965b0f16"
+  },
+  {
+    "module": "github.com/stretchr/objx",
+    "version": "v0.5.2",
+    "license_file": "third_party/licenses/github.com_stretchr_objx-v0.5.2-LICENSE",
+    "sha256": "b2663894033a05fd80261176cd8da1d72546e25842d5c1abcc852ca23b6b61b0"
+  },
+  {
+    "module": "github.com/stretchr/testify",
+    "version": "v1.9.0",
+    "license_file": "third_party/licenses/github.com_stretchr_testify-v1.9.0-LICENSE",
+    "sha256": "f8e536c1c7b695810427095dc85f5f80d44ff7c10535e8a9486cf393e2599189"
+  },
+  {
+    "module": "github.com/yosida95/uritemplate/v3",
+    "version": "v3.0.2",
+    "license_file": "third_party/licenses/github.com_yosida95_uritemplate_v3-v3.0.2-LICENSE",
+    "sha256": "0761aadfb1921103752869ee942d4a71bdd54494697684d4b13dc17ad9781191"
+  },
+  {
+    "module": "github.com/zalando/go-keyring",
+    "version": "v0.2.6",
+    "license_file": "third_party/licenses/github.com_zalando_go-keyring-v0.2.6-LICENSE",
+    "sha256": "14bc00f1a298eb6af250216b9e60027a4386c8a84fa2c7ddc2b5c10908e06d0d"
+  },
+  {
+    "module": "golang.org/x/oauth2",
+    "version": "v0.35.0",
+    "license_file": "third_party/licenses/golang.org_x_oauth2-v0.35.0-LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/sync",
+    "version": "v0.20.0",
+    "license_file": "third_party/licenses/golang.org_x_sync-v0.20.0-LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/sys",
+    "version": "v0.41.0",
+    "license_file": "third_party/licenses/golang.org_x_sys-v0.41.0-LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/term",
+    "version": "v0.40.0",
+    "license_file": "third_party/licenses/golang.org_x_term-v0.40.0-LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/time",
+    "version": "v0.15.0",
+    "license_file": "third_party/licenses/golang.org_x_time-v0.15.0-LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/tools",
+    "version": "v0.42.0",
+    "license_file": "third_party/licenses/golang.org_x_tools-v0.42.0-LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "gopkg.in/yaml.v3",
+    "version": "v3.0.1",
+    "license_file": "third_party/licenses/gopkg.in_yaml.v3-v3.0.1-LICENSE",
+    "sha256": "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
+  },
+  {
+    "module": "gopkg.in/yaml.v3",
+    "version": "v3.0.1",
+    "license_file": "third_party/licenses/gopkg.in_yaml.v3-v3.0.1-NOTICE",
+    "sha256": "f6c2dd3a67b576eafb89b80200b8b1627230bf3821a0c14cb99a22ac19107d00"
+  }
+]

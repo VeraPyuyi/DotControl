@@ -1,0 +1,46 @@
+{
+  "recorded_at_utc": "2026-10-11T15:07:35Z",
+  "local_date": "2026-10-11",
+  "follows": "mac-official-upload-dns-2026-10-11.json",
+  "source": "User-provided read-only diagnostics from the original Mac task",
+  "destination": {"host": "chatgpt.com", "port": 443, "scheme": "https", "endpoint_override": false},
+  "error_origin": {
+    "classification": "local Python URL resolution exception",
+    "wrapper": "HostedAppsError -> urllib.error.URLError -> socket.gaierror",
+    "current_reproduction_errno": 8,
+    "current_reproduction_symbol": "EAI_NONAME",
+    "current_reproduction_message": "nodename nor servname provided, or not known",
+    "historical_log_only_has_dns_category": true,
+    "source_locations": [
+      {"file": "library_hosted_apps.py", "lines": "27-31", "operation": "maps socket.gaierror to DNS"},
+      {"file": "library_hosted_apps.py", "lines": "202-205", "operation": "catches URLError"},
+      {"file": "library_upload.py", "line": 1065, "operation": "adds library upload failed prefix"}
+    ]
+  },
+  "resolver_checks": {
+    "python_version": "3.12.14",
+    "getaddrinfo": "failed: 8 / EAI_NONAME",
+    "dscacheutil": {"exit_code": 0, "output_empty": true, "dns_error_code_provided": false, "counts_as_successful_resolution": false}
+  },
+  "execution_context": {
+    "environment_proxy_enabled": false,
+    "urllib_effective_proxy": false,
+    "task_network_enabled": false,
+    "additional_explicit_permission_denial_error": false,
+    "exact_network_enforcement_layer_identified": false
+  },
+  "conclusions": {
+    "confirmed_blocking_condition": "The original task has network access disabled",
+    "public_dns_infrastructure_failure": "not_established",
+    "dotcontrol_tunnel_failure": "not_established_by_uploader_error",
+    "exact_causal_layer_of_EAI_NONAME": "not_identified"
+  },
+  "next_step": "Use the original task's supported permission request flow for HTTPS chatgpt.com:443, subject to its policy and user approval; if unavailable, the user or administrator must change the task's effective network permission through supported controls. Recheck and upload existing images only after a grant is effective.",
+  "approval_or_network_configuration_changed_by_this_session": false,
+  "upload_retried_in_this_diagnostic_round": false,
+  "screenshots_delivered": false,
+  "explicit_expect_calculator_retest_started": false,
+  "old_unknown_receipts_changed": false,
+  "official_complete_acceptance_passed": false,
+  "privacy": "Private directories, authenticated URLs, headers, credentials and screenshot bytes omitted"
+}

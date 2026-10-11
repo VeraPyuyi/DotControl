@@ -1,0 +1,30 @@
+{
+  "recorded_at_utc": "2026-10-11T04:20:47Z",
+  "source": "user-reported Mac native signature failure plus local source/archive inspection",
+  "reported_error": "invalid signature (code or signature have been modified)",
+  "reported_architecture": "arm64",
+  "exact_failing_command_and_path": "awaiting_user_mac_diagnostic",
+  "installed_vs_fresh_native_comparison": "pending",
+  "local_archive_check": {
+    "archive": "cua-driver-rs-0.34.1-darwin-arm64.tar.gz",
+    "sha256": "83ffed8d41ef0f133976d594b02eb86dd59ef4a8721396b6e25078a59c6056d6",
+    "matches_current_upstream_release_checksum": true,
+    "delivered_zip_embedded_archive_matches_local_archive_bytes": true,
+    "bundle_main_executable_sha256": "12d4f43b9db80af6fe1dc295f362a50891121be964ec52b032f84b0ffd50640a",
+    "proves_mac_native_signature_is_valid": false
+  },
+  "installer_gap": "Previously checked archive SHA-256 and existing app version but did not verify the native code signature",
+  "change": "Require strict recursive Cua signature verification and the pinned upstream Apple Team ID before installer use/reuse/copy completion and launcher open",
+  "validation": {
+    "portable_control_flow_tests": "3 passed using simulated codesign outcomes",
+    "shell_syntax": "passed",
+    "diff_whitespace": "passed",
+    "mac_native_signature_validation": "not_run_here",
+    "deployed_to_mac": false,
+    "prior_full_mac_zip_updated": false,
+    "official_dot_mac_gui": "still_blocked"
+  },
+  "root_cause_boundary": "Signature failure is concrete evidence; the cause/location of corruption and its causal link to the daemon failure still require exact path and fresh-copy comparison",
+  "upstream_source": "https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.34.1",
+  "changes_to_user_mac_or_credentials": false
+}

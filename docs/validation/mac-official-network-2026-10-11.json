@@ -1,0 +1,73 @@
+{
+  "recorded_at_utc": "2026-10-11T02:35:23Z",
+  "local_date": "2026-10-11",
+  "source": "user-provided summary from a read-only Mac local diagnostic; raw logs not inspected here",
+  "timezone": "Asia/Shanghai",
+  "app": {
+    "running": true,
+    "version": "26.1007.30912",
+    "evidence": "user-provided diagnostic"
+  },
+  "events": [
+    {
+      "from": "2026-10-11T08:25:31+08:00",
+      "to": "2026-10-11T09:58:01+08:00",
+      "code": "ENOTFOUND",
+      "host": "codex-cloud-backend.chatgpt.com",
+      "finding": "DNS resolution failed during the reported interval"
+    },
+    {
+      "from": "2026-10-11T09:43:16+08:00",
+      "to": "2026-10-11T09:59:25+08:00",
+      "message": "self signed certificate",
+      "code": null,
+      "finding": "TLS verification failed; certificate source and exact validation error code were not established"
+    },
+    {
+      "from": "2026-10-11T08:25:36+08:00",
+      "to": "2026-10-11T10:24:49+08:00",
+      "code": "websocket_error",
+      "message": "rendezvous unavailable",
+      "finding": "Official local executor repeatedly could not connect to cloud rendezvous"
+    },
+    {
+      "at": "2026-10-11T10:25:12+08:00",
+      "message": "connected to rendezvous",
+      "finding": "A successful executor connection was subsequently logged"
+    },
+    {
+      "at": "2026-10-11T10:25:57+08:00",
+      "code": "WebSocket 1006",
+      "reconnected_at": "2026-10-11T10:25:59+08:00",
+      "finding": "Abnormal disconnect followed by handshake recovery about two seconds later"
+    },
+    {
+      "from": "2026-10-11T10:23:28+08:00",
+      "to": "2026-10-11T10:31:38+08:00",
+      "code": -32003,
+      "message": "thread access denied",
+      "finding": "Some thread reads were denied; this does not establish workspace-wide computer access denial"
+    }
+  ],
+  "inspected_sample_negative_evidence": {
+    "connection_related_401": "not_found_in_reported_sample",
+    "workspace_403": "not_found_in_reported_sample",
+    "explicit_device_registration_failure": "not_found_in_reported_sample",
+    "excludes_all_auth_or_policy_issues": false
+  },
+  "conclusions": {
+    "historical_network_failure": "supported_by_user_report",
+    "some_transport_recovery": "supported_by_user_report",
+    "sustained_current_connection": "not_verified",
+    "current_dot_computer_list_status": "user refreshed the list with the Mac desktop app open and reported it is still Offline",
+    "greyed_control_cause": "not_established",
+    "single_computer_limit_caused_outage": "not_established",
+    "official_dot_mac_gui": "not_verified"
+  },
+  "next_step": "After local tasks finish, fully quit and reopen the official Mac desktop client once while keeping network and permission settings unchanged. Compare the UI and fresh logs after restart; verify whether DNS/TLS errors recur and whether a successful rendezvous connection is followed by a disconnect or device-availability error. This is a diagnostic step, not a confirmed repair. Do not disable TLS validation or change unrelated plugin permissions.",
+  "privacy": {
+    "raw_logs_saved": false,
+    "credentials_collected": false
+  },
+  "changes_to_runtime_or_network": false
+}

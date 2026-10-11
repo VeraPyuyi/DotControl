@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DotControl browser acceptance fixture</title>
+<style>body{font:20px system-ui;max-width:720px;margin:60px auto;background:#f4f6f8;color:#16222b}main{background:white;padding:36px;border-radius:16px}input,button,textarea{font:inherit;padding:12px;margin:10px 0}textarea{display:block;width:90%}output{display:block;padding:16px;background:#e4f2ee}button{cursor:pointer}small{display:block;margin-top:20px}</style>
+<main><h1>DotControl 浏览器验收</h1><p>这是独立的本地测试页面，没有网络提交。</p>
+<label for="text">中文测试输入</label><textarea id="text" rows="3"></textarea>
+<button id="save">保存到页面</button><button id="increment">计数 +1</button>
+<output id="result" aria-live="polite">尚未操作 · 计数 0</output>
+<small>刷新会清空结果。重复同一动作编号时，计数只能增加一次。</small></main>
+<script>let count=0;document.querySelector('#increment').onclick=()=>{count++;document.querySelector('#result').textContent='计数 '+count};document.querySelector('#save').onclick=()=>{document.querySelector('#result').textContent='已保存：'+document.querySelector('#text').value};</script>
+</html>

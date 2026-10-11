@@ -1,0 +1,77 @@
+{
+  "recorded_at_utc": "2026-10-11T04:36:14Z",
+  "local_date": "2026-10-11",
+  "source": "User-provided Mac local diagnostics; not executed by this Windows session",
+  "follows": "mac-signature-comparison-2026-10-11.json",
+  "host": {
+    "product_name": "macOS",
+    "product_version": "26.6.2",
+    "build_version": "25G83",
+    "architecture": "arm64"
+  },
+  "native_checks": [
+    {
+      "command": "codesign --verify --verbose=4 --arch arm64 /Applications/CuaDriver.app",
+      "exit_code": 1,
+      "output": "/Applications/CuaDriver.app: invalid signature (code or signature have been modified)\nIn architecture: arm64"
+    },
+    {
+      "command": "codesign --verify --deep --strict --verbose=4 --arch x86_64 /Applications/CuaDriver.app",
+      "exit_code": 1,
+      "output": "/Applications/CuaDriver.app: invalid signature (code or signature have been modified)\nIn architecture: x86_64"
+    },
+    {
+      "command": "codesign -dvvv --arch arm64 /Applications/CuaDriver.app",
+      "exit_code": 0,
+      "selected_fields": {
+        "identifier": "com.trycua.driver",
+        "format": "app bundle with Mach-O thin (arm64)",
+        "code_directory_version": "20500",
+        "code_directory_flags": "0x10000(runtime)",
+        "cdhash_full_sha256": "e56ef9bb95cb7aad11e771751dbf54e7c85b6bc4b1b2d4fb524ae606bd544b06",
+        "cms_digest": "e56ef9bb95cb7aad11e771751dbf54e7c85b6bc4b1b2d4fb524ae606bd544b06",
+        "authority": "(unavailable)",
+        "notarization_ticket": "stapled",
+        "info_plist": "not bound",
+        "team_identifier": "YCK386LBJ7",
+        "runtime_version": "26.5.0"
+      }
+    },
+    {
+      "command": "spctl --assess --type execute --verbose=4 /Applications/CuaDriver.app",
+      "exit_code": 1,
+      "output": "/Applications/CuaDriver.app: internal error in Code Signing subsystem"
+    }
+  ],
+  "installed_vs_fresh_bundle": {
+    "exit_code": 0,
+    "different_or_missing_relative_paths": [],
+    "compared": ["relative paths", "file types", "file content SHA-256", "symbolic link targets", "executable permission bits"],
+    "not_compared": ["extended attributes"]
+  },
+  "interpretation": {
+    "failure_requires_deep_or_strict": false,
+    "architecture_isolated_by_identical_flags": false,
+    "differences_found_in_compared_bundle_properties": false,
+    "authority_unavailable_proves_missing_embedded_certificate": false,
+    "notarization_ticket_display_proves_assessment_passed": false,
+    "macos_version_is_root_cause": "not_established",
+    "task_execution_context_is_root_cause": "not_established",
+    "signature_error_caused_launchservices_minus_10827": "not_established"
+  },
+  "next_control": {
+    "status": "requested_pending",
+    "manual_gui_terminal_same_user": [
+      "/usr/bin/codesign --verify --deep --strict --verbose=4 /Applications/CuaDriver.app",
+      "/usr/bin/codesign --verify --deep --strict --verbose=4 /System/Applications/TextEdit.app",
+      "/bin/date -u"
+    ],
+    "mac_local_task": [
+      "/usr/bin/codesign --verify --deep --strict --verbose=4 /System/Applications/TextEdit.app"
+    ],
+    "purpose": "Compare the same host across execution contexts and an Apple system application control; no signing, keychain or trust configuration changes"
+  },
+  "mac_apps_or_gui_recovered": false,
+  "official_dot_mac_gui_acceptance": "blocked",
+  "runtime_or_security_changes": false
+}

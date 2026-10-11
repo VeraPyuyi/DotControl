@@ -1,0 +1,105 @@
+{
+  "recorded_at_utc": "2026-10-11T14:28:34Z",
+  "local_date": "2026-10-11",
+  "status": "partial_gui_effect_reported_receipts_unknown_attachment_failed",
+  "official_attempt": {
+    "source": "User-provided report from an official Dot initiated Mac local Work/Codex task; original task transcript not inspected in this session",
+    "target_host_identity_confirmed_by_report": true,
+    "os": "darwin",
+    "paused": false,
+    "activity_available": true,
+    "tools_used": [
+      "devices",
+      "apps",
+      "observe",
+      "execute",
+      "task"
+    ],
+    "task_id": "official-dot-mac-20261011-1415-calc78",
+    "operation": "All Clear; 7; Multiply; 8; Equals",
+    "each_action_sent_once": true,
+    "fresh_observation_and_element_token_each_step": true,
+    "unknown_followed_by_observation_not_replay": true,
+    "observed_sequence": [
+      "0",
+      "7",
+      "7×",
+      "7×8",
+      "7×8; 56"
+    ],
+    "initial_display": "8×9; 72",
+    "final_accessibility_values": [
+      "‎7‎×‎8",
+      "‎56"
+    ],
+    "screenshots": {
+      "initial_and_final_captured_and_saved_locally": "user_reported",
+      "raw_images_inspected_by_this_session": false,
+      "delivered_to_user": false,
+      "attachment_error": "TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'",
+      "full_traceback_and_interpreter": "requested_pending"
+    },
+    "execute_expect_arguments": "requested_pending",
+    "task_stopped_after_report": true
+  },
+  "independent_readback": {
+    "entry": "Current Codex session through DotControl Mac task tool; read-only",
+    "isError": false,
+    "receipts": [
+      {
+        "action_id": "clear-all",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:17:57.961291Z"
+      },
+      {
+        "action_id": "digit-7",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:18:25.468351Z"
+      },
+      {
+        "action_id": "multiply",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:18:49.638387Z"
+      },
+      {
+        "action_id": "digit-8",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:19:12.433748Z"
+      },
+      {
+        "action_id": "equals",
+        "state": "unknown",
+        "mode": "background",
+        "code": "execution_uncertain",
+        "updated_at": "2026-10-11T14:19:37.918232Z"
+      }
+    ],
+    "matches_user_report": true,
+    "desktop_actions_by_this_session": 0,
+    "counts_as_official_dot_invocation": false
+  },
+  "conclusions": {
+    "official_dot_route_reached_desktop_effects": "supported by user report plus matching durable action records",
+    "five_verified_success_receipts": false,
+    "final_result_56": "user_reported_screenshot_and_accessibility_confirmation",
+    "screenshot_delivery_passed": false,
+    "full_official_mac_acceptance_passed": false,
+    "missing_or_mismatched_expect_is_cause": "hypothesis_pending_actual_arguments",
+    "python_runtime_compatibility_is_attachment_cause": "hypothesis_pending_traceback_and_interpreter",
+    "previous_unknown_receipts_preserved": true
+  },
+  "source_inspection": {
+    "cua_adapter": "Native effect=confirmed or a fresh exact visible-text expect check can yield succeeded; a later separate observe call does not rewrite a stored unknown receipt",
+    "mcp_observe": "Returns MCP ImageContent in Go; this project does not implement the reported Python screenshot attachment uploader"
+  },
+  "runtime_or_security_changes": false,
+  "privacy": "No credentials, screenshot bytes, full accessibility trees, unrelated app lists or private host paths stored"
+}

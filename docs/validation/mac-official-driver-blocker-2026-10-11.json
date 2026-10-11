@@ -1,0 +1,52 @@
+{
+  "recorded_at_utc": "2026-10-11T04:02:32Z",
+  "local_date": "2026-10-11",
+  "official_attempt": {
+    "source": "user-pasted report from the official Dot initiated Mac local task; raw task transcript not inspected here",
+    "target_host_identity_confirmed": true,
+    "os": "Darwin",
+    "required_dotcontrol_tools_available": true,
+    "devices": "succeeded; paused=false",
+    "apps": {
+      "isError": true,
+      "text": "driver_unavailable",
+      "error_code": "INVALID_ARGUMENT"
+    },
+    "observe_execute_task_called": false,
+    "planned_task_id_submitted_with_an_action": false,
+    "desktop_actions": 0,
+    "native_tool_substitution": false,
+    "calculator_8_times_9": "not_verified",
+    "final_screenshot": "not_available",
+    "execution_mode_receipt": "not_available"
+  },
+  "independent_reproduction": {
+    "entry": "this Codex session through DotControl Mac MCP",
+    "device_matches_previously_verified_mac": true,
+    "devices": "succeeded; paused=false, locked=false, activity available",
+    "apps": {
+      "isError": true,
+      "text": "driver_unavailable",
+      "error_code": "INVALID_ARGUMENT"
+    },
+    "desktop_actions": 0,
+    "counts_as_official_dot_invocation": false
+  },
+  "source_investigation": {
+    "internal/engine/engine.go": "Apps replaces every driver error with driver_unavailable, so this response does not identify the underlying cause",
+    "internal/driver/cua.go": "Apps may fail in transport, list_apps or list_windows; transport errors poison the current session and require reconnection",
+    "cmd/dotcontrol/main.go": "serve attempts driver construction once at startup; driver_connected only reports whether construction succeeded, not ongoing driver health",
+    "devices_requires_driver": false
+  },
+  "conclusion": {
+    "official_local_task_route": "reached_dotcontrol_tools_user_reported",
+    "driver_failure_reproduced": true,
+    "specific_driver_failure_cause": "pending_mac_local_diagnostics",
+    "mac_permission_failure": "not_established",
+    "bad_device_id": "not_established_by_INVALID_ARGUMENT",
+    "full_official_mac_gui_acceptance": "blocked_at_apps"
+  },
+  "next_step": "Collect Mac dotcontrol status plus Cua pinned version, daemon status, permission status and doctor output before changing runtime or credentials",
+  "changes_to_runtime_network_or_permissions": false,
+  "privacy": "No raw images, application/window lists, credentials or private task identifiers saved in this public record"
+}

@@ -1,0 +1,66 @@
+{
+  "recorded_at_utc": "2026-10-11T02:11:50Z",
+  "local_date": "2026-10-11",
+  "source": "follow-up official Dot diagnostic pasted by user",
+  "direct_observation_of_dot_ui": false,
+  "reported_dot_session": {
+    "tools_present": [
+      "apps",
+      "observe",
+      "execute"
+    ],
+    "calls_performed": [
+      "devices"
+    ],
+    "desktop_calls_performed": [],
+    "waiting_for_calculator_click_approval": false,
+    "reported_restriction": "User computer desktop operations must run through an official local task in this session",
+    "last_reported_paused": false
+  },
+  "reported_supported_route": {
+    "target_computer": "Mac",
+    "requires_official_desktop_connection": true,
+    "requires_allow_access": true,
+    "execution_surface": "local Work/Codex task on the connected Mac",
+    "task_creation_approval": "Dot says it needs explicit approval for the task",
+    "plugin_availability_in_task": "must inspect; not guaranteed",
+    "local_task_created": false
+  },
+  "remaining_blocker": {
+    "mac_allow_access_entry": "user subsequently confirmed Allow access button is greyed out and unclickable; not independently observed",
+    "exact_app_and_version": "user reports Powered by Codex & OWL, version 26.1007.30912, released 2026-10-10",
+    "reason_for_unavailable_entry": "Latest user diagnostic reports historical DNS/TLS failures and subsequent partial rendezvous/WebSocket recovery. Current UI status and exact greyed-control cause remain unverified; see mac-official-network-2026-10-11.json"
+  },
+  "subsequent_screenshot": {
+    "source": "user_attached_photo; no image copied into repository",
+    "target_mac_status": "Offline",
+    "another_personal_computer_status": "Connected and selected",
+    "specific_button_disabled_reason_visible": false,
+    "proves_access_revoked": false
+  },
+  "official_document_findings_2026_10_11": {
+    "dots_personal_computers_connected_at_once": 1,
+    "minimum_app_version_in_local_access_guide": "26.929",
+    "reported_version_exceeds_documented_minimum": true,
+    "latest_eligible_release_for_this_mac": "not_checked",
+    "one_computer_limit_explains_this_offline_state": "not_established; relevant constraint, not a diagnosed cause",
+    "source_computers": "https://learn.chatgpt.com/docs/dots/computers-and-apps",
+    "source_local_access": "https://learn.chatgpt.com/docs/enterprise/cloud-local-access"
+  },
+  "evidence_boundary": {
+    "mac_driver_failure": false,
+    "tool_transport_denial": false,
+    "automatic_approval_rejection": false,
+    "product_wide_custom_mcp_prohibition": "not_established",
+    "official_document_support": "Documents opt-in computer access from that computer's ChatGPT desktop app and local Work/Codex tasks; does not independently establish every custom desktop MCP restriction"
+  },
+  "project_decision": {
+    "direct_dot_mac_gui_acceptance": "blocked_before_execution",
+    "local_task_route": "candidate_requires_real_validation",
+    "native_only_task_result": "not proof that DotControl participated",
+    "dotcontrol_replaces_official_computer_authorization": false,
+    "no_changes_to_tools_permissions_or_desktop_runtime": true
+  },
+  "official_source": "https://help.openai.com/en/articles/20001530-getting-started-with-your-dot",
+  "prior_record": "mac-dot-blocker-2026-10-11.json"
+}

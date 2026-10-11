@@ -1,0 +1,10 @@
+.tools/
+dist/
+.state/
+*.exe
+*.test
+*.key
+*.p12
+coverage.out
+.DS_Store
+/dotcontrol

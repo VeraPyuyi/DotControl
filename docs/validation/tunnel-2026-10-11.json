@@ -1,0 +1,96 @@
+{
+  "tested_at": "2026-10-10T16:22:06.1027106Z",
+  "local_date": "2026-10-11",
+  "go_version": "go1.27.2 windows/amd64",
+  "tunnel_client_version": "0.0.16",
+  "driver_version": "0.34.1",
+  "runtime_key": {
+    "storage": "Windows credential vault",
+    "permissions": [
+      "Tunnels Read",
+      "Tunnels Use"
+    ],
+    "validity_days": 7,
+    "secret_persisted_to_repo": false
+  },
+  "tunnel": {
+    "doctor_online": "passed",
+    "running": true,
+    "ready": true,
+    "readyz_http_status": 200,
+    "agent_paused": true,
+    "network": "existing user proxy inherited through process environment; loopback excluded"
+  },
+  "fix": {
+    "reproduction": "tunnel-client rejected --log.level warn without an explicit log format",
+    "change": "set --log.format json",
+    "normal_tests": "passed",
+    "vet": "passed"
+  },
+  "plugin": {
+    "created": true,
+    "connected": true,
+    "official_ui_read_tools": [
+      "devices",
+      "apps",
+      "observe",
+      "task"
+    ],
+    "official_ui_write_tools": [
+      "execute",
+      "cancel"
+    ]
+  },
+  "official_dot": {
+    "status": "passed_windows_fixture",
+    "entry": "https://chatgpt.com/dots",
+    "request_marker": "dotcontrol-20261011-0022",
+    "requested_tool": "devices",
+    "image": "Dot reported receiving two screenshots; displaying the image in chat failed with widget unavailable",
+    "gui_action": "passed",
+    "devices": {
+      "official_dot_reply": "devices called once successfully",
+      "device_id_matches_local": true,
+      "os": "windows",
+      "paused": true,
+      "nonce_is_fresh_48_hex_characters": true,
+      "observation_source": "official Dot response visible at /dots/home, not local probe output"
+    },
+    "fixture": {
+      "task_id": "official-dot-win-20261011-0024",
+      "action_id": "increment-once",
+      "state": "succeeded",
+      "code": "verified",
+      "mode": "background",
+      "updated_at": "2026-10-10T16:24:24.9352424Z",
+      "duplicate": "Dot reported identical complete request retry and identical receipt timestamp",
+      "independent_local_readback": "view.text tree_markdown contained Count: 1 after the reported retry",
+      "test_scope": "disposable native fixture only",
+      "agent_paused_after_test": true
+    }
+  },
+  "mac": {
+    "remote_ssh": "TCP connect timed out before authentication",
+    "desktop": "not_verified"
+  },
+  "builds": [
+    {
+      "file": "dotcontrol-windows-amd64.exe",
+      "sha256": "5de3bc3f97becf15537b1d4803ae612295203d06471b8dd44bed5e652ab34b91",
+      "bytes": 10752000,
+      "desktop_acceptance": "See docs/validation/ACCEPTANCE.md"
+    },
+    {
+      "file": "dotcontrol-darwin-arm64",
+      "sha256": "180f380d8272ab405eff429d23272c60806a865ddb52ac5b58b232cdbd3d85de",
+      "bytes": 9853506,
+      "desktop_acceptance": "See docs/validation/ACCEPTANCE.md"
+    },
+    {
+      "file": "dotcontrol-darwin-amd64",
+      "sha256": "fcd3d35eaec0246e884c933fe486f6f7604b0e1b4a6082a258a7d7c78832ceeb",
+      "bytes": 10625392,
+      "desktop_acceptance": "See docs/validation/ACCEPTANCE.md"
+    }
+  ]
+}

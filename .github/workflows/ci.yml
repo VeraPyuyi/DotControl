@@ -1,0 +1,29 @@
+name: verify
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/test_macos_signature.py
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.2'
+          cache: true
+      - run: go test -count=1 ./...
+      - run: go test -race -count=1 ./...
+      - run: go vet ./...
+      - run: go build -trimpath ./cmd/dotcontrol
+      - if: runner.os == 'macOS'
+        run: xcrun swiftc -O -framework AppKit -framework CoreGraphics native/macos/Activity.swift -o /tmp/DotControlActivity
+      # No interactive desktop permissions or cloud account credentials in CI.
+      # CI passing is not official Dot / Mac GUI acceptance.

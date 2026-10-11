@@ -1,0 +1,142 @@
+{
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "passed_windows_to_mac_calculator_with_official_dot_image_delivery",
+  "scope": "Keep official Dot attached to the Windows source computer; use DotControl Mac to operate the separate Mac target without attaching Dot to Mac",
+  "evidence_source": "Official Dot web conversation inspected through browser UI in this session",
+  "preflight_marker": "cross-device-20261012-0031",
+  "action_task_id": "official-dot-win-to-mac-20261012-calc68-0038",
+  "preflight": {
+    "local_time": "00:32",
+    "source_windows": {
+      "connected": true,
+      "attached": false,
+      "is_authorized_for_tasks": false,
+      "identity_matches_current_windows_host": true,
+      "identity_evidence": "Source computer name matched the current shell host name; local shell returned Win32NT"
+    },
+    "target_mac": {
+      "connected": true,
+      "attached": true,
+      "is_authorized_for_tasks": true
+    },
+    "mac_plugin_devices": {
+      "success": true,
+      "os": "darwin",
+      "paused": false,
+      "activity_available": true,
+      "locked": false,
+      "fresh_nonce_returned": true,
+      "device_matches_previously_validated_mac": true
+    },
+    "desktop_actions_attempted": false
+  },
+  "authorization_update": {
+    "user_report": "Windows computer access enabled locally",
+    "official_dot_confirmation_local_time": "00:38",
+    "source_windows": {
+      "connected": true,
+      "attached": true,
+      "is_authorized_for_tasks": true
+    },
+    "target_mac": {
+      "attached": false,
+      "is_authorized_for_tasks": false
+    }
+  },
+  "dispatch": {
+    "local_time": "00:40",
+    "official_dot_acknowledged_windows_local_execution": true,
+    "operation": "All Clear; 6; Multiply; 8; Equals",
+    "expected_result": "48",
+    "requested_mode": "background",
+    "requires_fresh_observations_and_exact_top_level_expect": true,
+    "unknown_action_replay_allowed": false,
+    "switch_official_target_to_mac_allowed": false,
+    "create_or_continue_mac_local_task_allowed": false
+  },
+  "result": {
+    "windows_runtime_identity": {
+      "verified": true,
+      "source": "Official Windows child task report, inspected in browser and its saved evidence JSON; reported machine name matches this Windows host",
+      "os_platform": "Win32NT",
+      "os_version": "Microsoft Windows NT 10.0.26200.0",
+      "is_windows": true,
+      "process_architecture": "X64",
+      "shell": "powershell"
+    },
+    "mac_actions": {
+      "source": "Official Windows child task report and saved evidence JSON",
+      "devices_calls": 1,
+      "apps_calls": 1,
+      "observe_calls": 7,
+      "execute_calls": 5,
+      "task_calls": 1,
+      "cancel_discovered_not_called": true,
+      "each_action_sent_once": true,
+      "fresh_observation_and_element_token_each_step": true,
+      "foreground_actions": 0,
+      "other_desktop_tools_used": false,
+      "mac_local_tasks_created_or_continued": false,
+      "unknown_or_timeout": false
+    },
+    "durable_receipts": {
+      "source": "Current session independently called DotControl Mac task read-only; all fields below match the official child task evidence",
+      "actions": [
+        {"action_id": "clear-all", "state": "succeeded", "mode": "background", "code": "verified", "updated_at": "2026-10-11T16:43:14.089938Z"},
+        {"action_id": "digit-6", "state": "succeeded", "mode": "background", "code": "verified", "updated_at": "2026-10-11T16:43:39.711173Z"},
+        {"action_id": "multiply", "state": "succeeded", "mode": "background", "code": "verified", "updated_at": "2026-10-11T16:44:04.972942Z"},
+        {"action_id": "digit-8", "state": "succeeded", "mode": "background", "code": "verified", "updated_at": "2026-10-11T16:44:25.649104Z"},
+        {"action_id": "equals", "state": "succeeded", "mode": "background", "code": "verified", "updated_at": "2026-10-11T16:44:47.308285Z"}
+      ]
+    },
+    "expect_arguments": {
+      "source": "Official Windows child task saved request evidence, inspected in this session",
+      "clear-all": "\u200e0",
+      "digit-6": "\u200e6",
+      "multiply": "\u200e6\u200e×",
+      "digit-8": "\u200e6\u200e×\u200e8",
+      "equals": "\u200e48"
+    },
+    "final_observation": {
+      "created_at": "2026-10-11T16:44:57.132459Z",
+      "ax_values": ["\u200e6\u200e×\u200e8", "\u200e48"],
+      "ax_source": "Official Windows child task saved evidence",
+      "screenshot_matches_ax": true,
+      "screenshot_source": "Current session visually inspected the image rendered in official Dot and independently checked the saved original PNG"
+    },
+    "dot_result_return": {"passed": true, "local_time": "00:49", "expression": "6×8", "result": "48"},
+    "user_visible_image_delivery": {
+      "passed": true,
+      "surface": "Official Dot web conversation",
+      "verification": "Current session browser screenshot shows the native attachment with 6×8 and 48 rendered, not only an attachment ID or model-visible image",
+      "native_upload_operation": "create_library_file",
+      "native_read_operation": "files/read",
+      "native_operations_evidence": "Official Windows child task saved evidence; parent Dot returned native attachment and current session observed rendering",
+      "old_prepare_uploads_script_used": false,
+      "original_png": {
+        "width": 460,
+        "height": 816,
+        "bytes": 93675,
+        "sha256": "4f56ec1b57f66f23fb75f35234b7731dfd6a03101e1039ebdf7f139930091470",
+        "local_file_size_and_sha256_independently_verified": true
+      },
+      "browser_proof_path": ".state/validation/cross-device-2026-10-12/official-dot-image-delivered.jpg"
+    },
+    "official_attached_computer_after_test": {
+      "source": "Official parent Dot final response at 00:49 reports a fresh computer-list check",
+      "source_windows_connected": true,
+      "source_windows_attached": true,
+      "source_windows_is_authorized_for_tasks": true,
+      "target_mac_attached": false
+    }
+  },
+  "non_blocking_error": {
+    "operation": "Read-only CIM operating-system identity query",
+    "error_type": "Microsoft.Management.Infrastructure.CimException",
+    "message": "无法从客户端中访问 CIM 资源。",
+    "recovery": "Read-only .NET machine and OS identity query succeeded"
+  },
+  "scope_limit": "One official Windows-to-Mac background Calculator scenario including native image delivery passed. Multi-application, physical takeover, full OS matrix, fault injection, real gateway and automatic installation acceptance remain separate.",
+  "privacy": "Computer names, device/environment identifiers, nonce, cloud file identifiers and unrelated conversation content omitted from public record; private evidence remains in ignored local storage or the original task"
+}

@@ -1,0 +1,75 @@
+{
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "windows_cloud_apps_recovered_official_mac_desktop_retest_pending",
+  "official_attempt": {
+    "source": "User-provided report from the official Mac local task",
+    "devices_succeeded": true,
+    "paused": false,
+    "activity_available": true,
+    "locked": false,
+    "apps_error": "driver_unavailable",
+    "error_code": "INVALID_ARGUMENT",
+    "task_receipts": [],
+    "desktop_actions_submitted": false,
+    "official_attached_computer_after_attempt": "Mac"
+  },
+  "independent_diagnosis": {
+    "source": "Current Windows session; not a substitute for official Mac-origin acceptance",
+    "cloud_plugin_apps_error_reproduced": true,
+    "existing_agent_local_apps_error_reproduced": true,
+    "agent_status_reported_driver_connected": true,
+    "agent_status_reported_tunnel_ready": true,
+    "agent_sha256": "5de3bc3f97becf15537b1d4803ae612295203d06471b8dd44bed5e652ab34b91",
+    "driver_version": "0.34.1",
+    "fresh_direct_mcp_connection": {
+      "tool_count": 59,
+      "list_apps": "passed",
+      "list_windows": "passed"
+    },
+    "fresh_dotcontrol_adapter_connection": {
+      "same_driver_binary_and_startup_context_pattern": true,
+      "consecutive_apps_calls_passed": 2,
+      "returned_json_valid": true
+    },
+    "daemon_status": "not_running",
+    "daemon_status_interpretation": "Not evidence of a fault: normal Windows mcp mode owns a direct runtime without a separate daemon.",
+    "diagnostic_limitations": [
+      "The existing agent maps driver errors to driver_unavailable and discards driver stderr; its original underlying failure was not retained.",
+      "driver_connected only checks whether the native adapter was created; it does not prove current tool-call health.",
+      "The adapter poisons its connection after any CallTool transport error and requires reconstruction. This is a plausible mechanism, not proof of the original triggering error."
+    ]
+  },
+  "recovery": {
+    "action": "Pause admission, restart only the identified validation agent and its owned driver/tunnel children, then resume the same device after a successful local apps query",
+    "configuration_credentials_or_dependency_versions_changed": false,
+    "security_or_network_settings_changed": false,
+    "official_computer_attachment_changed_by_this_session": false,
+    "production_source_code_changed": false,
+    "desktop_actions_performed": false,
+    "local_apps": {
+      "status": "passed",
+      "application_count": 248,
+      "window_count": 11,
+      "calculator_window_found": true
+    },
+    "cloud_plugin": {
+      "first_apps_after_restart": "MCP error -32603: MCP request timed out",
+      "subsequent_devices": "passed",
+      "subsequent_apps": "passed",
+      "application_count": 248,
+      "window_count": 11,
+      "calculator_matches_local_window": true,
+      "paused": false,
+      "activity_available": true,
+      "locked": false
+    },
+    "conclusion": "Reconstructing the original agent's driver connection restored local and cloud application discovery; the initial failure trigger remains unknown."
+  },
+  "remaining": [
+    "Resume the bounded Calculator 4x9 test from the official Mac task while keeping official Dot attached to Mac",
+    "Verify actual result, durable action receipts and visible screenshot delivery",
+    "Improve safe driver error diagnostics and live health reporting without replaying uncertain actions"
+  ],
+  "privacy": "No credentials, private application list, screenshots, input contents, device identifiers or nonce stored in this public record"
+}

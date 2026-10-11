@@ -1,0 +1,85 @@
+{
+  "local_date": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "status": "read_cancellation_defect_fixed_windows_deployed_official_mac_calculation_pending",
+  "reported_recurrence": {
+    "source": "User report from the official Mac local task",
+    "apps_error": "driver_unavailable",
+    "error_code": "INVALID_ARGUMENT",
+    "official_attached_computer": "Mac",
+    "new_actions_or_screenshots": false,
+    "existing_receipt": {
+      "task_id": "official-dot-mac-to-win-20261012-calc49-0115",
+      "action_id": "clear-all",
+      "state": "unknown",
+      "mode": "background",
+      "code": "execution_uncertain",
+      "updated_at": "2026-10-11T17:51:56.8191262Z"
+    }
+  },
+  "diagnosis": {
+    "original_local_apps_failure_reproduced": true,
+    "original_status_incorrectly_reported_driver_connected": true,
+    "confirmed_code_defect": "Every CallTool error poisoned the adapter, including cancelled or timed-out read-only queries. An already-cancelled context could also be dispatched before permanently blocking subsequent reads.",
+    "confirmed_by_failing_tests_before_fix": [
+      "TestCancelledReadDoesNotDispatchOrDisableNextQuery",
+      "TestInterruptedReadDoesNotPoisonFutureReads"
+    ],
+    "actual_historical_trigger_known": false,
+    "limitation": "The old running instance discarded the underlying error; the reproducible cancellation defect is not proof that cancellation caused this particular recurrence."
+  },
+  "changes": [
+    "Reject already-cancelled requests before calling the driver",
+    "Allow a later NEW read after a cancelled or deadline-exceeded list_apps, list_windows or get_window_state request; never retry the interrupted request automatically",
+    "Keep unknown transport failures and uncertain mutations blocked until connection reconstruction",
+    "Expose content-free driver_status metadata through authenticated local status: last operation, error category, optional JSON-RPC code and time",
+    "Make driver_connected reflect the adapter's last known call/connection state rather than pointer existence; keep status responsive during an in-flight call",
+    "Retain the original latched error category across subsequent blocked calls, without recording arguments, response contents or arbitrary native error strings"
+  ],
+  "tests": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "race_driver_and_engine": "passed",
+    "controlled_real_mcp_sdk_cancellation_session": "passed; in-memory MCP server, cancelled read followed by two successful discovery calls, no automatic retry",
+    "uncertain_mutation_still_blocks_future_dispatch": "passed",
+    "safe_error_metadata_and_nonblocking_status": "passed",
+    "windows_build": "passed",
+    "darwin_arm64_build": "passed; cross-compilation only",
+    "darwin_amd64_build": "passed; cross-compilation only"
+  },
+  "deployment": {
+    "source": "Current Windows session, not official Mac-origin acceptance",
+    "binary_relative_path": "dist/driver-recovery/dotcontrol-windows-amd64.exe",
+    "binary_sha256": "944f0dc20d43d24ba594cdf3770c3f36cbccf212d9518c9f711744e3d183cd75",
+    "original_binary_preserved": true,
+    "original_device_state_credentials_and_journal_reused": true,
+    "permissions_network_or_official_attachment_changed": false,
+    "mac_runtime_deployed": false,
+    "desktop_actions_submitted": false,
+    "initial_observe_while_paused": "refused with paused; resumed locally before further read-only verification",
+    "local_apps_observe_apps": "passed",
+    "cloud_plugin_apps_observe_apps": "passed",
+    "calculator_observation": {
+      "images": 1,
+      "elements": 56,
+      "image_content_saved_or_delivered_as_acceptance": false
+    },
+    "status_after_cloud_reads": {
+      "paused": false,
+      "activity_available": true,
+      "locked": false,
+      "driver_connected": true,
+      "driver_reconnection_required": false,
+      "driver_last_failure_present": false,
+      "tunnel_ready": true
+    },
+    "original_clear_receipt_and_timestamp_independently_unchanged": true
+  },
+  "remaining": [
+    "Official Mac task must rediscover and observe Windows before deciding whether the pending 4x9 calculation can proceed",
+    "Keep original clear-all unknown; do not resend it or reuse prior coordinates, tokens or screenshots",
+    "If driver_unavailable recurs, inspect the new local driver_status before restarting so the failure category is preserved",
+    "Verify actual 36 result, action receipts and final screenshot delivery from the official Mac-origin task"
+  ],
+  "privacy": "No credentials, private app lists, image bytes, entered text, device identifiers or nonce stored"
+}
