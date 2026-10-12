@@ -117,8 +117,16 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	f := flags("serve")
 	noTunnel := f.Bool("no-tunnel", false, "Local diagnostics only")
 	managedStart := f.String("managed-start", "", "Internal OS lifecycle source")
+	failureLog := f.String("native-failure-log", "", "Private allowlisted native error journal")
 	if err := f.Parse(args); err != nil {
 		return err
+	}
+	if *failureLog != "" {
+		closeJournal, err := driver.OpenFailureJournal(*failureLog)
+		if err != nil {
+			return err
+		}
+		defer closeJournal()
 	}
 	if *managedStart != "" && *managedStart != "task-scheduler" && *managedStart != "launch-agent" {
 		return errors.New("managed_start_invalid")

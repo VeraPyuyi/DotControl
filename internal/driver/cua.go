@@ -204,7 +204,7 @@ func (d *Cua) call(ctx context.Context, name string, args map[string]any) (*mcp.
 		return nil, errors.New("driver_empty_response")
 	}
 	if r.IsError {
-		d.recordFailure(name, errToolResponse, true, false)
+		d.recordFailure(name, errToolResponse, true, false, safeNativeFailure(name, r))
 	} else {
 		d.recordSuccess()
 	}
