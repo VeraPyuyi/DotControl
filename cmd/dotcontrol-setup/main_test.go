@@ -5,8 +5,27 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestLegacyUpgradeExplainsNormalExitAndRetry(t *testing.T) {
+	message := installationMessage("DotControl: legacy_agent_stop_required\n")
+	// Activation and recovery can both encounter the same still-running agent.
+	if got := installationMessage("DotControl: legacy_agent_stop_required\nlegacy_agent_stop_required\n"); got != message {
+		t.Fatalf("joined migration/recovery error lost instructions: %s", got)
+	}
+	for _, step := range []string{"不支持自动退出", "Control+C", "重试安装", "无需删除锁文件"} {
+		if !strings.Contains(message, step) {
+			t.Fatalf("missing step %q: %s", step, message)
+		}
+	}
+	for _, code := range []string{"agent_stop_timeout", "wait_for_active_task_to_stop"} {
+		if !strings.Contains(installationMessage("DotControl: "+code), "不一定表示正在执行桌面任务") {
+			t.Fatal("lifetime lock incorrectly described as an active task")
+		}
+	}
+}
 
 func archive(t *testing.T, names ...string) []byte {
 	t.Helper()

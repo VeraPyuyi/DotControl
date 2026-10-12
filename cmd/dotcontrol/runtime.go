@@ -50,6 +50,7 @@ type runtimeOwner struct {
 	native                   *driver.Cua
 	sup                      *tunnel.Supervisor
 	tunnelError, driverError string
+	driverDiagnostic         map[string]any
 	permissions              permissionStatus
 	proof                    connectionProof
 	revoked, noTunnel        bool
@@ -355,10 +356,7 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	ds := map[string]any{"connected": false}
-	if o.native != nil {
-		ds = o.native.Diagnostic()
-	}
+	ds := o.driverStatus()
 	ts := o.sup.Status()
 	if o.tunnelError != "" {
 		ts.Error = o.tunnelError
@@ -371,10 +369,7 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	ds := map[string]any{"connected": false}
-	if o.native != nil {
-		ds = o.native.Diagnostic()
-	}
+	ds := o.driverStatus()
 	d := o.eng.Device()
 	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "native_codex": "not_verified"}, nil
 }
@@ -400,16 +395,17 @@ func (o *runtimeOwner) maintain() {
 			ctx, cancel := context.WithTimeout(o.ctx, 12*time.Second)
 			reconnectErr := o.eng.Reconnect(ctx, func() model.Driver {
 				d, err := driver.New(ctx, c.DriverPath)
+				var diagnostic map[string]any
 				if err == nil {
-					if _, probeErr := d.Apps(ctx); probeErr != nil {
-						_ = d.Close()
+					diagnostic, err = probeDriver(ctx, d)
+					if err != nil {
 						d = nil
-						err = errors.New("driver_apps_probe_failed")
 					}
 				}
 				o.mu.Lock()
 				defer o.mu.Unlock()
 				o.native = d
+				o.driverDiagnostic = diagnostic
 				o.driverError = ""
 				if err != nil {
 					o.driverError = safeDriverError(err)
@@ -467,7 +463,7 @@ func (o *runtimeOwner) baseStatus() model.Capability {
 }
 func safeDriverError(err error) string {
 	switch err.Error() {
-	case "signature_invalid", "driver_install_location_invalid", "driver_version_unavailable", "driver_version_mismatch", "cua_driver_not_configured", "cua_driver_connection_failed", "driver_discovery_failed", "driver_apps_probe_failed":
+	case "signature_invalid", "driver_install_location_invalid", "driver_version_unavailable", "driver_version_mismatch", "cua_driver_not_configured", "cua_driver_connection_failed", "driver_discovery_failed", "driver_apps_probe_failed", "driver_apps_probe_timeout", "app_discovery_failed", "window_discovery_failed", "driver_transport_failed", "driver_empty_response":
 		return err.Error()
 	}
 	return "driver_unavailable"

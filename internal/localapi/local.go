@@ -51,6 +51,11 @@ func Guard(token string, next http.Handler) http.Handler {
 
 type Client struct{ Address, Token string }
 
+// ResponseError retains only the HTTP status, never an agent response body.
+type ResponseError struct{ StatusCode int }
+
+func (e *ResponseError) Error() string { return "agent_request_refused" }
+
 func (c Client) Post(ctx context.Context, path string, input any) (json.RawMessage, error) {
 	if !strings.HasPrefix(path, "/") {
 		return nil, errors.New("invalid_path")
@@ -80,7 +85,7 @@ func (c Client) Post(ctx context.Context, path string, input any) (json.RawMessa
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return nil, errors.New("agent_request_refused")
+		return nil, &ResponseError{StatusCode: res.StatusCode}
 	}
 	return io.ReadAll(io.LimitReader(res.Body, 24<<20))
 }

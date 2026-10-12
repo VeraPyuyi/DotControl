@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -191,13 +192,52 @@ func stopLocal(ctx context.Context, dir string) error {
 	if e != nil {
 		return errors.New("existing_configuration_invalid")
 	}
-	v := vault.New(dir)
-	if token, e := v.Get("admin-token"); e == nil {
-		stop, cancel := context.WithTimeout(ctx, 3*time.Second)
-		_, _ = (localapi.Client{Address: c.Listen, Token: token}).Post(stop, "/admin/shutdown", map[string]any{})
-		cancel()
-	}
 	lock := flock.New(filepath.Join(dir, "engine.lock"))
+	defer lock.Close()
+	// This is a process-lifetime lock, not evidence of an active desktop task.
+	if ok, e := lock.TryLock(); e != nil {
+		return errors.New("existing_instance_locked")
+	} else if ok {
+		return nil
+	}
+	token, e := vault.New(dir).Get("admin-token")
+	if e != nil {
+		return errors.New("local_credential_missing")
+	}
+	client := localapi.Client{Address: c.Listen, Token: token}
+	check, cancel := context.WithTimeout(ctx, 3*time.Second)
+	data, statusErr := client.Post(check, "/admin/status", map[string]any{})
+	cancel()
+	var status struct {
+		Device struct {
+			ID string `json:"device_id"`
+		} `json:"device"`
+	}
+	if statusErr != nil || json.Unmarshal(data, &status) != nil || status.Device.ID != c.DeviceID {
+		if ok, _ := lock.TryLock(); ok {
+			return nil
+		}
+		return errors.New("agent_shutdown_identity_unverified")
+	}
+	stop, cancel := context.WithTimeout(ctx, 3*time.Second)
+	_, stopErr := client.Post(stop, "/admin/shutdown", map[string]any{})
+	cancel()
+	if stopErr != nil {
+		if ok, _ := lock.TryLock(); ok {
+			return nil
+		}
+		var response *localapi.ResponseError
+		if errors.As(stopErr, &response) {
+			switch response.StatusCode {
+			case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
+				return errors.New("legacy_agent_stop_required")
+			default:
+				return errors.New("agent_shutdown_refused")
+			}
+		}
+		// A lost shutdown response may still have stopped the agent. Wait for
+		// its lock to be released; never force termination or delete the lock.
+	}
 	deadline := time.NewTimer(30 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -215,7 +255,7 @@ func stopLocal(ctx context.Context, dir string) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-deadline.C:
-			return errors.New("wait_for_active_task_to_stop")
+			return errors.New("agent_stop_timeout")
 		case <-ticker.C:
 		}
 	}

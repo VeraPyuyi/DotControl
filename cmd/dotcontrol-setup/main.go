@@ -185,11 +185,7 @@ func (s *setup) run() {
 			s.mu.Unlock()
 			return
 		}
-		message := strings.TrimSpace(errText.String())
-		if len(message) > 600 {
-			message = "安装未通过健康检查，已尝试恢复旧版本。"
-		}
-		s.set("安装尚未完成", message)
+		s.set("安装尚未完成", installationMessage(errText.String()))
 		return
 	}
 	current, e := install.ReadCurrent(desktop.ProgramRoot())
@@ -216,6 +212,35 @@ func (s *setup) run() {
 	s.phase = "安装完成，正在进入连接向导"
 	s.url = launch.URL
 	s.mu.Unlock()
+}
+func installationMessage(stderr string) string {
+	message := strings.TrimSpace(stderr)
+	code := strings.TrimSpace(strings.TrimPrefix(message, "DotControl:"))
+	lines := strings.Split(code, "\n")
+	code = strings.TrimSpace(lines[0])
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) != code {
+			// Different rollback errors must not be hidden by the first one.
+			code = ""
+			break
+		}
+	}
+	switch code {
+	case "legacy_agent_stop_required":
+		return "旧版代理不支持自动退出。请等待桌面任务结束，再在原终端按 Control+C 正常退出旧代理，然后点击“重试安装”。若在后台运行，请从原启动入口正常退出。无需删除锁文件或设备目录。"
+	case "agent_stop_timeout", "wait_for_active_task_to_stop":
+		return "已有代理尚未退出，暂时不能替换程序。这不一定表示正在执行桌面任务；请等待任务结束并正常退出代理，再重试安装。不要删除锁文件或设备目录。"
+	case "agent_shutdown_identity_unverified":
+		return "无法核实已有代理的本机连接，未向它发送退出请求。请确认选择了正确的设备；等待任务结束后，从原启动入口正常退出代理，再重试安装。"
+	case "agent_shutdown_refused":
+		return "已有代理未接受退出请求。请等待任务结束并正常退出代理，再重试安装。已有设备记录会保留。"
+	case "local_credential_missing":
+		return "无法读取已有设备的本机管理凭据。请确认使用原来的系统账号，并允许访问系统凭据库，再重试安装。"
+	}
+	if len(message) > 600 || message == "" {
+		return "安装未通过健康检查，已尝试恢复旧版本。"
+	}
+	return message
 }
 func extract(data []byte, dir string) error {
 	z, e := zip.NewReader(bytes.NewReader(data), int64(len(data)))

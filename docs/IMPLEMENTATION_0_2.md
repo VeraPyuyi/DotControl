@@ -47,6 +47,16 @@ that platform. No Cua substitution, hidden approval or unknown-action replay.
 | Inline codesign requirement mistaken for a file | Prefix requirement with `=`; exercise real codesign parser in Mac CI |
 | Race-instrumented synthetic process slow to exit | Bounded graceful-exit fixture budget and explicit child exit errors |
 | Native CU inferred from app-server availability | Actual native capability gate, blocked reason exposed to Dot |
+| 0.1 idle agent reported as an active task during upgrade | Lifetime lock checked separately; authenticated device identity before shutdown; unsupported endpoint reported as requiring normal local exit; never delete the lock |
+| Startup apps probe hides failure after closing driver | Retain sanitized operation/category before cleanup; distinguish apps, windows, deadline and transport errors; do not expose native response content |
+
+The last two regression fixes are in source after alpha.1; the published alpha.1
+installation assets have not been replaced. A user reported that exiting the old
+Mac agent and retrying completed migration. A fresh read-only plugin call confirmed
+the installed version as `0.2.0-alpha.1` and the retained device identity. The agent
+was paused, activity detection unavailable, and apps returned `driver_unavailable`.
+This is migration/connection evidence only; the Mac desktop and screenshot gates
+remain open. The old installer message does not prove an active desktop task.
 
 Private logs, screenshots, credentials and local machine identifiers are not
 release assets. Third-party executables remain unmodified and retain licenses.

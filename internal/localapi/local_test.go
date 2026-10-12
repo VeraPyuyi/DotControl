@@ -2,6 +2,7 @@ package localapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,21 @@ import (
 	"sync/atomic"
 	"testing"
 )
+
+func TestClientErrorKeepsStatusWithoutResponseContent(t *testing.T) {
+	for _, status := range []int{401, 404, 500} {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "private response content", status)
+		}))
+		c := Client{Address: strings.TrimPrefix(s.URL, "http://"), Token: strings.Repeat("t", 32)}
+		data, err := c.Post(context.Background(), "/admin/shutdown", nil)
+		s.Close()
+		var response *ResponseError
+		if !errors.As(err, &response) || response.StatusCode != status || err.Error() != "agent_request_refused" || len(data) != 0 {
+			t.Fatalf("unsafe or unclassified response: status=%d err=%v", status, err)
+		}
+	}
+}
 
 func TestGuardRequiresTokenLoopbackHostAndNoOrigin(t *testing.T) {
 	token := strings.Repeat("a", 64)
