@@ -10,6 +10,8 @@ SSH、VPN 及项目权限可以之后在目标电脑的 Codex 中按实际任务
 2. 在本机填写官方隧道编号及运行密钥；已有连接会保留，无需重填。
 3. 点击 **连接并启用 Codex**。它查找官方程序，使用独立任务目录和官方
    `:workspace` 权限配置，验证本机命令执行后启用。不会选择完全访问。
+4. 本机就绪后，仍需核对源端会话实际可用的插件工具目录。升级后，在源端
+   官方插件设置点击 **Refresh tools**，再新建会话，按下文验证终端工具。
 
 当前候选版开放 Windows 终端委派；Mac 可作为源端。Mac 目标端和官方
 Computer Use 尚未开放。已有安装不会仅因升级自动启用委派。
@@ -21,11 +23,23 @@ Computer Use 尚未开放。已有安装不会仅因升级自动启用委派。
 
 ## 如何使用
 
-源 Dot 保持连接源电脑，通过目标 DotControl 的 `devices` 查看
-`capabilities.codex_terminal`。不要先调用 `apps` 或 `observe`。
-选择 `codex_profiles.execution` 中的配置编号，提交 `codex_submit`，
+先检查当前源端会话实际可用的目标 DotControl 插件工具列表，确认包含
+`codex_submit`、`codex_job`、`codex_continue`、`codex_cancel`。缺少任一项就
+停止测试，在源端官方插件设置点击 **Refresh tools**，再新建会话重新检查。
+`devices` 查询成功或 `codex_terminal.available=true` 都不能证明这些工具
+已经加载。即使目录中存在 `codex_review`，也不表示远程审批已验收。
+
+刷新使用[官方 metadata refresh 流程](https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata)，
+保留原插件、隧道和设备。官方详情页与任务目录可能暂时不同步；以新会话的
+实际工具列表为准。若新会话仍缺工具，记录两处目录和错误，停止派发，不反复
+重装、另建插件或更改权限。
+
+工具齐全后，源 Dot 保持连接源电脑，通过同一插件的 `devices` 核对目标
+`device_id`，查看 `capabilities.codex_terminal` 和 `codex_profiles.execution`。
+终端能力可用且配置存在时，选择配置编号，提交 `codex_submit`，
 再通过 `codex_job` 查询真实线程编号、状态、命令回执和结果。初次可只要求
 目标任务报告系统信息。`codex_continue` 在同一官方线程中追加指令。
+不要把 `apps` 或 `observe` 作为前置条件，也不要把终端命令放入 `execute`。
 
 重复请求使用相同编号和内容；结果不确定时查询原任务，不创建替代任务。
 暂停、撤销及取消仍生效。取消控制任务不等于停止已经启动的远程实验。
@@ -38,7 +52,8 @@ Computer Use 尚未开放。已有安装不会仅因升级自动启用委派。
 - “组件已就位”：代理已安装，不表示隧道在线。
 - “隧道在线”：官方通道已连接，不表示模型账号或任意任务可用。
 - `codex_terminal.available=true`：本机已明确启用、配置未变化且平台通过
-  基础终端验收；执行时仍会核对官方版本、实际权限和暂停状态。
+  基础终端验收；执行时仍会核对官方版本、实际权限和暂停状态。这不验证
+  源端工具目录；收到 `devices` 查询也不能替代源端实际工具列表检查。
 - 本机预检只验证官方命令执行及任务目录写入。模型登录、额度、网络和源端
   实际返回仍由任务运行证明。
 

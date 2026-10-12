@@ -71,7 +71,7 @@ open system settings for CuaDriver Accessibility/Screen Recording and
 DotControlActivity Input Monitoring, then use Repair to recheck. Unknown
 permissions are not granted permissions.
 
-For an authorized test, keep source Dot attached to its original computer and
+For an authorized desktop test, keep source Dot attached to its original computer and
 call the target device's plugin. Get a fresh devices nonce, apps, then observe.
 Use exactly one bounded action per new observation and stable action IDs.
 Supply `expect` for a NEW verified visible state, retaining actual Unicode
@@ -92,8 +92,20 @@ Do not require SSH configuration, public-key authorization, a server profile,
 Computer Use or image delivery to finish basic installation. SSH and deployment
 can be handled later in the target's own Codex task. Advanced settings are optional.
 
-In terminal-only mode, inspect `devices.capabilities.codex_terminal` and use the
-four submit/job/continue/cancel tools. Do not call apps/observe as a prerequisite.
+In terminal-only mode, FIRST inspect the tools actually available to the current
+source conversation for the target plugin. Require `codex_submit`, `codex_job`,
+`codex_continue` and `codex_cancel`. If any are missing, stop the test: use
+**Refresh tools** in the source host's official plugin settings, then start a new
+conversation and check again. Prompt for this refresh after upgrades. Local Codex
+readiness, `devices_seen`, a successful devices call and capability `available`
+do not verify the source tool catalog. The presence of `codex_review` in that
+catalog does not establish remote approval acceptance.
+
+Only after all four tools are present, call the same plugin's `devices`, verify
+the target device ID, inspect `capabilities.codex_terminal` and select a saved
+terminal profile from `codex_profiles.execution`. Submit only when the capability
+is available and a profile exists. Do not call apps/observe as a prerequisite,
+and never put terminal commands into `execute`.
 No driver, activity monitoring, idle time or desktop system permissions are needed.
 Pause, revocation and locally selected permissions still apply. Unexpected human
 requirements mean target-local handling; do not ask for repeated remote approvals.
@@ -131,7 +143,8 @@ native desktop and remote review remain gated. Configuring a profile cannot
 enable an unaccepted platform. The released alpha.2 installer above does not yet
 contain the new configuration UI; do not claim it does or fabricate a newer asset.
 
-Read `devices.capabilities` first. Basic Cua desktop control, Codex connection,
+After checking the source tool catalog, read `devices.capabilities` before choosing
+an execution mode. Basic Cua desktop control, Codex connection,
 and official Computer Use acceptance are separate. If native delegation is gated,
 say “Codex 桌面委派暂不可用” with the returned reason. Never replace it with Cua,
 private helper protocols, model completion text, or a newly attached target.
