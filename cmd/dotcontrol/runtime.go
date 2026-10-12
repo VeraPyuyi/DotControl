@@ -51,6 +51,7 @@ type runtimeOwner struct {
 	sup                      *tunnel.Supervisor
 	tunnelError, driverError string
 	driverDiagnostic         map[string]any
+	lastDriverFailure        any // Only the driver's allowlisted failure, never a response.
 	permissions              permissionStatus
 	proof                    connectionProof
 	revoked, noTunnel        bool
@@ -91,8 +92,16 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	}
 	f := flags("serve")
 	noTunnel := f.Bool("no-tunnel", false, "Local diagnostics only")
+	failureLog := f.String("native-failure-log", "", "Private allowlisted native error journal")
 	if err := f.Parse(args); err != nil {
 		return err
+	}
+	if *failureLog != "" {
+		closeJournal, err := driver.OpenFailureJournal(*failureLog)
+		if err != nil {
+			return err
+		}
+		defer closeJournal()
 	}
 	listener, err := localapi.Listen(c.Listen)
 	if err != nil {
@@ -390,6 +399,7 @@ func (o *runtimeOwner) maintain() {
 		native := o.native
 		sup := o.sup
 		needDriver := native == nil || native.Diagnostic()["connected"] != true
+		o.driverStatus() // Preserve the request failure before Reconnect closes it.
 		o.mu.Unlock()
 		if force || needDriver || driverRepairPending {
 			ctx, cancel := context.WithTimeout(o.ctx, 12*time.Second)
