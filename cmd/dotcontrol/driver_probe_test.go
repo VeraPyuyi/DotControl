@@ -4,12 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/dotcontrol/dotcontrol/internal/driver"
 	"testing"
 )
 
 type probeFixture struct {
 	err    error
 	closed bool
+}
+
+func TestDriverStatusRetainsFailureAcrossReplacement(t *testing.T) {
+	failure := map[string]any{"operation": "list_apps", "kind": "tool_error"}
+	o := &runtimeOwner{driverDiagnostic: map[string]any{"connected": false, "last_failure": failure}}
+	o.driverStatus()
+	o.driverDiagnostic = nil
+	o.native = &driver.Cua{}
+	status := o.driverStatus()
+	if status["last_failure"].(map[string]any)["operation"] != "list_apps" || status["connected"] != false {
+		t.Fatal("historical failure lost or confused with connection")
+	}
 }
 
 func (d *probeFixture) Apps(context.Context) (json.RawMessage, error) { return nil, d.err }

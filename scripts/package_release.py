@@ -25,6 +25,36 @@ def digest(path):
     with open(path, 'rb') as f:
         return hashlib.file_digest(f, 'sha256').hexdigest()
 
+OWNED_MAC_IDENTIFIERS = {
+    'org.dotcontrol.agent': 'dotcontrol',
+    'org.dotcontrol.activity': 'DotControlActivity.app',
+    'org.dotcontrol.menu': 'DotControlMenu.app',
+    'org.dotcontrol.setup': 'DotControl Setup.app',
+}
+
+def sign_owned_macos(path, identifier):
+    # Keep upstream CuaDriver completely outside the signing route.
+    if OWNED_MAC_IDENTIFIERS.get(identifier) != path.name:
+        raise RuntimeError('not_an_owned_signing_target')
+    run('codesign', '--force', '--sign', '-', '--identifier', identifier, path)
+    verify_owned_macos(path, identifier)
+
+def verify_owned_macos(path, identifier):
+    if OWNED_MAC_IDENTIFIERS.get(identifier) != path.name:
+        raise RuntimeError('not_an_owned_signing_target')
+    run('codesign', '--verify', '--strict', '-R', '=identifier "'+identifier+'"', path)
+
+def write_manifest(payload, target, arch):
+    # Call only after signing: signing changes the executable bytes.
+    files = []
+    for p in sorted(payload.rglob('*')):
+        if p.is_symlink(): raise RuntimeError('payload_symlink')
+        if p.is_file() and p != payload/'manifest.json':
+            files.append({'path': p.relative_to(payload).as_posix(), 'sha256': digest(p),
+                          'mode': p.stat().st_mode & 0o777 or 0o644})
+    (payload/'manifest.json').write_text(json.dumps({'version': VERSION, 'os': target,
+        'arch': arch, 'files': files}, indent=2), encoding='utf-8')
+
 def download(asset, repo, tag, cache):
     path = cache / asset['file']
     if not path.exists() or digest(path) != asset['sha256']:
@@ -80,6 +110,8 @@ def main():
         temp = Path(temp); payload = temp / 'payload'; payload.mkdir()
         suffix = '.exe' if args.os == 'windows' else ''
         build(args.go, args.os, args.arch, payload / ('dotcontrol'+suffix), './cmd/dotcontrol', gui=True)
+        if args.os == 'darwin':
+            sign_owned_macos(payload/'dotcontrol', 'org.dotcontrol.agent')
         driver_key = 'windows-x86_64' if args.os == 'windows' else 'macos-' + ('arm64' if args.arch == 'arm64' else 'x86_64')
         cua = download(LOCK['cua_driver']['assets'][driver_key], 'trycua/cua', LOCK['cua_driver']['tag'], cache)
         tunnel_key = 'windows_amd64' if args.os == 'windows' else 'macos_' + args.arch
@@ -107,11 +139,10 @@ def main():
                 ('DotControlMenu', 'Menu.swift', 'DotControlMenu', 'org.dotcontrol.menu')]:
                 folder = payload / (app+'.app') / 'Contents'
                 (folder/'MacOS').mkdir(parents=True)
-                app_info(folder/'Info.plist', app, binary, identifier)
+                app_info(folder/'Info.plist', 'DotControl' if app == 'DotControlMenu' else app, binary, identifier)
                 native_arch = 'arm64' if args.arch == 'arm64' else 'x86_64'
                 run('xcrun', 'swiftc', '-O', '-target', native_arch+'-apple-macos14.0', '-framework', 'AppKit', '-framework', 'CoreGraphics', ROOT/'native/macos'/source, '-o', folder/'MacOS'/binary)
-                # Only our helper gets an ad-hoc identity; NEVER sign CuaDriver.
-                run('codesign', '--force', '--sign', '-', '--identifier', identifier, folder.parent)
+                sign_owned_macos(folder.parent, identifier)
         shutil.copytree(ROOT/'third_party/licenses', payload/'licenses')
         for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md']:
             shutil.copy2(ROOT/name, payload/name)
@@ -128,11 +159,7 @@ def main():
                             content=t.extractfile(member)
                             if content is not None:
                                 (payload/'licenses'/(archive.stem+'-'+Path(member.name).name)).write_bytes(content.read())
-        files=[]
-        for p in sorted(payload.rglob('*')):
-            if p.is_symlink(): raise RuntimeError('payload_symlink')
-            if p.is_file(): files.append({'path':p.relative_to(payload).as_posix(),'sha256':digest(p),'mode':p.stat().st_mode & 0o777 or 0o644})
-        (payload/'manifest.json').write_text(json.dumps({'version':VERSION,'os':args.os,'arch':args.arch,'files':files},indent=2),encoding='utf-8')
+        write_manifest(payload, args.os, args.arch)
         embedded = ROOT/'cmd/dotcontrol-setup/assets/payload.zip'
         try:
             with zipfile.ZipFile(embedded,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
@@ -145,6 +172,7 @@ def main():
                 image=temp/'image';contents=image/'DotControl Setup.app'/'Contents';(contents/'MacOS').mkdir(parents=True)
                 app_info(contents/'Info.plist','DotControl Setup','DotControlSetup','org.dotcontrol.setup')
                 build(args.go,args.os,args.arch,contents/'MacOS/DotControlSetup','./cmd/dotcontrol-setup')
+                sign_owned_macos(contents.parent, 'org.dotcontrol.setup')
                 artifact=out/f'DotControl-{VERSION}-macos-{args.arch}.dmg'
                 run('hdiutil','create','-volname','DotControl Setup','-srcfolder',image,'-ov','-format','UDZO',artifact)
             (out/(artifact.name+'.sha256')).write_text(digest(artifact)+'  '+artifact.name+'\n')

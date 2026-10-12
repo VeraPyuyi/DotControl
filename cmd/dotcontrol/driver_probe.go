@@ -15,6 +15,10 @@ type appProbe interface {
 // Keep the driver's sanitized failure before closing its session. Cleanup can
 // produce a different error, and the unusable driver is not kept by the owner.
 func probeDriver(ctx context.Context, d appProbe) (map[string]any, error) {
+	if origin, ok := d.(interface{ SetDiagnosticOrigin(string) }); ok {
+		origin.SetDiagnosticOrigin("startup_probe")
+		defer origin.SetDiagnosticOrigin("desktop_request")
+	}
 	_, err := d.Apps(ctx)
 	if err == nil {
 		return nil, nil
@@ -36,11 +40,18 @@ func probeDriver(ctx context.Context, d appProbe) (map[string]any, error) {
 // Caller holds o.mu. Failed startup diagnostics remain visible even though the
 // failed connection has been closed and is unavailable to desktop operations.
 func (o *runtimeOwner) driverStatus() map[string]any {
+	status := map[string]any{"connected": false}
 	if o.native != nil {
-		return o.native.Diagnostic()
+		status = o.native.Diagnostic()
+	} else if o.driverDiagnostic != nil {
+		for k, v := range o.driverDiagnostic {
+			status[k] = v
+		}
 	}
-	if o.driverDiagnostic != nil {
-		return o.driverDiagnostic
+	if failure := status["last_failure"]; failure != nil {
+		o.lastDriverFailure = failure
+	} else if o.lastDriverFailure != nil {
+		status["last_failure"] = o.lastDriverFailure
 	}
-	return map[string]any{"connected": false}
+	return status
 }
