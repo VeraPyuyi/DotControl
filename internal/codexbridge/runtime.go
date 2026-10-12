@@ -133,6 +133,14 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	if state == "queued" && presentation == "visible" && b.runtime.cfg.OpenThread == nil {
 		state, code = "blocked", "visible_presentation_unavailable"
 	}
+	experimentBinding := ""
+	if state == "queued" && r.ExperimentID != "" {
+		var bindingErr error
+		experimentBinding, bindingErr = experiment.New(b.runtime.stateDir, experiment.Options{}).PrepareBinding(*server, r.ExperimentID)
+		if bindingErr != nil {
+			state, code = "blocked", bindingErr.Error()
+		}
+	}
 	id, e := randomJobID()
 	if e != nil {
 		return model.CodexJob{}, e
@@ -146,6 +154,7 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	if p.ID != "" {
 		j.entry.ProfileHash = b.profileHash(cfg, p, server)
 	}
+	j.entry.ExperimentBinding = experimentBinding
 	if e = b.saveRuntimeLocked(j); e != nil {
 		return model.CodexJob{}, e
 	}
@@ -376,6 +385,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	j := b.runtime.jobs[id]
 	snapshot := cloneJob(j.entry.Job)
 	profileHash := j.entry.ProfileHash
+	experimentBinding := j.entry.ExperimentBinding
 	cfg, p, server, code := b.runtimeProfile(snapshot.ProfileID, snapshot.ServerProfileID)
 	b.mu.Unlock()
 	if code != "" {
@@ -384,6 +394,10 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	}
 	if b.profileHash(cfg, p, server) != profileHash {
 		b.updateRuntime(id, "blocked", "profile_changed", "")
+		return
+	}
+	if !recoverOnly && snapshot.ExperimentID != "" && experimentBinding == "" {
+		b.updateRuntime(id, "blocked", "experiment_binding_missing", "")
 		return
 	}
 	if !recoverOnly && b.runtime.cfg.Engine != nil && b.runtime.cfg.Engine.Device().Paused {
@@ -523,7 +537,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		params["ephemeral"] = false
 		params["developerInstructions"] = taskInstructions(id, p, server)
 		if snapshot.ExperimentID != "" {
-			params["developerInstructions"] = taskInstructions(id, p, nil) + experimentInstructions(b.runtime.stateDir, snapshot.ServerProfileID, snapshot.ExperimentID)
+			params["developerInstructions"] = taskInstructions(id, p, nil) + experimentInstructions(b.runtime.stateDir, snapshot.ServerProfileID, snapshot.ExperimentID, experimentBinding)
 		}
 		if !b.beforeRuntimeDispatch(ctx, id) {
 			return

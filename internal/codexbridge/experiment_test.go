@@ -3,6 +3,8 @@ package codexbridge
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,8 +36,8 @@ func TestExperimentIDRequiresSavedServerAndPreservesRetryHash(t *testing.T) {
 	}
 }
 func TestExperimentInstructionsUseOnlyHelperReferences(t *testing.T) {
-	text := experimentInstructions("/private/state", "server-a", "fixture-a")
-	for _, want := range []string{"exec_command", "--state", "--profile", "server-a", "--experiment-id", "fixture-a", "status", "submit", "does not stop", "Never run direct SSH"} {
+	text := experimentInstructions("/private/state", "server-a", "fixture-a", strings.Repeat("a", 64))
+	for _, want := range []string{"exec_command", "--state", "--profile", "server-a", "--experiment-id", "fixture-a", "--binding", strings.Repeat("a", 64), "status", "submit", "does not stop", "Never run direct SSH"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q: %s", want, text)
 		}
@@ -51,9 +53,9 @@ func TestExperimentEvidenceComesFromHelperNotModelAndCancelNeverStopsIt(t *testi
 		t.Fatal(e)
 	}
 	calls := 0
-	cfg.Runtime.ExperimentStatus = func(_ context.Context, profile, id string) (experiment.Status, error) {
+	cfg.Runtime.ExperimentStatus = func(_ context.Context, profile, id, binding string) (experiment.Status, error) {
 		calls++
-		if profile != "server-a" || id != "fixture-a" {
+		if profile != "server-a" || id != "fixture-a" || binding != strings.Repeat("a", 64) {
 			t.Fatal(profile, id)
 		}
 		zero := 0
@@ -72,6 +74,7 @@ func TestExperimentEvidenceComesFromHelperNotModelAndCancelNeverStopsIt(t *testi
 	}
 	b.mu.Lock()
 	owned := b.runtime.jobs[j.JobID]
+	owned.entry.ExperimentBinding = strings.Repeat("a", 64)
 	owned.entry.Job.State = "completed"
 	owned.entry.Job.Runtime.Text = "MODEL SAYS SUCCESS"
 	b.mu.Unlock()
@@ -86,6 +89,60 @@ func TestExperimentEvidenceComesFromHelperNotModelAndCancelNeverStopsIt(t *testi
 	// Ephemeral readback evidence must not alter the authenticated history.
 	if journalEntry(owned.entry).Job.Runtime.Experiment != nil {
 		t.Fatal("experiment evidence persisted in general journal")
+	}
+}
+
+func TestBridgePreparesAcceptedBindingBeforeAnyCodexThread(t *testing.T) {
+	peer := &runtimePeer{blockMethod: "thread/start", blockEntered: make(chan struct{}), blockRelease: make(chan struct{})}
+	cfg, r := runtimeFixture(t, peer)
+	p := connections.ServerProfile{ID: "server-a", Name: "Fixture A", SSHAlias: "a.invalid", RemoteDir: "/tmp"}
+	_, e := connections.NewStore(cfg.Runtime.ConnectionsDir).UpsertServer(p)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r.ServerProfileID = p.ID
+	r.ExperimentID = "prepared-before-turn"
+	b, e := New(cfg)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer b.Close()
+	defer close(peer.blockRelease)
+	j, e := b.Submit(context.Background(), r)
+	if e != nil {
+		t.Fatal(e)
+	}
+	<-peer.blockEntered
+	if _, e = os.Stat(filepath.Join(cfg.StateDir, "experiments", r.ExperimentID+".binding.json")); e != nil {
+		t.Fatal("thread started without binding", e)
+	}
+	if _, e = os.Stat(filepath.Join(cfg.StateDir, "experiments", r.ExperimentID+".json")); !os.IsNotExist(e) {
+		t.Fatal("preparation consumed intent", e)
+	}
+	b.mu.Lock()
+	accepted := b.runtime.jobs[j.JobID].entry.ExperimentBinding
+	b.mu.Unlock()
+	if len(accepted) != 64 {
+		t.Fatal("binding not preserved in signed entry")
+	}
+	// Configure the CLI store after the accepted snapshot, as a mid-turn edit.
+	p.SSHAlias = "b.invalid"
+	_, e = connections.NewStore(filepath.Join(cfg.StateDir, "connections")).UpsertServer(p)
+	if e != nil {
+		t.Fatal(e)
+	}
+	called := false
+	helper := experiment.New(cfg.StateDir, experiment.Options{Remote: func(context.Context, connections.ServerProfile, experiment.Request) ([]byte, error) {
+		called = true
+		return nil, nil
+	}})
+	if _, e = helper.Run(context.Background(), "submit", p.ID, r.ExperimentID); e == nil || e.Error() != "experiment_binding_conflict" || called {
+		t.Fatal("A helper targeted B", e, called)
+	}
+	// The independent reader must also require the signed A binding.
+	readback := b.experimentJob(model.CodexJob{DeviceID: r.DeviceID, JobID: j.JobID, ExperimentID: r.ExperimentID, ServerProfileID: r.ServerProfileID, State: "running", Runtime: &model.CodexRuntimeInfo{}})
+	if readback.Runtime.Verification != "unverified" || readback.Runtime.Experiment.Code != "experiment_binding_conflict" {
+		t.Fatalf("readback verified B: %+v", readback.Runtime)
 	}
 }
 func TestAbsentExperimentFieldDoesNotChangeLegacySerialization(t *testing.T) {

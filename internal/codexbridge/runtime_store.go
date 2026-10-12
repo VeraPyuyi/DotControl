@@ -29,7 +29,7 @@ type RuntimeConfig struct {
 	SupportedVersions []string
 	// StartClient is the official stdio transport seam, used by protocol tests.
 	StartClient      func(context.Context, string, string) (*Client, error)
-	ExperimentStatus func(context.Context, string, string) (experiment.Status, error)
+	ExperimentStatus func(context.Context, string, string, string) (experiment.Status, error)
 }
 type HumanReview func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error)
 type runtimeState struct {
@@ -45,15 +45,16 @@ type runtimeState struct {
 	nativeConnections int
 }
 type runtimeEntry struct {
-	Version          int               `json:"version"`
-	Job              model.CodexJob    `json:"job"`
-	ProfileHash      string            `json:"profile_hash,omitempty"`
-	Phase            string            `json:"phase"`
-	Requests         map[string]string `json:"requests"`
-	CurrentRequestID string            `json:"current_request_id"`
-	HadResults       bool              `json:"had_results,omitempty"`
-	LastReviewID     string            `json:"last_review_id,omitempty"`
-	DesktopPending   bool              `json:"desktop_pending,omitempty"`
+	Version           int               `json:"version"`
+	Job               model.CodexJob    `json:"job"`
+	ProfileHash       string            `json:"profile_hash,omitempty"`
+	ExperimentBinding string            `json:"experiment_binding,omitempty"`
+	Phase             string            `json:"phase"`
+	Requests          map[string]string `json:"requests"`
+	CurrentRequestID  string            `json:"current_request_id"`
+	HadResults        bool              `json:"had_results,omitempty"`
+	LastReviewID      string            `json:"last_review_id,omitempty"`
+	DesktopPending    bool              `json:"desktop_pending,omitempty"`
 }
 type runtimeRecord struct {
 	Entry    runtimeEntry `json:"entry"`
@@ -139,7 +140,7 @@ func (b *Bridge) openRuntime(cfg Config) error {
 		}
 		if previous := rs.jobs[j.JobID]; previous != nil {
 			p := previous.entry
-			if p.Job.RequestID != j.RequestID || p.Job.RequestHash != j.RequestHash || p.ProfileHash != e.ProfileHash || !p.Job.CreatedAt.Equal(j.CreatedAt) || (p.Job.CancelRequested && !j.CancelRequested) {
+			if p.Job.RequestID != j.RequestID || p.Job.RequestHash != j.RequestHash || p.ProfileHash != e.ProfileHash || p.ExperimentBinding != e.ExperimentBinding || !p.Job.CreatedAt.Equal(j.CreatedAt) || (p.Job.CancelRequested && !j.CancelRequested) {
 				return fail()
 			}
 			for id, hash := range p.Requests {

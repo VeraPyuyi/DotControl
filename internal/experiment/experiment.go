@@ -45,10 +45,14 @@ type Status struct {
 }
 type Request struct{ Operation, ExperimentID, Binding, Nonce, Script string }
 type Remote func(context.Context, connections.ServerProfile, Request) ([]byte, error)
-type Options struct{ Remote Remote }
+type Options struct {
+	Remote          Remote
+	ExpectedBinding string
+}
 type Manager struct {
-	dir    string
-	remote Remote
+	dir             string
+	remote          Remote
+	expectedBinding string
 }
 
 func New(stateDir string, opts Options) *Manager {
@@ -58,7 +62,7 @@ func New(stateDir string, opts Options) *Manager {
 			return connections.RunRemote(ctx, p, r.Script, connections.RemoteOptions{})
 		}
 	}
-	return &Manager{dir: stateDir, remote: remote}
+	return &Manager{dir: stateDir, remote: remote, expectedBinding: opts.ExpectedBinding}
 }
 
 type intent struct {
@@ -102,6 +106,16 @@ func (m *Manager) Run(ctx context.Context, op, profileID, id string) (Status, er
 		return Status{}, failure("invalid_experiment_remote_dir")
 	}
 	wanted := makeIntent(profile, id)
+	prepared, bound, e := m.readRecord(id, ".binding.json")
+	if e != nil {
+		return Status{}, e
+	}
+	if m.expectedBinding != "" && !bound {
+		return Status{}, failure("experiment_binding_missing")
+	}
+	if (bound && prepared.Binding != wanted.Binding) || (m.expectedBinding != "" && m.expectedBinding != wanted.Binding) {
+		return Status{}, failure("experiment_binding_conflict")
+	}
 	stored, exists, e := m.readIntent(id)
 	if e != nil {
 		return Status{}, e
@@ -181,7 +195,7 @@ func decodeStatus(raw []byte, r Request) (Status, bool) {
 		return Status{}, false
 	}
 	switch s.State {
-	case "absent", "claimed", "running", "outcome_unknown", "unsafe_remote_state", "binding_conflict", "stop_requested", "stop_unavailable":
+	case "absent", "claimed", "running", "outcome_unknown", "unsafe_remote_state", "binding_conflict", "stop_requested", "stop_unavailable", "remote_tools_missing":
 		if s.Result != "" || s.ResultSHA256 != "" || s.Expected || s.ExitCode != nil {
 			return Status{}, false
 		}

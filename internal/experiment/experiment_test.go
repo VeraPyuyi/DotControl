@@ -178,3 +178,70 @@ func TestChangedFixtureDigestConflictsWithoutRemoteCall(t *testing.T) {
 		t.Fatalf("wrong fixture conflict: %v", e)
 	}
 }
+
+func TestPreparedBindingRejectsMidTurnProfileChangesBeforeAnySSHOrIntent(t *testing.T) {
+	m, dir := testManager(t, func(context.Context, connections.ServerProfile, Request) ([]byte, error) {
+		t.Fatal("changed binding reached SSH")
+		return nil, nil
+	})
+	cfg, _ := connections.NewStore(filepath.Join(dir, "connections")).Load()
+	binding, e := m.PrepareBinding(cfg.ServerProfiles[0], "accepted-a")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, exists, e := m.readIntent("accepted-a"); e != nil || exists {
+		t.Fatal("preparation consumed launch intent", exists, e)
+	}
+	changed := cfg.ServerProfiles[0]
+	changed.SSHAlias = "different.invalid"
+	if _, e = connections.NewStore(filepath.Join(dir, "connections")).UpsertServer(changed); e != nil {
+		t.Fatal(e)
+	}
+	for _, op := range []string{"submit", "status", "stop"} {
+		// Omitting the expected digest cannot bypass the authoritative local plan.
+		for _, expected := range []string{"", binding} {
+			checked := New(dir, Options{Remote: m.remote, ExpectedBinding: expected})
+			if _, e = checked.Run(context.Background(), op, "fixture", "accepted-a"); e == nil || e.Error() != "experiment_binding_conflict" {
+				t.Fatalf("%s expected=%q: %v", op, expected, e)
+			}
+		}
+	}
+	if _, exists, e := m.readIntent("accepted-a"); e != nil || exists {
+		t.Fatal("conflict created intent", exists, e)
+	}
+}
+
+func TestRequiredBindingMissingFailsClosedAndExistingIntentNeverBecomesRetryable(t *testing.T) {
+	m, dir := testManager(t, func(context.Context, connections.ServerProfile, Request) ([]byte, error) {
+		t.Fatal("unexpected remote call")
+		return nil, nil
+	})
+	cfg, _ := connections.NewStore(filepath.Join(dir, "connections")).Load()
+	p := cfg.ServerProfiles[0]
+	expected := makeIntent(p, "missing").Binding
+	checked := New(dir, Options{Remote: m.remote, ExpectedBinding: expected})
+	for _, op := range []string{"submit", "status", "stop"} {
+		if _, e := checked.Run(context.Background(), op, p.ID, "missing"); e == nil || e.Error() != "experiment_binding_missing" {
+			t.Fatal(op, e)
+		}
+	}
+	i := makeIntent(p, "old-intent")
+	if e := m.createIntent(i); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := m.PrepareBinding(p, i.ExperimentID); e != nil {
+		t.Fatal(e)
+	}
+	calls := 0
+	checked = New(dir, Options{ExpectedBinding: i.Binding, Remote: func(_ context.Context, _ connections.ServerProfile, r Request) ([]byte, error) {
+		calls++
+		if r.Operation != "status" {
+			t.Fatal("old intent resubmitted")
+		}
+		return response(r, "absent"), nil
+	}})
+	s, e := checked.Run(context.Background(), "submit", p.ID, i.ExperimentID)
+	if e != nil || s.State != "outcome_unknown" || calls != 1 {
+		t.Fatalf("%+v %v calls=%d", s, e, calls)
+	}
+}

@@ -44,6 +44,9 @@ emit() {
  printf '{"experiment_id":"%s","state":"%s","binding":"%s","nonce":"%s","expected_check":false}\n' "$id" "$1" "$binding" "$nonce"
  exit 0
 }
+for tool in uname id dirname sh nohup awk stat cat wc sha256sum readlink mkdir; do
+ command -v "$tool" >/dev/null 2>&1 || emit remote_tools_missing
+done
 [ "$(uname -s)" = Linux ] || emit unsafe_remote_state
 uid=$(id -u)
 # Ancestors may be root-owned or user-owned. Shared writable parents are only

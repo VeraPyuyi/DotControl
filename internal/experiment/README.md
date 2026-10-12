@@ -12,6 +12,14 @@ Only `sum-1-to-1000000-v1` is supported. It runs one AWK process, requires no
 installation or GPU, and expects the exact bytes `500000500000\n`. No configured
 deployment command is executed. Local connection references remain private.
 
+Before dispatching an experiment task, the bridge saves a separate immutable
+`<id>.binding.json` from the accepted profile and fixture snapshot, and records
+its digest in the authenticated runtime journal. All helper operations check
+this local binding even if `--binding` is omitted. Codex commands also pass the
+expected digest explicitly, and independent readback requires the journal's
+digest. Missing bindings or mid-turn profile edits fail before SSH or intent
+creation. Preparing a binding never consumes or resets a launch intent.
+
 Before the first remote submission, a private immutable intent binds the ID to
 the full saved profile snapshot and worker digest. An existing intent can only
 query remote state, including after a helper restart or a lost response. A

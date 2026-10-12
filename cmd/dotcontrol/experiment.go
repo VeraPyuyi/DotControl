@@ -14,13 +14,14 @@ func experimentCLI(ctx context.Context, dir string, args []string) error {
 	f := flags("experiment " + args[0])
 	profile := f.String("profile", "", "Saved server profile ID")
 	id := f.String("experiment-id", "", "Stable experiment ID; same ID never relaunches")
+	binding := f.String("binding", "", "Expected immutable binding prepared by the owned Codex task")
 	if e := f.Parse(args[1:]); e != nil {
 		return e
 	}
 	if *profile == "" || !experiment.ValidID(*id) || len(f.Args()) != 0 {
 		return errors.New("invalid_experiment_request")
 	}
-	s, e := experiment.New(dir, experiment.Options{}).Run(ctx, args[0], *profile, *id)
+	s, e := experiment.New(dir, experiment.Options{ExpectedBinding: *binding}).Run(ctx, args[0], *profile, *id)
 	if e != nil {
 		return e
 	}

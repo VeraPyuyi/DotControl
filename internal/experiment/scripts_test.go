@@ -193,3 +193,23 @@ func TestLinuxFixtureHonorsCooperativeStop(t *testing.T) {
 		t.Fatalf("stop result %q %q", exit, result)
 	}
 }
+
+func TestLinuxMissingToolsReportedBeforeRemoteClaim(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux tools inventory")
+	}
+	base := t.TempDir()
+	r := Request{Operation: "submit", ExperimentID: "no-tools", Binding: strings.Repeat("a", 64), Nonce: strings.Repeat("b", 32)}
+	script := strings.Replace(remoteScript(base, r), "PATH=/usr/bin:/bin", "PATH=/dotcontrol-nonexistent-test-path", 1)
+	out, e := exec.Command("sh", "-c", script).Output()
+	if e != nil {
+		t.Fatalf("missing tools gave transport failure: %v %s", e, out)
+	}
+	s, ok := decodeStatus(out, r)
+	if !ok || s.State != "remote_tools_missing" {
+		t.Fatalf("missing tools unclear: %s", out)
+	}
+	if _, e = os.Stat(filepath.Join(base, "dotcontrol-no-tools")); !os.IsNotExist(e) {
+		t.Fatal("tools check created claim", e)
+	}
+}

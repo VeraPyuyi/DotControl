@@ -9,6 +9,9 @@ import (
 )
 
 func (m *Manager) statePath(id string) (string, error) {
+	return m.recordPath(id, ".json")
+}
+func (m *Manager) recordPath(id, suffix string) (string, error) {
 	if !filepath.IsAbs(m.dir) {
 		return "", failure("experiment_storage_unavailable")
 	}
@@ -36,11 +39,14 @@ func (m *Manager) statePath(id string) (string, error) {
 	} else if !os.IsNotExist(e) {
 		return "", failure("experiment_storage_unavailable")
 	}
-	return filepath.Join(dir, id+".json"), nil
+	return filepath.Join(dir, id+suffix), nil
 }
 func (m *Manager) readIntent(id string) (intent, bool, error) {
+	return m.readRecord(id, ".json")
+}
+func (m *Manager) readRecord(id, suffix string) (intent, bool, error) {
 	var i intent
-	file, e := m.statePath(id)
+	file, e := m.recordPath(id, suffix)
 	if e != nil {
 		return i, false, e
 	}
@@ -79,7 +85,10 @@ func (m *Manager) readIntent(id string) (intent, bool, error) {
 	return i, true, nil
 }
 func (m *Manager) createIntent(i intent) error {
-	file, e := m.statePath(i.ExperimentID)
+	return m.createRecord(i, ".json")
+}
+func (m *Manager) createRecord(i intent, suffix string) error {
+	file, e := m.recordPath(i.ExperimentID, suffix)
 	if e != nil {
 		return e
 	}
@@ -87,7 +96,7 @@ func (m *Manager) createIntent(i intent) error {
 	if os.MkdirAll(dir, 0700) != nil || privatePath(dir, true) != nil {
 		return failure("experiment_storage_unavailable")
 	}
-	if _, e = m.statePath(i.ExperimentID); e != nil {
+	if _, e = m.recordPath(i.ExperimentID, suffix); e != nil {
 		return e
 	}
 	f, e := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
