@@ -96,6 +96,7 @@ function showLocalReview(job,approval,prompt,selection=++reviewSelection){
   input.required=(prompt.Schema?.required||[]).includes(name);input.dataset.field=name;input.dataset.kind=spec.type;input.dataset.touched='false';input.oninput=input.onchange=()=>{input.dataset.touched='true'};label.append(input);fields.append(label);
  }
  updateReviewDisplay();
+ el('local-review').scrollIntoView?.({block:'start',behavior:'smooth'});
 }
 function readReviewContent(binding,fields){
  const content={},schema=binding.prompt.Schema||{};

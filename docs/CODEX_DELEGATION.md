@@ -141,6 +141,16 @@ After the list is opened, read-only refreshes are serialized and preserve entere
 fields. Expired, consumed, missing or terminal requests disable the expanded form
 as well as its list button. A failed answer response remains uncertain and is not
 automatically resent. None of these UI refreshes extends an approval's lifetime.
+Full request details remain available in a keyboard-accessible scroll area so a
+long command cannot push the decision controls many screens below the request.
+Opening a request positions that review in view without submitting an answer.
+
+Use the target computer's current **onboard** page for local review. An old
+loopback address may belong to a stopped process, and opening a Windows loopback
+address on a Mac targets the Mac instead. Reopen from the target's DotControl
+when the local session expires; do not share launch credentials or expose the
+local listener on the network. Page availability, a submitted human answer, and
+successful official execution are three separate checks.
 
 The release gate for remote review remains closed until the actual source Mac Dot
 and Secure MCP Tunnel display accept, reject and cancel correctly. Automated HTTP

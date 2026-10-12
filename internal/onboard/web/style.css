@@ -2,3 +2,4 @@
 select,textarea{font:inherit;width:100%;background:#f8faf7;border:1px solid #ccd8cc;padding:12px;border-radius:9px;color:#203d34}select:focus,textarea:focus{outline:2px solid #78a88c;outline-offset:1px}textarea{resize:vertical}.compact>label{margin:20px 0 12px}.compact .hint{margin:0}
 
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f8faf7;border-radius:9px;padding:14px;font-size:13px;line-height:1.6}.authorization{margin-top:24px;padding-top:16px;border-top:1px solid #e0e6dd}.authorization>button{margin:8px 6px 0 0}#local-jobs article{padding:14px 0;border-top:1px solid #e0e6dd}#review-fields label{margin:12px 0}#review-fields input[type=checkbox]{width:auto;justify-self:start}
+#review-detail{max-height:min(24rem,50vh);overflow:auto;overscroll-behavior:contain}#review-detail:focus-visible{outline:2px solid #78a88c;outline-offset:2px}#local-review{scroll-margin-top:20px}
