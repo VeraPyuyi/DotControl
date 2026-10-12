@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.2",
+  "source_commit": "ec65d7275a816398a91397d53c89b6a5edf38336",
+  "build_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38201689271",
+  "test_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38201686061",
+  "all_three_platforms_unit_race_vet": "passed",
+  "macos_upstream_signature_gate": "passed on both native build runners, without modifying CuaDriver",
+  "downloaded_ci_artifacts": [
+    {
+      "name": "DotControl-0.2.0-alpha.2-windows-amd64-setup.exe",
+      "sha256": "dd990bbbebda84521ca09c9a34b974b2221fc6a7f8f4e4842e6f3076053ceafb",
+      "bytes": 50326016,
+      "payload": {
+        "os": "windows",
+        "arch": "amd64",
+        "files": 43,
+        "version": "0.2.0-alpha.2",
+        "payload_verified": true
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-macos-arm64.dmg",
+      "sha256": "4d841c90538860ec41a7f66f5d5c50e4fd258f084a0a057a3917b6c1f6041979",
+      "bytes": 92930219,
+      "payload": {
+        "os": "darwin",
+        "arch": "arm64",
+        "files": 46,
+        "version": "0.2.0-alpha.2",
+        "payload_verified": true
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-macos-amd64.dmg",
+      "sha256": "2921f1c0ac761a23916bece6bbbd786fa04c548bb48e3f5941e0d91bb1811a9c",
+      "bytes": 93734832,
+      "payload": {
+        "os": "darwin",
+        "arch": "amd64",
+        "files": 46,
+        "version": "0.2.0-alpha.2",
+        "payload_verified": true
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  ],
+  "onboarding_zip": {
+    "name": "DotControl-onboarding-0.2.0-alpha.2.zip",
+    "sha256": "0f4ec48d0c4eb15ba066a8b0a6884a4ae9ee9007748e6917259dd5ad83a2df14",
+    "bytes": 5053
+  },
+  "clean_system_install": "not_verified",
+  "native_codex_desktop_delegation": "disabled; native action, approval, interruption and image acceptance incomplete",
+  "cross_computer_0_2": "not_verified"
+}

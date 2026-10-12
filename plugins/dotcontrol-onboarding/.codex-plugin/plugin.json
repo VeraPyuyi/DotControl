@@ -1,6 +1,6 @@
 {
   "name": "dotcontrol-onboarding",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "description": "Install and connect DotControl on Windows and macOS using the shared local installer.",
   "author": {"name": "VeraPyuyi"},
   "license": "MIT",

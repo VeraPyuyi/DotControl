@@ -1,0 +1,181 @@
+{
+  "schema": 2,
+  "candidate_commit": "ec65d7275a816398a91397d53c89b6a5edf38336",
+  "ci_run": 38201689271,
+  "release_tag_commit": "ec65d72",
+  "scope": "actual GitHub Actions candidate bytes isolated Windows smoke",
+  "checks": [
+    {
+      "check": "shipped_verify_payload",
+      "arch": "amd64",
+      "files": 43,
+      "os": "windows",
+      "payload_verified": true,
+      "version": "0.2.0-alpha.2"
+    },
+    {
+      "check": "exact_embedded_zip",
+      "offset": 3506503,
+      "length": 43010304,
+      "files": 43,
+      "sha256": "5da39a19738e597c081d60bec247ed96fde2faa73e2fdb53dd3c41e469efa668",
+      "manifest_hashes_verified": true
+    },
+    {
+      "check": "isolated_setup",
+      "separate_identity_created": true,
+      "tunnel_configured": false
+    },
+    {
+      "check": "install",
+      "version": "0.2.0-alpha.2",
+      "reused": false,
+      "identity_retained": true
+    },
+    {
+      "check": "repair",
+      "version": "0.2.0-alpha.2",
+      "reused": true,
+      "identity_retained": true
+    },
+    {
+      "check": "repair",
+      "version": "0.2.0-alpha.2",
+      "reused": true,
+      "identity_retained": true
+    },
+    {
+      "check": "installed_bytes_and_versions",
+      "versions": {
+        "dotcontrol.exe": "0.2.0-alpha.2",
+        "cua-driver.exe": "cua-driver 0.34.1",
+        "tunnel-client.exe": "0.0.16+5f99daabd4aa4a77049e6d81d54a0d8c18335397 (git sha: 5f99daabd4aa4a77049e6d81d54a0d8c18335397)"
+      },
+      "all_manifest_hashes_match": true,
+      "unicode_and_spaces": true
+    },
+    {
+      "check": "first_start_paused",
+      "paused": true,
+      "revoked": false,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "first_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "paused_restart",
+      "paused": true,
+      "revoked": false,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "revoke",
+      "paused": true,
+      "revoked": true,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "second_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "revoked_restart",
+      "paused": true,
+      "revoked": true,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "final_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "isolated_uninstall",
+      "all_owned_manifest_files_removed": true,
+      "current_pointer_removed": true,
+      "identity_retained": true,
+      "configuration_retained": true,
+      "ledger_bytes_retained": true,
+      "revocation_marker_retained": true,
+      "global_autostart_unchanged": true,
+      "live_autostart_entry_existed": false,
+      "scope_prechecked": true
+    },
+    {
+      "check": "preservation",
+      "identity_retained": true,
+      "global_autostart_unchanged": true,
+      "all_owned_agents_stopped": true,
+      "state_retained": true,
+      "uninstall_completed": true
+    }
+  ],
+  "desktop_actions_performed": false,
+  "screenshots_or_observations_performed": false,
+  "real_tunnel_credentials_used": false,
+  "uninstall_performed": true,
+  "clean_vm": false,
+  "native_gui_acceptance": "not_performed",
+  "started_utc": "2026-10-12T04:02:30.240287+00:00",
+  "setup_sha256": "dd990bbbebda84521ca09c9a34b974b2221fc6a7f8f4e4842e6f3076053ceafb",
+  "setup_bytes": 50326016,
+  "result": "passed",
+  "global_autostart_unchanged": true,
+  "finished_utc": "2026-10-12T04:03:00.181146+00:00",
+  "earlier_attempt": {
+    "result": "failed",
+    "failure": "quit_exit_1",
+    "failed_after": "first start, driver connected and paused",
+    "stderr_captured": false,
+    "cleanup": "owned test process terminated after failed quit; helper did not independently wait for process exit",
+    "interpretation": "A shutdown CLI failure occurred once. This does not establish a shutdown hang or its cause.",
+    "same_installed_bytes_followup_quit_exit_codes": [
+      0,
+      0,
+      0
+    ],
+    "same_installed_bytes_followup_agent_exit_codes": [
+      0,
+      0,
+      0
+    ],
+    "fresh_full_smoke": "passed without binary changes",
+    "intermittent_shutdown_failure_root_cause": "unresolved"
+  }
+}

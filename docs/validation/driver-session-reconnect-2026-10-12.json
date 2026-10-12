@@ -27,9 +27,14 @@
     "activity_available": true,
     "accessibility": true,
     "screen_recording": true,
-    "later_direct_status": "daemon is not running",
-    "later_direct_apps_and_windows": "daemon is not running",
-    "same_root_cause_confirmed": false,
-    "reason": "The missing daemon is a separate observed blocker; an ended-session error has not been observed on this Mac."
+    "restricted_task_status": "daemon is not running",
+    "restricted_task_apps_and_windows": "daemon is not running",
+    "ordinary_system_status": "three successful checks, same running process",
+    "ordinary_system_new_diagnostic_label_apps_exit": 0,
+    "daemon_restarted_during_comparison": false,
+    "ordinary_system_old_dotcontrol_label": "session has ended; tool call 'list_apps' was rejected",
+    "same_root_cause_confirmed": true,
+    "reason": "The same ordinary system environment can discover apps with the new diagnostic label but rejects the old fixed DotControl label as ended. Restricted-task socket access was not evidence of a missing daemon.",
+    "alpha2_mac_installed_verification": "pending"
   }
 }
