@@ -48,6 +48,8 @@
     "windows_installer_payload": "43_files_verified",
     "windows_installer_sha256": "069c3ff32da82ee3ecf596878eebf8f421c54dd728eb992cb2d582b746462203",
     "windows_installer_bytes": 50656768,
-    "installer_desktop_acceptance": "not_verified"
+    "installer_desktop_acceptance": "not_verified",
+    "windows_installer_origin": "local_build",
+    "downloaded_windows_installer_isolated_smoke": "passed_16_checks_see_target_codex_installer_record"
   }
 }

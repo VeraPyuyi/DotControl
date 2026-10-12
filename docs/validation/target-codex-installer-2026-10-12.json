@@ -1,0 +1,162 @@
+{
+  "schema": 2,
+  "candidate_commit": "6b6ed7c82bf0dc806126f17af22969ea1ab64f3b",
+  "ci_run": 38231751544,
+  "scope": "actual GitHub Actions candidate bytes isolated Windows smoke",
+  "checks": [
+    {
+      "check": "shipped_verify_payload",
+      "arch": "amd64",
+      "files": 43,
+      "os": "windows",
+      "payload_verified": true,
+      "version": "0.2.0-alpha.3-dev"
+    },
+    {
+      "check": "exact_embedded_zip",
+      "offset": 3601663,
+      "length": 43131833,
+      "files": 43,
+      "sha256": "18454f0dbf5bf723e4bf764749ea876e5fb82e863d94008e1bc9d45afe4bacb4",
+      "manifest_hashes_verified": true
+    },
+    {
+      "check": "isolated_setup",
+      "separate_identity_created": true,
+      "tunnel_configured": false
+    },
+    {
+      "check": "install",
+      "version": "0.2.0-alpha.3-dev",
+      "reused": false,
+      "identity_retained": true
+    },
+    {
+      "check": "repair",
+      "version": "0.2.0-alpha.3-dev",
+      "reused": true,
+      "identity_retained": true
+    },
+    {
+      "check": "repair",
+      "version": "0.2.0-alpha.3-dev",
+      "reused": true,
+      "identity_retained": true
+    },
+    {
+      "check": "installed_bytes_and_versions",
+      "versions": {
+        "dotcontrol.exe": "0.2.0-alpha.3-dev",
+        "cua-driver.exe": "cua-driver 0.34.1",
+        "tunnel-client.exe": "0.0.16+5f99daabd4aa4a77049e6d81d54a0d8c18335397 (git sha: 5f99daabd4aa4a77049e6d81d54a0d8c18335397)"
+      },
+      "all_manifest_hashes_match": true,
+      "unicode_and_spaces": true
+    },
+    {
+      "check": "first_start_paused",
+      "paused": true,
+      "revoked": false,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "first_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "paused_restart",
+      "paused": true,
+      "revoked": false,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "revoke",
+      "paused": true,
+      "revoked": true,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "second_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "revoked_restart",
+      "paused": true,
+      "revoked": true,
+      "activity_available": true,
+      "activity_locked": false,
+      "driver_connected": true,
+      "driver_error": "",
+      "tunnel_configured": false,
+      "tunnel_running": false,
+      "tunnel_ready": false,
+      "native_codex_available": false,
+      "permissions_state": "not_required"
+    },
+    {
+      "check": "final_graceful_quit",
+      "graceful_exit": true,
+      "exit_code": 0
+    },
+    {
+      "check": "isolated_uninstall",
+      "all_owned_manifest_files_removed": true,
+      "current_pointer_removed": true,
+      "identity_retained": true,
+      "configuration_retained": true,
+      "ledger_bytes_retained": true,
+      "revocation_marker_retained": true,
+      "global_autostart_unchanged": true,
+      "scope_prechecked": true
+    },
+    {
+      "check": "preservation",
+      "identity_retained": true,
+      "global_autostart_unchanged": true,
+      "all_owned_agents_stopped": true,
+      "state_retained": true,
+      "uninstall_completed": true
+    }
+  ],
+  "desktop_actions_performed": false,
+  "screenshots_or_observations_performed": false,
+  "real_tunnel_credentials_used": false,
+  "uninstall_performed": true,
+  "clean_vm": false,
+  "native_gui_acceptance": "not_performed",
+  "started_utc": "2026-10-12T09:50:59.509434+00:00",
+  "setup_sha256": "c1e5229b1f8f4f23eee629058491a5cd638a1e1ec6266c973ba3a88aa17c51fb",
+  "setup_bytes": 50656768,
+  "result": "passed",
+  "global_autostart_unchanged": true,
+  "finished_utc": "2026-10-12T09:51:33.146339+00:00",
+  "artifact_status": "candidate_only_delegation_gates_closed",
+  "artifact_url": "https://github.com/VeraPyuyi/DotControl/actions/runs/38231751544",
+  "interactive_wizard_acceptance": "not_verified"
+}

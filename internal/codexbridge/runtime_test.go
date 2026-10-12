@@ -250,7 +250,7 @@ func TestUnknownTurnStartNeverReplaysAfterRestart(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer b.Close()
-	time.Sleep(80 * time.Millisecond)
+	waitRuntimeInactive(t, b, j.JobID)
 	_, e = b.Submit(context.Background(), r)
 	if e != nil {
 		t.Fatal(e)
@@ -299,6 +299,9 @@ func TestContinueBindsRequestAndClassifiesLocalTakeover(t *testing.T) {
 	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
 	p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "completed"}})
 	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
+	// A terminal event is durable before the old App Server writer finishes closing.
+	// A new request may continue only after that cleanup has completed.
+	waitRuntimeInactive(t, b, j.JobID)
 	p.takeover = true
 	next := model.CodexContinue{DeviceID: "device-a", JobID: j.JobID, RequestID: "continue-one", Prompt: "next private prompt"}
 	if _, e = b.Continue(context.Background(), next); e != nil {
@@ -467,7 +470,7 @@ func TestNativeUnknownStopKeepsLeaseUntilOwnedReadConfirms(t *testing.T) {
 	}
 	defer b.Close()
 	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
-	time.Sleep(20 * time.Millisecond)
+	waitRuntimeInactive(t, b, j.JobID)
 	if _, e = cfg.Runtime.Engine.Apps(context.Background()); e != nil {
 		t.Fatalf("confirmed owned stop failed to release=%v", e)
 	}
