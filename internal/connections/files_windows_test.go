@@ -3,10 +3,12 @@
 package connections
 
 import (
-	"golang.org/x/sys/windows"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"testing"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 func TestWindowsStateUsesProtectedCurrentUserACL(t *testing.T) {
@@ -35,9 +37,16 @@ func TestWindowsStateUsesProtectedCurrentUserACL(t *testing.T) {
 		if err = windows.GetAce(acl, 0, &ace); err != nil {
 			t.Fatal(err)
 		}
-		// Check the sole ACE principal through the descriptor's normalized SDDL.
-		if !strings.Contains(sd.String(), user.User.Sid.String()) {
+		// SDDL may abbreviate well-known identities (including the CI runner's
+		// local administrator). Compare the binary SID instead of its rendering.
+		principal := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+		if !principal.IsValid() || !principal.Equals(user.User.Sid) {
 			t.Fatal("ACL principal differs from current user")
 		}
+		const fileAllAccess = windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1ff
+		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || ace.Mask != fileAllAccess {
+			t.Fatal("unexpected ACE access rights")
+		}
+		runtime.KeepAlive(sd)
 	}
 }
