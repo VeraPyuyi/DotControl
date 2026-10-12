@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -19,9 +20,10 @@ type Status struct {
 }
 
 type PreflightOptions struct {
-	Runner   CommandRunner
-	LookPath func(string) (string, error)
-	Timeout  time.Duration
+	ExpectedFingerprint string
+	Runner              CommandRunner
+	LookPath            func(string) (string, error)
+	Timeout             time.Duration
 }
 
 // PreflightSSH invokes system ssh with the user's local alias/key references.
@@ -58,16 +60,24 @@ func PreflightSSH(ctx context.Context, p ServerProfile, opts PreflightOptions) S
 	args := []string{"-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=10", "-o", "ConnectionAttempts=1", "-o", "NumberOfPasswordPrompts=0", "-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "ClearAllForwardings=yes", "-o", "PermitLocalCommand=no", "-o", "ControlMaster=no", "-o", "ControlPath=none", "-o", "ControlPersist=no"}
 	args = append(args, "-o", "UpdateHostKeys=no", "-o", "PasswordAuthentication=no", "-o", "KbdInteractiveAuthentication=no", "-o", "PreferredAuthentications=publickey")
 	args = append(args, "-o", "CheckHostIP=no", "-o", "ForkAfterAuthentication=no")
+	if opts.ExpectedFingerprint != "" {
+		args = append(args, "-o", "LogLevel=DEBUG1", "-o", "FingerprintHash=sha256")
+	}
 	if p.IdentityFile != "" {
-		args = append(args, "-i", p.IdentityFile)
+		args = append(args, "-o", "IdentitiesOnly=yes", "-i", p.IdentityFile)
 	}
 	if p.SSHPort != 0 {
 		args = append(args, "-p", strconv.Itoa(p.SSHPort))
 	}
 	quoted := "'" + strings.ReplaceAll(p.RemoteDir, "'", `'"'"'`) + "'"
-	command := "if test -d " + quoted + " && test -x " + quoted + "; then exit 0; else exit 73; fi"
+	marker, err := newID("DOTCONTROL_SSH_")
+	if err != nil {
+		return Status{Code: "ssh_preflight_failed"}
+	}
+	proof := "printf '%s' '" + marker + "'"
+	command := "if test -d " + quoted + " && test -x " + quoted + "; then " + proof + "; else exit 73; fi"
 	if p.RemoteDir == "" {
-		command = "exit 0"
+		command = proof
 	}
 	args = append(args, "--", p.SSHAlias, command)
 	result, err := runner(bounded, binary, args)
@@ -82,6 +92,12 @@ func PreflightSSH(ctx context.Context, p ServerProfile, opts PreflightOptions) S
 		return Status{Code: "ssh_identity_unavailable"}
 	}
 	if err == nil && result.ExitCode == 0 {
+		if result.Stdout != marker {
+			return Status{Code: "ssh_remote_check_unconfirmed"}
+		}
+		if opts.ExpectedFingerprint != "" && (result.StderrTruncated || !authenticatedFingerprint(result.Stderr, opts.ExpectedFingerprint)) {
+			return Status{Code: "ssh_selected_key_unconfirmed"}
+		}
 		if p.RemoteDir == "" {
 			return Status{Available: true, Code: "ssh_connected"}
 		}
@@ -101,6 +117,24 @@ func PreflightSSH(ctx context.Context, p ServerProfile, opts PreflightOptions) S
 		code = "ssh_remote_dir_unavailable"
 	}
 	return Status{Code: code}
+}
+
+func authenticatedFingerprint(diagnostic, want string) bool {
+	accepted := false
+	verified := false
+	for _, line := range strings.Split(diagnostic, "\n") {
+		if strings.Contains(line, "Server accepts key:") {
+			accepted = false
+			matches := regexp.MustCompile(`(?:ED25519|RSA|ECDSA|ED25519-SK|ECDSA-SK) (SHA256:[A-Za-z0-9+/]+)(?: |$)`).FindAllStringSubmatch(line, -1)
+			if len(matches) > 0 {
+				accepted = matches[len(matches)-1][1] == want
+			}
+		}
+		if strings.Contains(line, "Authenticated to ") && strings.Contains(line, `using "publickey"`) {
+			verified = accepted
+		}
+	}
+	return verified
 }
 
 // Verify only metadata and the ability to open the reference. Key bytes are

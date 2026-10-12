@@ -24,7 +24,9 @@ Open the installed agent's **onboard** page and choose “连接本机 Codex”:
    an existing profile. Built-in IDs include `:read-only` and `:workspace`;
    their leading colon is significant. DotControl does not alter global permissions.
 3. Choose terminal or Computer Use and visible or background presentation.
-   Visible requests the public `codex://threads/<id>` link after creating the thread.
+   Visible requests the public `codex://threads/<id>` link after the turn ends and
+   the official connection and device lease have been cleaned up. Cancellation
+   does not open a task window.
    `open_requested` means the OS accepted the link, not that a window was observed.
    Background sends no open request. Computer Use on Windows still uses a foreground,
    unlocked desktop, even with background presentation.
@@ -52,6 +54,20 @@ keys require the local user's verification. Authentication failure requires loca
 SSH setup or unlocking the agent. Passwords, passphrases, key bodies and tunnel
 keys must never be pasted into chat, configuration JSON, command arguments or logs.
 The local wizard contains no SSH password field and does not automate password login.
+
+To authorize a selected public key, save the server profile, select its public-key
+file, inspect the server and key fingerprint, then choose **打开 SSH 窗口**. Normal
+OpenSSH owns the local hidden password/passphrase prompt and host-key confirmation.
+The remote authorization command appends only a missing key, preserves existing
+restrictions, and refuses unexpected links, ownership or permissions. It does not
+modify sshd. A fresh operation receipt and a second strict connection using the
+selected key must both pass. Exit code zero alone is insufficient. The wizard
+distinguishes connection-only success from verified remote-directory access.
+
+An interrupted authorization remains unconfirmed. Its bounded diagnostic records
+only a failure category; raw SSH diagnostics are shown exclusively in the local
+terminal. A connection closing near a password prompt does not establish whether
+the password was correct. No deployment follows a failed authentication check.
 
 ## Remote tools
 
@@ -104,6 +120,14 @@ The gateway does not forward an approval callback. Cancellation, expiry, resolve
 requests, new turns, local pause and revoked desktop leases invalidate review.
 A write failure is uncertain and is not retried automatically.
 
+The protected local wizard lists only DotControl-owned tasks. Terminal approvals
+can be answered there. A desktop approval instead offers **停止远程执行并在 Codex
+接手**: DotControl interrupts, waits for official stop evidence, cleans up, and
+opens that owned thread. It consumes the old approval, including in-flight human
+answers, rather than transferring it into a new turn. Unconfirmed stopping retains
+the desktop guard and does not open a competing executor. This local handoff is
+reported separately and does not count as Mac remote approval acceptance.
+
 The release gate for remote review remains closed until the actual source Mac Dot
 and Secure MCP Tunnel display accept, reject and cancel correctly. Automated HTTP
 MCP tests do not establish this host compatibility. DotControl never treats the
@@ -113,6 +137,9 @@ model's words or a remote task prompt as the human's approval.
 
 Cua and native desktop jobs share one device lease. Native dispatch requires
 available activity detection, an unlocked desktop and 60 seconds of idle time.
+An active user puts the job in cancellable `waiting_for_idle`; no desktop input
+or exclusive reservation is made during that wait. Pause, lock and monitor loss
+stop dispatch. The complete safety check runs again when acquiring the lease.
 Human input or local pause revokes the lease and requests official interruption.
 A successful interrupt RPC is not stop confirmation. If stop is uncertain, a
 durable guard prevents another desktop executor from acquiring the device, even
@@ -140,6 +167,11 @@ These are independent facts:
 - Command/tool output or another independent artifact verifies the requested result.
 - MCP image content was returned.
 - The source Mac actually displayed the image.
+
+`review_location` identifies a host form or required target-local handling.
+`image_delivery_status=received_in_band` means official image bytes were acquired;
+it does not establish that source Dot rendered them. Restart reports lost in-memory
+image data as `unavailable_after_restart`.
 
 The bridge leaves task verification `unverified`; a model saying “done” does not
 verify an experiment. Native image return does not prove source rendering.

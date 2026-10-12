@@ -17,6 +17,10 @@ import (
 func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsRequest) (any, error) {
 	store := connections.NewStore(filepath.Join(o.dir, "connections"))
 	switch r.Operation {
+	case "authorize_prepare", "authorize_start", "authorize_status":
+		return o.authorizeConnection(ctx, store, r)
+	case "pick_public_key":
+		return desktop.ChoosePath(ctx, "identity")
 	case "pick_project":
 		return desktop.ChoosePath(ctx, "directory")
 	case "pick_identity":

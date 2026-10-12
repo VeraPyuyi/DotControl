@@ -31,11 +31,13 @@ type Connect struct {
 // ConnectionsRequest has no credential-value fields. It is accepted exclusively
 // by the authenticated same-origin local wizard, never the remote MCP service.
 type ConnectionsRequest struct {
-	Operation  string                        `json:"operation"`
-	Executable string                        `json:"executable,omitempty"`
-	Execution  *connections.ExecutionProfile `json:"execution,omitempty"`
-	Server     *connections.ServerProfile    `json:"server,omitempty"`
-	ProfileID  string                        `json:"profile_id,omitempty"`
+	Operation       string                        `json:"operation"`
+	Executable      string                        `json:"executable,omitempty"`
+	Execution       *connections.ExecutionProfile `json:"execution,omitempty"`
+	Server          *connections.ServerProfile    `json:"server,omitempty"`
+	ProfileID       string                        `json:"profile_id,omitempty"`
+	PublicKeyPath   string                        `json:"public_key_path,omitempty"`
+	AuthorizationID string                        `json:"authorization_id,omitempty"`
 }
 
 type ConnectionsBackend interface {
@@ -107,7 +109,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "origin_rejected", 403)
 		return
 	}
-	if r.URL.Path == "/onboard/" || r.URL.Path == "/onboard/app.js" || r.URL.Path == "/onboard/connections.js" || r.URL.Path == "/onboard/style.css" {
+	if r.URL.Path == "/onboard/" || r.URL.Path == "/onboard/app.js" || r.URL.Path == "/onboard/connections.js" || r.URL.Path == "/onboard/reviews.js" || r.URL.Path == "/onboard/style.css" {
 		if r.Method != "GET" {
 			http.Error(w, "method_rejected", 405)
 			return
@@ -124,7 +126,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch name {
 		case "index.html":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		case "app.js", "connections.js":
+		case "app.js", "connections.js", "reviews.js":
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		case "style.css":
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
@@ -156,6 +158,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var value any
 	switch r.URL.Path {
+	case "/onboard/api/reviews":
+		var input ReviewRequest
+		err = decode(r, &input)
+		if err == nil {
+			if backend, ok := s.backend.(ReviewsBackend); ok {
+				value, err = backend.Reviews(r.Context(), input)
+			} else {
+				err = errors.New("reviews_unavailable")
+			}
+		}
 	case "/onboard/api/connections":
 		var input ConnectionsRequest
 		err = decode(r, &input)

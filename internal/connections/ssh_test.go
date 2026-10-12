@@ -7,10 +7,45 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 )
+
+func sshProof(args []string) CommandResult {
+	match := regexp.MustCompile(`DOTCONTROL_SSH_[a-f0-9]+`).FindString(args[len(args)-1])
+	return CommandResult{Stdout: match}
+}
+
+func TestSSHPreflightRejectsForcedCommandSuccessAndWrongKey(t *testing.T) {
+	for _, tc := range []struct {
+		output           bool
+		diagnostic, code string
+	}{
+		{false, "", "ssh_remote_check_unconfirmed"},
+		{true, `debug1: Server accepts key: other ED25519 SHA256:other` + "\n" + `Authenticated to example using "publickey".`, "ssh_selected_key_unconfirmed"},
+	} {
+		r := PreflightSSH(context.Background(), ServerProfile{ID: "example", Name: "Example", SSHAlias: "example.invalid", RemoteDir: "/missing"}, PreflightOptions{ExpectedFingerprint: "SHA256:chosen", LookPath: func(string) (string, error) { return filepath.Join(t.TempDir(), "ssh"), nil }, Runner: func(_ context.Context, _ string, args []string) (CommandResult, error) {
+			out := CommandResult{}
+			if tc.output {
+				out = sshProof(args)
+			}
+			out.Stderr = tc.diagnostic
+			return out, nil
+		}})
+		if r.Available || r.Code != tc.code {
+			t.Fatalf("false success %#v", r)
+		}
+	}
+}
+
+func TestFingerprintUsesFinalTargetNotProxyJumpAuthentication(t *testing.T) {
+	diagnostic := `debug1: Server accepts key: jump ED25519 SHA256:chosen` + "\n" + `Authenticated to jump using "publickey".` + "\n" + `debug1: Server accepts key: target ED25519 SHA256:other` + "\n" + `Authenticated to target using "publickey".`
+	if authenticatedFingerprint(diagnostic, "SHA256:chosen") {
+		t.Fatal("jump key mistaken for target key")
+	}
+}
 
 func TestSSHPreflightUsesStrictArgvAndQuotesRemoteDirectory(t *testing.T) {
 	profile := ServerProfile{ID: "example", Name: "Private profile", SSHAlias: "example-build", RemoteDir: "/srv/a'$(touch BAD); project", IdentityFile: filepath.Join(t.TempDir(), "key reference"), DeployCommand: "NEVER_EXECUTE"}
@@ -53,7 +88,7 @@ func TestSSHPreflightUsesStrictArgvAndQuotesRemoteDirectory(t *testing.T) {
 			if !strings.Contains(command, `'/srv/a'"'"'$(touch BAD); project'`) || strings.Contains(command, profile.DeployCommand) {
 				t.Fatal("unsafe remote command", command)
 			}
-			return CommandResult{}, nil
+			return sshProof(args), nil
 		},
 	})
 	if !called || !report.Available || report.Code != "ssh_ready" {
@@ -105,9 +140,9 @@ func TestSSHPreflightClassifiesFailuresWithoutRawDiagnostics(t *testing.T) {
 
 func TestSSHPreflightRejectsInvalidProfilesBeforeRunning(t *testing.T) {
 	called := false
-	got := PreflightSSH(context.Background(), ServerProfile{ID: "x", Name: "x", SSHAlias: "-oProxyCommand=evil", RemoteDir: "/srv/example"}, PreflightOptions{Runner: func(context.Context, string, []string) (CommandResult, error) {
+	got := PreflightSSH(context.Background(), ServerProfile{ID: "x", Name: "x", SSHAlias: "-oProxyCommand=evil", RemoteDir: "/srv/example"}, PreflightOptions{Runner: func(_ context.Context, _ string, args []string) (CommandResult, error) {
 		called = true
-		return CommandResult{}, nil
+		return sshProof(args), nil
 	}})
 	if called || got.Code != "invalid_ssh_alias" {
 		t.Fatalf("unsafe profile invoked: %#v", got)
@@ -132,10 +167,10 @@ func TestSSHPreflightAllowsConnectionOnlyAndSeparatePort(t *testing.T) {
 	got := PreflightSSH(context.Background(), ServerProfile{ID: "example", Name: "Example", SSHAlias: "root@example.invalid", SSHPort: 2222}, PreflightOptions{
 		LookPath: func(string) (string, error) { return filepath.Join(t.TempDir(), "ssh"), nil },
 		Runner: func(_ context.Context, _ string, args []string) (CommandResult, error) {
-			if !reflect.DeepEqual(args[len(args)-5:], []string{"-p", "2222", "--", "root@example.invalid", "exit 0"}) {
+			if !reflect.DeepEqual(args[len(args)-5:], []string{"-p", "2222", "--", "root@example.invalid", args[len(args)-1]}) {
 				t.Fatalf("wrong connection-only argv: %#v", args)
 			}
-			return CommandResult{}, nil
+			return sshProof(args), nil
 		},
 	})
 	if !got.Available || got.Code != "ssh_connected" {
@@ -148,9 +183,9 @@ func TestSSHPreflightValidatesIdentityReferenceWithoutReadingKeyContent(t *testi
 	called := false
 	options := PreflightOptions{
 		LookPath: func(string) (string, error) { return filepath.Join(t.TempDir(), "ssh"), nil },
-		Runner: func(context.Context, string, []string) (CommandResult, error) {
+		Runner: func(_ context.Context, _ string, args []string) (CommandResult, error) {
 			called = true
-			return CommandResult{}, nil
+			return sshProof(args), nil
 		},
 	}
 	got := PreflightSSH(context.Background(), profile, options)
