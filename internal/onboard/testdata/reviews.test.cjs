@@ -129,3 +129,27 @@ test('uncertain takeover request is not repeated by refresh or another click',as
  await b.get('local-jobs').children[0].children[2].onclick();await b.advance(10000);const button=b.get('local-jobs').children[0].children[2];assert.equal(button.disabled,true);await button.onclick();
  assert.equal(b.calls.filter(c=>c.operation==='take_over').length,1);
 });
+test('late details cannot replace the latest selected approval or its typed answer',async()=>{
+ const firstPrompt=deferred(),first=jobAt(),second=jobAt();second.job_id='second';second.runtime.approvals[0].approval_id='second-approval';
+ const b=browser(request=>request.operation==='prompt'?(request.job_id==='job'?firstPrompt.promise:{...promptAt(),JobID:'second',Message:'Second approval'}):[first,second]);
+ await b.run('loadLocalReviews()');const firstOpen=b.get('local-jobs').children[0].children[2].onclick();
+ await b.get('local-jobs').children[1].children[2].onclick();const input=b.get('review-fields').querySelectorAll()[0];input.value='answer for second only';input.oninput();
+ firstPrompt.resolve(promptAt(epoch+2000));await firstOpen;
+ assert.equal(b.run('currentReview.job_id'),'second');assert.equal(b.get('review-fields').querySelectorAll()[0],input);assert.equal(input.value,'answer for second only');assert.match(b.get('review-detail').textContent,/Second approval/);
+ await b.advance(2000);assert.equal(b.get('local-jobs').children[0].children[2].disabled,true);assert.equal(b.get('review-accept').disabled,false);
+ await b.run('answerLocalReview("accept")');const answers=b.calls.filter(c=>c.operation==='answer');assert.equal(answers.length,1);assert.equal(answers[0].job_id,'second');assert.equal(answers[0].approval_id,'second-approval');assert.equal(answers[0].answer.Content.note,'answer for second only');
+});
+test('selecting native takeover invalidates an earlier pending details response',async()=>{
+ const pending=deferred(),first=jobAt(),target=jobAt('awaiting_target');target.job_id='target';target.runtime.execution='computer_use';
+ const b=browser(request=>request.operation==='prompt'?pending.promise:request.operation==='list'?[first,target]:{});
+ b.get('local-review').hidden=true;await b.run('loadLocalReviews()');const firstOpen=b.get('local-jobs').children[0].children[2].onclick();
+ await b.get('local-jobs').children[1].children[2].onclick();pending.resolve(promptAt());await firstOpen;
+ assert.equal(b.run('currentReview'),null);assert.equal(b.get('local-review').hidden,true);assert.equal(b.calls.filter(c=>c.operation==='take_over').length,1);
+});
+test('selecting different details hides the previous actionable form while loading',async()=>{
+ const pending=deferred(),first=jobAt(),second=jobAt();second.job_id='second';
+ const b=browser(request=>request.operation==='prompt'?pending.promise:[first,second]);b.show(first);await b.run('loadLocalReviews()');
+ const opening=b.get('local-jobs').children[1].children[2].onclick();assert.equal(b.get('local-review').hidden,true);
+ await b.run('answerLocalReview("accept")');assert.equal(b.calls.filter(c=>c.operation==='answer').length,0);
+ pending.resolve({...promptAt(),JobID:'second'});await opening;assert.equal(b.get('local-review').hidden,false);assert.equal(b.run('currentReview.job_id'),'second');
+});

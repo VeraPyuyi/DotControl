@@ -1,5 +1,5 @@
 'use strict';
-let currentReview=null,reviewRefresh=null,reviewRefreshTimer=null,reviewExpiryTimer=null,reviewRows=[];
+let currentReview=null,reviewRefresh=null,reviewRefreshTimer=null,reviewExpiryTimer=null,reviewRows=[],reviewSelection=0;
 const reviewRecords=new Map(),reviewTerminalStates=new Set(['completed','failed','cancelled','blocked','rejected','local_takeover']);
 const reviewStates={waiting_for_idle:'等待电脑连续空闲',awaiting_approval:'等待人工处理',awaiting_target:'需要此电脑处理',local_takeover:'已交给本机 Codex',outcome_unknown:'停止或结果尚未确认',completed:'轮次已结束，需核对结果',cancelled:'已取消',running:'执行中'};
 function reviewRecord(job,approval){
@@ -54,19 +54,22 @@ function loadLocalReviews(){
     const binding=reviewRecord(job,approval),p=document.createElement('p'),button=document.createElement('button');button.className='secondary';row.append(p);
     const target=job.runtime.execution==='computer_use'||approval.state==='awaiting_target';button.textContent=target?'停止远程执行并在 Codex 接手':'查看本次授权';
     button.onclick=async()=>{
-     updateReviewDisplay();if(binding.state!=='ready'||binding.opening)return;binding.opening=true;updateReviewDisplay();
+     updateReviewDisplay();if(binding.state!=='ready'||binding.opening)return;
+     const selection=++reviewSelection;
+     if(currentReview!==binding||target){currentReview=null;el('local-review').hidden=true}
+     binding.opening=true;updateReviewDisplay();
      try{
       if(target){
        binding.state='submitting';binding.notice='正在请求中断，请等待回执。';updateReviewDisplay();
        await api('reviews',{operation:'take_over',job_id:job.job_id,approval_id:approval.approval_id});
-       binding.state='submitted';binding.notice='已收到中断请求回执；官方确认停止并清理连接后才会打开任务。';el('reviews-status').textContent=binding.notice;
+       binding.state='submitted';binding.notice='已收到中断请求回执；官方确认停止并清理连接后才会打开任务。';if(selection===reviewSelection)el('reviews-status').textContent=binding.notice;
       }else{
-       const prompt=await api('reviews',{operation:'prompt',job_id:job.job_id,approval_id:approval.approval_id});showLocalReview(job,approval,prompt);
+       const prompt=await api('reviews',{operation:'prompt',job_id:job.job_id,approval_id:approval.approval_id});showLocalReview(job,approval,prompt,selection);
       }
      }catch(e){
       if(['approval_stale','approval_not_found'].includes(e.message)){binding.state='stale';binding.notice='本次授权已失效或已不存在，请核对任务状态。'}
       else if(target){binding.state='uncertain';binding.notice='中断请求结果未确认，不会自动重发；请刷新并核对任务状态。'}
-      el('reviews-status').textContent=binding.state==='ready'?e.message:binding.notice;
+      if(selection===reviewSelection)el('reviews-status').textContent=binding.state==='ready'?e.message:binding.notice;
      }finally{binding.opening=false;updateReviewDisplay()}
     };
     reviewRows.push({binding,p,button,operation:approval.operation});row.append(button);
@@ -77,8 +80,10 @@ function loadLocalReviews(){
  })().finally(()=>{reviewRefresh=null;scheduleReviewRefresh()});
  return reviewRefresh;
 }
-function showLocalReview(job,approval,prompt){
+function showLocalReview(job,approval,prompt,selection=++reviewSelection){
  const binding=reviewRecord(job,approval),expires=Date.parse(prompt.ExpiresAt);binding.expires=Math.min(binding.expires,Number.isFinite(expires)?expires:0);
+ // A late response still constrains its own expiry, but cannot replace the latest selection.
+ if(selection!==reviewSelection){updateReviewDisplay();return}
  el('local-review').hidden=false;scheduleReviewRefresh();
  if(currentReview===binding){updateReviewDisplay();return}
  currentReview=binding;binding.prompt=prompt;
