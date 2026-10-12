@@ -86,13 +86,18 @@ func (p *runtimePeer) count(method string) int {
 }
 func runtimeFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSubmit) {
 	t.Helper()
-	dir := t.TempDir()
+	// macOS temporary directories have a system /var symlink. The experiment
+	// store intentionally accepts only physical state paths.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	project := t.TempDir()
 	store := connections.NewStore(dir)
 	if err := store.SetCodexExecutable(os.Args[0]); err != nil {
 		t.Fatal(err)
 	}
-	_, err := store.UpsertExecution(connections.ExecutionProfile{ID: "exec-a", Name: "Test", ProjectDir: project, Presentation: "background", PermissionProfile: "read-only", Execution: "terminal"})
+	_, err = store.UpsertExecution(connections.ExecutionProfile{ID: "exec-a", Name: "Test", ProjectDir: project, Presentation: "background", PermissionProfile: "read-only", Execution: "terminal"})
 	if err != nil {
 		t.Fatal(err)
 	}

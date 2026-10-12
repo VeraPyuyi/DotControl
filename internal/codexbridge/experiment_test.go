@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/experiment"
@@ -43,6 +44,7 @@ func TestExperimentInstructionsUseOnlyHelperReferences(t *testing.T) {
 		}
 	}
 }
+
 func TestExperimentEvidenceComesFromHelperNotModelAndCancelNeverStopsIt(t *testing.T) {
 	cfg, r := runtimeFixture(t, &runtimePeer{})
 	// Keep execution blocked; install an already-started owned record below to
@@ -112,7 +114,11 @@ func TestBridgePreparesAcceptedBindingBeforeAnyCodexThread(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	<-peer.blockEntered
+	select {
+	case <-peer.blockEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("thread did not start: state=%s code=%s", j.State, j.Code)
+	}
 	if _, e = os.Stat(filepath.Join(cfg.StateDir, "experiments", r.ExperimentID+".binding.json")); e != nil {
 		t.Fatal("thread started without binding", e)
 	}

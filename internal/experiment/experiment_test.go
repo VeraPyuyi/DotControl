@@ -14,8 +14,13 @@ import (
 
 func testManager(t *testing.T, remote Remote) (*Manager, string) {
 	t.Helper()
-	dir := t.TempDir()
-	_, err := connections.NewStore(filepath.Join(dir, "connections")).UpsertServer(connections.ServerProfile{ID: "fixture", Name: "Fictional fixture", SSHAlias: "example.invalid", RemoteDir: "/tmp"})
+	// macOS's system temporary root includes /var -> /private/var. Use the
+	// physical test directory; production storage must still reject link paths.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = connections.NewStore(filepath.Join(dir, "connections")).UpsertServer(connections.ServerProfile{ID: "fixture", Name: "Fictional fixture", SSHAlias: "example.invalid", RemoteDir: "/tmp"})
 	if err != nil {
 		t.Fatal(err)
 	}
