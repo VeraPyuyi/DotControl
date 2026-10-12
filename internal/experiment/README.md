@@ -8,6 +8,26 @@ dotcontrol --state <private-state> experiment submit --profile <saved-server-id>
 dotcontrol --state <private-state> experiment stop --profile <saved-server-id> --experiment-id <stable-id>
 ```
 
+On Windows the shipped executable uses the GUI subsystem. PowerShell must
+explicitly pipe/capture the invocation to wait for JSON and retain its real exit
+code. Codex task instructions provide the exact, quoted command for each
+operation, including its binding digest. The supported pattern is:
+
+```powershell
+$ErrorActionPreference = 'Continue'
+$PSNativeCommandUseErrorActionPreference = $false
+$dcArgs = @('--state', 'C:\private-state', 'experiment', 'status', '--profile', 'saved-id', '--experiment-id', 'stable-id')
+$dcOutput = @(& 'C:\Program Files\DotControl\dotcontrol.exe' @dcArgs 2>&1 | ForEach-Object { $_.ToString() })
+$dcExit = $LASTEXITCODE
+foreach ($dcLine in $dcOutput) { [Console]::Out.WriteLine($dcLine) }
+if ($null -eq $dcExit) { [Console]::Error.WriteLine('experiment_exit_unconfirmed'); exit 1 }
+exit $dcExit
+```
+
+A bare PowerShell call can return early with empty output; that is not evidence
+of a successful helper operation. This pattern is tested with both PowerShell 7
+and Windows PowerShell against the actual GUI-subsystem binary.
+
 Only `sum-1-to-1000000-v1` is supported. It runs one AWK process, requires no
 installation or GPU, and expects the exact bytes `500000500000\n`. No configured
 deployment command is executed. Local connection references remain private.

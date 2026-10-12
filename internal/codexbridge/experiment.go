@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/experiment"
@@ -17,7 +19,32 @@ func experimentInstructions(stateDir, profile, id, binding string) string {
 		commands[op] = []string{binary, "--state", stateDir, "experiment", op, "--profile", profile, "--experiment-id", id, "--binding", binding}
 	}
 	raw, _ := json.Marshal(commands)
-	return " This task explicitly selects the bundled CPU fixture sum-1-to-1000000-v1 (one AWK process, one CPU, no GPU or installs). Use the official exec_command tool to invoke the installed helper using these exact argument arrays, with appropriate platform shell quoting: " + string(raw) + ". Query status first. Submit at most once when status is absent; the helper persists intent before launch. A repeated submit only queries an existing intent. Never run direct SSH, arbitrary deployment commands, or bypass helper ownership checks. On unknown status, query the same ID; never choose a new ID to replay uncertain work. Report helper evidence separately from model text. Cancelling or closing this Codex controller does not stop the server experiment. Call stop only when the user explicitly requests remote experiment stop. Stop is cooperative and never signals unverified or unrelated processes. Respect official human input and approval requests; never auto-approve."
+	shellInstructions := ""
+	if runtime.GOOS == "windows" {
+		powershell := map[string]string{}
+		for op, args := range commands {
+			powershell[op] = ExperimentPowerShellCommand(args)
+		}
+		encoded, _ := json.Marshal(powershell)
+		shellInstructions = " On Windows use the matching PowerShell command exactly in exec_command: " + string(encoded) + ". The helper is a GUI-subsystem executable; the explicit pipeline waits for it, captures JSON/errors, and preserves its actual exit code. A bare PowerShell invocation can return early with empty output. Empty output or shell exit zero alone is not experiment evidence."
+	}
+	return " This task explicitly selects the bundled CPU fixture sum-1-to-1000000-v1 (one AWK process, one CPU, no GPU or installs). Use the official exec_command tool to invoke the installed helper using these exact argument arrays, with appropriate platform shell quoting: " + string(raw) + "." + shellInstructions + " Query status first. Submit at most once when status is absent; the helper persists intent before launch. A repeated submit only queries an existing intent. Never run direct SSH, arbitrary deployment commands, or bypass helper ownership checks. On unknown status, query the same ID; never choose a new ID to replay uncertain work. Report helper evidence separately from model text. Cancelling or closing this Codex controller does not stop the server experiment. Call stop only when the user explicitly requests remote experiment stop. Stop is cooperative and never signals unverified or unrelated processes. Respect official human input and approval requests; never auto-approve."
+}
+
+// ExperimentPowerShellCommand renders the invocation used in task instructions.
+// An explicit pipeline is required for PowerShell to wait for a Windows GUI
+// executable. Converting error records to strings preserves helper diagnostics
+// without PowerShell's invocation/path decoration, and exit propagates failure.
+func ExperimentPowerShellCommand(arguments []string) string {
+	if len(arguments) == 0 {
+		return "throw 'invalid_experiment_command'"
+	}
+	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
+	args := make([]string, 0, len(arguments)-1)
+	for _, arg := range arguments[1:] {
+		args = append(args, quote(arg))
+	}
+	return "$ErrorActionPreference = 'Continue'; $PSNativeCommandUseErrorActionPreference = $false; $dcArgs = @(" + strings.Join(args, ", ") + "); $dcOutput = @(& " + quote(arguments[0]) + " @dcArgs 2>&1 | ForEach-Object { $_.ToString() }); $dcExit = $LASTEXITCODE; foreach ($dcLine in $dcOutput) { [Console]::Out.WriteLine($dcLine) }; if ($null -eq $dcExit) { [Console]::Error.WriteLine('experiment_exit_unconfirmed'); exit 1 }; exit $dcExit"
 }
 
 // Readback is independent of the model's commands and prose. It changes only
