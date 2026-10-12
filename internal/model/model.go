@@ -130,6 +130,7 @@ type CodexSubmit struct {
 	WorkingDirs     []string `json:"working_dirs"`
 	ProfileID       string   `json:"profile_id,omitempty"`
 	ServerProfileID string   `json:"server_profile_id,omitempty"`
+	ExperimentID    string   `json:"experiment_id,omitempty"`
 	Presentation    string   `json:"presentation,omitempty"`
 }
 
@@ -157,6 +158,7 @@ type CodexJob struct {
 	CancelRequested bool              `json:"cancel_requested"`
 	ProfileID       string            `json:"profile_id,omitempty"`
 	ServerProfileID string            `json:"server_profile_id,omitempty"`
+	ExperimentID    string            `json:"experiment_id,omitempty"`
 	ThreadID        string            `json:"thread_id,omitempty"`
 	TurnID          string            `json:"turn_id,omitempty"`
 	Runtime         *CodexRuntimeInfo `json:"runtime,omitempty"`
@@ -172,12 +174,26 @@ type CodexRuntimeInfo struct {
 	Verification      string `json:"verification"`
 	ResultStatus      string `json:"result_status"`
 	// These are observed transport/review routes, never proof of remote display.
-	ImageDeliveryStatus string          `json:"image_delivery_status,omitempty"`
-	ReviewLocation      string          `json:"review_location,omitempty"`
-	Text                string          `json:"text,omitempty"`
-	Images              []Image         `json:"images,omitempty"`
-	Evidence            []CodexEvidence `json:"evidence,omitempty"`
-	Approvals           []CodexApproval `json:"approvals,omitempty"`
+	ImageDeliveryStatus string               `json:"image_delivery_status,omitempty"`
+	ReviewLocation      string               `json:"review_location,omitempty"`
+	Text                string               `json:"text,omitempty"`
+	Images              []Image              `json:"images,omitempty"`
+	Evidence            []CodexEvidence      `json:"evidence,omitempty"`
+	Approvals           []CodexApproval      `json:"approvals,omitempty"`
+	Experiment          *CodexExperimentInfo `json:"experiment,omitempty"`
+}
+
+// Experiment evidence comes from an independent helper status read, never model
+// text. It is ephemeral, just like other owned result evidence.
+type CodexExperimentInfo struct {
+	ExperimentID string `json:"experiment_id"`
+	State        string `json:"state"`
+	Code         string `json:"code,omitempty"`
+	Fixture      string `json:"fixture"`
+	ExitCode     *int   `json:"exit_code,omitempty"`
+	Result       string `json:"result,omitempty"`
+	ResultSHA256 string `json:"result_sha256,omitempty"`
+	Expected     bool   `json:"expected_check"`
 }
 
 type CodexEvidence struct {

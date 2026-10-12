@@ -12,6 +12,7 @@ import (
 
 	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
+	"github.com/dotcontrol/dotcontrol/internal/experiment"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
 
@@ -99,6 +100,8 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	var server *connections.ServerProfile
 	if len(r.Prompt) > 65536 || strings.TrimSpace(r.Prompt) == "" || !validID.MatchString(r.ProfileID) || (r.ServerProfileID != "" && !validID.MatchString(r.ServerProfileID)) {
 		state, code = "rejected", "invalid_request"
+	} else if r.ExperimentID != "" && (!experiment.ValidID(r.ExperimentID) || r.ServerProfileID == "") {
+		state, code = "rejected", "invalid_experiment_request"
 	} else if r.Presentation != "" && r.Presentation != "visible" && r.Presentation != "background" {
 		state, code = "rejected", "invalid_presentation"
 	} else if len(r.AllowedApps) > 0 || len(r.WorkingDirs) > 0 {
@@ -139,7 +142,7 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	if state == "blocked" || state == "rejected" {
 		info.PresentationState = "not_started"
 	}
-	j := &runtimeJob{entry: runtimeEntry{Version: 1, Phase: "intent", Requests: map[string]string{r.RequestID: hash}, CurrentRequestID: r.RequestID, Job: model.CodexJob{DeviceID: b.deviceID, JobID: id, RequestID: r.RequestID, State: state, Code: code, Message: runtimeMessage(code), CreatedAt: now, UpdatedAt: now, RequestHash: hash, PromptHash: b.hash("prompt", []byte(r.Prompt)), ProfileID: r.ProfileID, ServerProfileID: r.ServerProfileID, Runtime: info}}, approvals: map[string]*runtimeApproval{}}
+	j := &runtimeJob{entry: runtimeEntry{Version: 1, Phase: "intent", Requests: map[string]string{r.RequestID: hash}, CurrentRequestID: r.RequestID, Job: model.CodexJob{DeviceID: b.deviceID, JobID: id, RequestID: r.RequestID, State: state, Code: code, Message: runtimeMessage(code), CreatedAt: now, UpdatedAt: now, RequestHash: hash, PromptHash: b.hash("prompt", []byte(r.Prompt)), ProfileID: r.ProfileID, ServerProfileID: r.ServerProfileID, ExperimentID: r.ExperimentID, Runtime: info}}, approvals: map[string]*runtimeApproval{}}
 	if p.ID != "" {
 		j.entry.ProfileHash = b.profileHash(cfg, p, server)
 	}
@@ -519,6 +522,9 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		}
 		params["ephemeral"] = false
 		params["developerInstructions"] = taskInstructions(id, p, server)
+		if snapshot.ExperimentID != "" {
+			params["developerInstructions"] = taskInstructions(id, p, nil) + experimentInstructions(b.runtime.stateDir, snapshot.ServerProfileID, snapshot.ExperimentID)
+		}
 		if !b.beforeRuntimeDispatch(ctx, id) {
 			return
 		}

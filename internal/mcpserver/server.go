@@ -35,6 +35,7 @@ type CodexSubmitArgs struct {
 	Prompt          string   `json:"prompt"`
 	ProfileID       string   `json:"profile_id,omitempty"`
 	ServerProfileID string   `json:"server_profile_id,omitempty"`
+	ExperimentID    string   `json:"experiment_id,omitempty" jsonschema:"Stable ID for the bounded CPU fixture. Requires server_profile_id; retries query the same experiment."`
 	Presentation    string   `json:"presentation,omitempty"`
 	AllowedApps     []string `json:"allowed_apps,omitempty"`
 	WorkingDirs     []string `json:"working_dirs,omitempty"`
@@ -78,7 +79,7 @@ func New(backend service.Backend) *mcp.Server {
 		return call(ctx, backend, "cancel", service.Request{DeviceID: a.DeviceID, TaskID: a.TaskID})
 	})
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_submit", Description: "Submit a task to this target computer's official Codex using a locally configured profile_id and stable request_id. Optional server_profile_id selects local SSH configuration, never credentials. presentation defaults to visible; background hides presentation only, not foreground Computer Use. Returns an immediate durable job. Identical retries return it; changed bodies conflict. Unaccepted platform capabilities remain blocked. Never replay unknown outcomes. Model completion, verified output, and image delivery are distinct.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexSubmitArgs) (*mcp.CallToolResult, any, error) {
-		input := model.CodexSubmit{DeviceID: a.DeviceID, RequestID: a.RequestID, Prompt: a.Prompt, ProfileID: a.ProfileID, ServerProfileID: a.ServerProfileID, Presentation: a.Presentation, AllowedApps: a.AllowedApps, WorkingDirs: a.WorkingDirs}
+		input := model.CodexSubmit{DeviceID: a.DeviceID, RequestID: a.RequestID, Prompt: a.Prompt, ProfileID: a.ProfileID, ServerProfileID: a.ServerProfileID, ExperimentID: a.ExperimentID, Presentation: a.Presentation, AllowedApps: a.AllowedApps, WorkingDirs: a.WorkingDirs}
 		return call(ctx, backend, "codex_submit", service.Request{DeviceID: a.DeviceID, Codex: &input})
 	})
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_job", Description: "Read a durable Codex job owned by this DotControl device. Accepts only returned job_id values; never reads or imports the user's other Codex threads. A blocked/rejected job has started no desktop work.", Annotations: read}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {

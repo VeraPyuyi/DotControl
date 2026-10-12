@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/engine"
+	"github.com/dotcontrol/dotcontrol/internal/experiment"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
 
@@ -27,10 +28,12 @@ type RuntimeConfig struct {
 	OpenThread        func(context.Context, string) error
 	SupportedVersions []string
 	// StartClient is the official stdio transport seam, used by protocol tests.
-	StartClient func(context.Context, string, string) (*Client, error)
+	StartClient      func(context.Context, string, string) (*Client, error)
+	ExperimentStatus func(context.Context, string, string) (experiment.Status, error)
 }
 type HumanReview func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error)
 type runtimeState struct {
+	stateDir          string
 	cfg               RuntimeConfig
 	file              *os.File
 	chain             string
@@ -94,6 +97,7 @@ func journalEntry(e runtimeEntry) runtimeEntry {
 		r.Images = nil
 		r.Evidence = nil
 		r.Approvals = nil
+		r.Experiment = nil
 	}
 	return e
 }
@@ -102,7 +106,7 @@ func (b *Bridge) signRuntime(e runtimeEntry, previous string) string {
 	return b.hash("runtime-v1:"+previous, data)
 }
 func (b *Bridge) openRuntime(cfg Config) error {
-	rs := &runtimeState{jobs: map[string]*runtimeJob{}, requests: map[string]string{}}
+	rs := &runtimeState{stateDir: cfg.StateDir, jobs: map[string]*runtimeJob{}, requests: map[string]string{}}
 	if cfg.Runtime != nil {
 		rs.cfg = *cfg.Runtime
 		rs.cfg.SupportedVersions = append([]string(nil), cfg.Runtime.SupportedVersions...)

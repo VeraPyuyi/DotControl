@@ -190,6 +190,9 @@ func (b *Bridge) healthy() error {
 	return nil
 }
 func (b *Bridge) Submit(ctx context.Context, r model.CodexSubmit) (model.CodexJob, error) {
+	if r.ExperimentID != "" && r.ProfileID == "" {
+		return model.CodexJob{}, failure("invalid_experiment_request")
+	}
 	if r.ProfileID != "" {
 		return b.submitRuntime(ctx, r)
 	}
@@ -258,8 +261,12 @@ func validate(r model.CodexSubmit) string {
 }
 func (b *Bridge) Job(deviceID, jobID string) (model.CodexJob, error) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.job(deviceID, jobID)
+	j, err := b.job(deviceID, jobID)
+	b.mu.Unlock()
+	if err != nil {
+		return j, err
+	}
+	return b.experimentJob(j), nil
 }
 func (b *Bridge) job(deviceID, jobID string) (model.CodexJob, error) {
 	if err := b.healthy(); err != nil {

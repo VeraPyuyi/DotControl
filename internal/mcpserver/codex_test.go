@@ -26,12 +26,12 @@ func TestCodexToolContractRoundTripsThroughBothTransports(t *testing.T) {
 					return nil, nil
 				}
 			}), transport)
-			res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "codex_submit", Arguments: map[string]any{"device_id": "device-a", "request_id": "request-stable", "prompt": "你好 private prompt", "allowed_apps": []string{"Calculator"}, "working_dirs": []string{t.TempDir()}}})
+			res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "codex_submit", Arguments: map[string]any{"device_id": "device-a", "request_id": "request-stable", "prompt": "你好 private prompt", "experiment_id": "fixture-a", "allowed_apps": []string{"Calculator"}, "working_dirs": []string{t.TempDir()}}})
 			if err != nil || res.IsError {
 				t.Fatalf("submit=%+v %v", res, err)
 			}
 			r := <-seen
-			if r.Codex == nil || r.Codex.Prompt != "你好 private prompt" || r.Codex.RequestID != "request-stable" || len(r.Codex.WorkingDirs) != 1 {
+			if r.Codex == nil || r.Codex.Prompt != "你好 private prompt" || r.Codex.RequestID != "request-stable" || r.Codex.ExperimentID != "fixture-a" || len(r.Codex.WorkingDirs) != 1 {
 				t.Fatalf("request=%+v", r)
 			}
 			data, _ := json.Marshal(res.StructuredContent)
