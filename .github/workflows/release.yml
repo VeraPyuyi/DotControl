@@ -38,7 +38,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/v0.2.0-alpha.2/*
+          path: dist/v*/*
           if-no-files-found: error
       - name: Download the uploaded bytes
         env:

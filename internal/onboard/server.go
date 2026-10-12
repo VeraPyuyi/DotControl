@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"io"
 	"io/fs"
 	"net/http"
@@ -25,6 +26,20 @@ type Connect struct {
 	Name       string `json:"name"`
 	TunnelID   string `json:"tunnel_id"`
 	RuntimeKey string `json:"runtime_key"`
+}
+
+// ConnectionsRequest has no credential-value fields. It is accepted exclusively
+// by the authenticated same-origin local wizard, never the remote MCP service.
+type ConnectionsRequest struct {
+	Operation  string                        `json:"operation"`
+	Executable string                        `json:"executable,omitempty"`
+	Execution  *connections.ExecutionProfile `json:"execution,omitempty"`
+	Server     *connections.ServerProfile    `json:"server,omitempty"`
+	ProfileID  string                        `json:"profile_id,omitempty"`
+}
+
+type ConnectionsBackend interface {
+	Connections(context.Context, ConnectionsRequest) (any, error)
 }
 type Backend interface {
 	Status(context.Context) (any, error)
@@ -92,7 +107,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "origin_rejected", 403)
 		return
 	}
-	if r.URL.Path == "/onboard/" || r.URL.Path == "/onboard/app.js" || r.URL.Path == "/onboard/style.css" {
+	if r.URL.Path == "/onboard/" || r.URL.Path == "/onboard/app.js" || r.URL.Path == "/onboard/connections.js" || r.URL.Path == "/onboard/style.css" {
 		if r.Method != "GET" {
 			http.Error(w, "method_rejected", 405)
 			return
@@ -109,7 +124,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch name {
 		case "index.html":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		case "app.js":
+		case "app.js", "connections.js":
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		case "style.css":
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
@@ -141,6 +156,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var value any
 	switch r.URL.Path {
+	case "/onboard/api/connections":
+		var input ConnectionsRequest
+		err = decode(r, &input)
+		if err == nil {
+			if backend, ok := s.backend.(ConnectionsBackend); ok {
+				value, err = backend.Connections(r.Context(), input)
+			} else {
+				err = errors.New("connections_unavailable")
+			}
+		}
 	case "/onboard/api/status":
 		value, err = s.backend.Status(r.Context())
 	case "/onboard/api/connect":

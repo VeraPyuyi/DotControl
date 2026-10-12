@@ -11,6 +11,41 @@ import (
 
 type fake struct{ connected int }
 
+type connectionFake struct {
+	fake
+	calls int
+}
+
+func (f *connectionFake) Connections(context.Context, ConnectionsRequest) (any, error) {
+	f.calls++
+	return map[string]bool{"saved": true}, nil
+}
+
+func TestConnectionConfigurationRequiresLocalSessionAndRejectsSecrets(t *testing.T) {
+	f := &connectionFake{}
+	s := New("127.0.0.1:9317", f)
+	origin := "http://127.0.0.1:9317"
+	if req(s, "/onboard/api/connections", `{"operation":"list"}`, origin, "", nil).Code != 401 {
+		t.Fatal("unauthenticated configuration")
+	}
+	ticket := strings.Split(s.LaunchURL(), "#")[1]
+	w := req(s, "/onboard/api/session", `{"ticket":"`+ticket+`"}`, origin, "", nil)
+	var session map[string]string
+	json.Unmarshal(w.Body.Bytes(), &session)
+	cookie := w.Result().Cookies()[0]
+	for _, body := range []string{`{"operation":"save_server","password":"private"}`, `{"operation":"save_server","server":{"password":"private"}}`} {
+		if req(s, "/onboard/api/connections", body, origin, session["csrf"], cookie).Code != 400 {
+			t.Fatal("secret field accepted")
+		}
+	}
+	if f.calls != 0 {
+		t.Fatal("invalid request reached storage")
+	}
+	if req(s, "/onboard/api/connections", `{"operation":"list"}`, origin, session["csrf"], cookie).Code != 200 || f.calls != 1 {
+		t.Fatal("valid local request failed")
+	}
+}
+
 func (f *fake) Status(context.Context) (any, error)         { return map[string]bool{"paused": true}, nil }
 func (f *fake) Connect(context.Context, Connect) error      { f.connected++; return nil }
 func (f *fake) Action(context.Context, string) (any, error) { return nil, nil }

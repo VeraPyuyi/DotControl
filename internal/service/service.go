@@ -12,12 +12,15 @@ import (
 )
 
 type Request struct {
-	DeviceID string             `json:"device_id,omitempty"`
-	TaskID   string             `json:"task_id,omitempty"`
-	Target   model.Target       `json:"target,omitempty"`
-	Action   *model.Action      `json:"action,omitempty"`
-	Codex    *model.CodexSubmit `json:"codex,omitempty"`
-	JobID    string             `json:"job_id,omitempty"`
+	DeviceID     string                  `json:"device_id,omitempty"`
+	TaskID       string                  `json:"task_id,omitempty"`
+	Target       model.Target            `json:"target,omitempty"`
+	Action       *model.Action           `json:"action,omitempty"`
+	Codex        *model.CodexSubmit      `json:"codex,omitempty"`
+	JobID        string                  `json:"job_id,omitempty"`
+	Continuation *model.CodexContinue    `json:"continuation,omitempty"`
+	ApprovalID   string                  `json:"approval_id,omitempty"`
+	Reviewer     codexbridge.HumanReview `json:"-"`
 }
 type Backend interface {
 	Call(context.Context, string, Request) (any, error)
@@ -36,6 +39,7 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 		device.Capabilities = codexbridge.DisabledCapabilities()
 		if s.Bridge != nil {
 			device.Capabilities = s.Bridge.Capabilities()
+			device.CodexProfiles = s.Bridge.ProfileCatalog()
 		}
 		if s.BaseStatus != nil {
 			device.Capabilities.Base = s.BaseStatus()
@@ -53,7 +57,7 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 		return nil, errors.New("wrong_device")
 	}
 	switch method {
-	case "codex_submit", "codex_job", "codex_cancel":
+	case "codex_submit", "codex_job", "codex_cancel", "codex_continue", "codex_review":
 		if s.Bridge == nil {
 			return model.CodexUnsupported{DeviceID: device.ID, State: "unsupported", Code: "codex_bridge_not_configured"}, nil
 		}
@@ -65,6 +69,13 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 			return s.Bridge.Submit(ctx, *r.Codex)
 		case "codex_job":
 			return s.Bridge.Job(r.DeviceID, r.JobID)
+		case "codex_continue":
+			if r.Continuation == nil || r.Continuation.DeviceID != r.DeviceID {
+				return nil, errors.New("wrong_device")
+			}
+			return s.Bridge.Continue(ctx, *r.Continuation)
+		case "codex_review":
+			return s.Bridge.Review(ctx, r.DeviceID, r.JobID, r.ApprovalID, r.Reviewer)
 		default:
 			return s.Bridge.Cancel(r.DeviceID, r.JobID)
 		}

@@ -1,79 +1,170 @@
-# Codex delegation in DotControl 0.2
+# Target Codex delegation (candidate implementation)
 
-This beta ships an owned job contract, a durable private job journal, and a read-only client for the official Codex App Server over STDIO. **Native Codex desktop delegation is blocked in this release.** Installing Codex, finding the Computer Use skill, or completing a model answer does not enable execution. There is no JSON setting, environment switch, or configuration flag that marks native acceptance as passed.
+DotControl can now run an owned official Codex task through the public App Server
+stdio protocol, continue it, collect events and native MCP images, and request
+interruption. This implementation is being validated; **the packaged application's
+platform acceptance table remains closed**. A configuration profile or successful
+tool inventory does not enable delegation. The existing Cua route is separate.
 
-The validated feasibility record is [codex-app-server-2026-10-12.json](validation/codex-app-server-2026-10-12.json). The current app-bundled official binary supported initialization, an isolated model turn, the official `@oai/sky` import, and native `sky.list_apps` discovery through public RPC. The model turn did not invoke native tools. Native screenshot delivery, a delegated desktop action, target-local human approval, and in-flight cancellation remain unverified. This is evidence of a partial native route, not evidence that native tools are absent or that remote execution is accepted.
+See [the dated evidence](validation/target-codex-progress-2026-10-12.json) for real
+tests versus automated tests. Windows has passed persistent official thread
+visibility, background continuation, a real terminal CPU check, request deduplication
+and a cancelled turn. Native app discovery and a real official application approval
+request were observed. A delegated GUI action, screenshot, Mac human review over
+the tunnel, and authenticated server experiment have not passed.
 
-## Public tools
+## Local configuration
 
-`devices` reports four separate capability objects. Each includes `available`, `state`, and a stable `code` where relevant:
+Open the installed agent's **onboard** page and choose “连接本机 Codex”:
 
-| Capability | Meaning in this beta |
-| --- | --- |
-| `base` | Basic DotControl driver readiness. Defaults to `not_probed`; the local runtime can supply transport status. Pause, activity-monitor failure, and locked desktop are explicit blockers. Activity alone does not establish driver readiness. |
-| `codex_connection` | The owned bridge starts no persistent Codex process, so device discovery reports `not_probed`. A separate `codex-probe` can verify the public handshake at its `checked_at` time. |
-| `official_computer_use` | `not_verified`, with `official_cu_acceptance_required`. Inventory is not native acceptance. |
-| `codex_delegation` | `blocked`, with `official_cu_acceptance_required`. No desktop action is started. |
+1. Discover the program bundled with the running official desktop application.
+   Save its reference. The execution adapter accepts the explicitly tested version
+   `0.162.0-alpha.17.2`; other versions report `codex_version_not_accepted`.
+2. Select a project directory, read its official permission profiles, and choose
+   an existing profile. Built-in IDs include `:read-only` and `:workspace`;
+   their leading colon is significant. DotControl does not alter global permissions.
+3. Choose terminal or Computer Use and visible or background presentation.
+   Visible requests the public `codex://threads/<id>` link after creating the thread.
+   `open_requested` means the OS accepted the link, not that a window was observed.
+   Background sends no open request. Computer Use on Windows still uses a foreground,
+   unlocked desktop, even with background presentation.
+4. Optionally save one or more named server profiles: SSH alias or user@host, port,
+   remote directory, optional private-key **file reference**, and optional deployment
+   command. Selecting a file does not read its contents. Save does not deploy.
 
-### `codex_submit`
+The target's official Codex process reads its own login and model settings.
+DotControl does not copy credentials. Delegated turns consume that account's quota.
+Terminal profiles disable Computer Use in the spawned official process. Selected
+application names and project/deployment instructions are task scope; they are not
+an OS sandbox or a guarantee against every command that the selected official
+permission profile permits. Choose the least permissions appropriate to the task.
+
+The protected loopback wizard owns configuration. Local directories, server
+endpoints, deployment commands and key paths are not included in diagnostics or
+the remote profile catalog. `devices.codex_profiles` exposes only chosen profile
+names, IDs, execution kind and presentation so source Dot can select a saved profile.
+Do not put secrets in profile names.
+
+SSH preflight uses the target's normal SSH configuration and agent with strict
+host verification and batch authentication. It checks connectivity and optionally
+directory access, without running a deployment command. Unknown or changed host
+keys require the local user's verification. Authentication failure requires local
+SSH setup or unlocking the agent. Passwords, passphrases, key bodies and tunnel
+keys must never be pasted into chat, configuration JSON, command arguments or logs.
+The local wizard contains no SSH password field and does not automate password login.
+
+## Remote tools
+
+The original six desktop tools remain available. These five manage only tasks
+created by this DotControl device:
+
+| Tool | Required inputs | Behavior |
+| --- | --- | --- |
+| `codex_submit` | device_id, request_id, prompt, profile_id | Records a job and returns immediately. Optional server_profile_id and presentation. |
+| `codex_job` | device_id, job_id | Returns current phase, owned official thread/turn IDs, pending review, bounded results and MCP images. |
+| `codex_continue` | device_id, job_id, request_id, prompt | Appends a new turn to that owned thread, when no other turn is active. |
+| `codex_cancel` | device_id, job_id | Persists cancellation and requests interruption; waits for official terminal evidence before confirming stop. |
+| `codex_review` | device_id, job_id, approval_id | Opens the host's human form, without any model-supplied approval argument. |
+
+Example submission (fictional configuration IDs):
 
 ```json
 {
-  "device_id": "<exact authorized device_id>",
-  "request_id": "request-stable-001",
-  "prompt": "<bounded task description>",
-  "allowed_apps": ["<exact allowed app identity>"],
-  "working_dirs": ["<absolute target-device directory>"]
+  "device_id": "<device returned by devices>",
+  "request_id": "experiment-cpu-001",
+  "profile_id": "configured-terminal-profile",
+  "server_profile_id": "configured-test-server",
+  "presentation": "background",
+  "prompt": "Check the selected server and report readiness. Do not start the experiment yet."
 }
 ```
 
-Returns an immediate durable `job_id`. The valid request returns `state: blocked`, `code: official_cu_acceptance_required`, with a fixed explanation of the outstanding acceptance work. It creates no Codex thread or desktop action. A request with a valid stable ID but an invalid prompt or scope returns a persisted `rejected` job. Invalid device ownership or invalid request-ID syntax is rejected before a job is allocated.
+Profile-based requests cannot override local app/directory scopes. Reusing the
+same request ID and identical decoded body returns the existing job. Different
+content under the same ID is a conflict. Continue IDs use the same per-device
+namespace. A profile change blocks continuation until the user chooses a new task.
+Legacy requests without a profile retain the old blocked contract and journal.
 
-The prompt must be nonempty and at most 65,536 bytes. Both scope lists must contain 1–64 entries. App identifiers are bounded strings without wildcards or line breaks. Working directories must be absolute on the target device and contain no wildcards or line breaks. These are admission checks for the disabled contract, not an implemented desktop or filesystem enforcement boundary.
+Only the official thread recorded for an owned job is used. No arbitrary thread
+resume or RPC is exposed. A desktop active-writer response becomes `local_takeover`;
+DotControl does not force takeover or submit concurrently. The user can continue
+locally. Remote continuation requires that the official writer is released.
 
-An identical decoded request body with the same `request_id` returns its existing job, including after restart or cancellation. A changed body under that ID returns `request_id_conflict`; it never replaces the existing job. Array order and exact strings are significant. Request and device IDs use 1–128 ASCII letters, digits, `.`, `_`, `:`, or `-`, beginning with a letter or digit. Stable IDs are identifiers, not containers for task content. Never resend an uncertain effect with a new request ID.
+## Human review
 
-### `codex_job` and `codex_cancel`
+For supported command/file/permission/MCP approval events, the job exposes a
+bounded review record bound to device, job, official thread, turn and server request.
+`codex_review` requests a native host form through negotiated MCP input requests.
+There is no `accept` or decision argument in its tool schema. The returned human
+response carries a random, expiring, single-use challenge bound to that exact review.
 
-```json
-{"device_id": "<exact authorized device_id>", "job_id": "<returned owned job_id>"}
-```
+A host without form support keeps the job waiting. Secret-entry forms, persistent
+grants and unsupported official requests remain target-local interactions.
+The gateway does not forward an approval callback. Cancellation, expiry, resolved
+requests, new turns, local pause and revoked desktop leases invalidate review.
+A write failure is uncertain and is not retried automatically.
 
-`codex_job` reads only this store's jobs. `codex_cancel` durably sets `cancel_requested: true`; repeated cancellation returns the same record. Because `blocked` and `rejected` are terminal, cancellation preserves their original state and reason. It does not claim that native work was interrupted. An unknown ID returns `job_not_found`; a different device returns `wrong_device`. Codex thread IDs cannot be substituted for job IDs.
+The release gate for remote review remains closed until the actual source Mac Dot
+and Secure MCP Tunnel display accept, reject and cancel correctly. Automated HTTP
+MCP tests do not establish this host compatibility. DotControl never treats the
+model's words or a remote task prompt as the human's approval.
 
-With no bridge configured, all three methods return the structured `unsupported` result with code `codex_bridge_not_configured`. They do not silently fall back to a third-party desktop provider.
+## Coordination, durability and results
 
-## Storage and ownership
+Cua and native desktop jobs share one device lease. Native dispatch requires
+available activity detection, an unlocked desktop and 60 seconds of idle time.
+Human input or local pause revokes the lease and requests official interruption.
+A successful interrupt RPC is not stop confirmation. If stop is uncertain, a
+durable guard prevents another desktop executor from acquiring the device, even
+after restart. Fresh observation is required after delegated input.
 
-`codex-jobs.jsonl`, `codex-jobs.key`, and `codex-jobs.lock` belong to DotControl's local state directory. The directory is private to the operating-system user (a protected current-user ACL on Windows, mode 0700 elsewhere). A process lock prevents competing writers. Every record is flushed before acknowledgment; malformed, truncated, mismatched-device, or broken-chain journals fail closed. Storage errors do not return an accepted job. Once an append fails, that store refuses further operations until restarted and verified.
+Terminal tasks do not acquire the desktop lease; they still respect local pause.
+Cancelling a Codex control task does **not** mean an independently submitted server
+experiment was killed. A server stop is a separate explicit operation.
 
-Jobs persist only owned IDs, fixed status text, timestamps, cancellation intent, and HMAC digests. The prompt, app allowlist, working directory list, screenshots, and model text are not stored. Prompt and request digests use a random 32-byte per-store HMAC key, not an unsalted prompt hash. A chained MAC detects modification and reordering of retained records. It is not rollback protection against a local owner who can replace the entire directory or truncate a complete suffix. Local state access remains the operating-system security boundary.
+New runtime records use `codex-runtime-v1.jsonl`, chained and authenticated with the
+device's existing private journal key. The old journal remains intact. Intent is
+persisted before thread/turn dispatch. Uncertain thread creation or turn dispatch
+is never replayed. Recovery reads only the recorded owned thread and exact turn.
+A lost turn ID cannot be reconstructed by guessing from message order.
 
-All peers authorized for a device use that device's DotControl-owned namespace; this is not per-remote-caller tenancy. The store does not enumerate, import, resume, cancel, or inspect the user's unrelated Codex threads. No actual Codex thread IDs exist in these blocked records.
+The journal excludes prompts, text outputs, screenshots and approval contents.
+Official Codex may keep its own task history. Runtime results are bounded in memory;
+after restart their status is `unavailable_after_restart` unless restored from actual
+evidence. Native image content is returned separately from structured JSON; no
+legacy Python Library upload script is used.
 
-## Official STDIO probe and protocol client
+These are independent facts:
 
-The runtime selects an explicitly installed official executable, then calls `codexbridge.Probe` with its absolute path and an absolute working directory. The probe launches a dedicated hidden `codex app-server --stdio` process. It reuses existing Codex login/settings through Codex itself and neither parses authentication files nor changes global configuration. DotControl exposes no App Server port and never attaches to a user's existing daemon.
+- A Codex turn reached a terminal state.
+- Command/tool output or another independent artifact verifies the requested result.
+- MCP image content was returned.
+- The source Mac actually displayed the image.
 
-The probe sends only:
+The bridge leaves task verification `unverified`; a model saying “done” does not
+verify an experiment. Native image return does not prove source rendering.
 
-1. `initialize`, identifying DotControl and enabling the documented experimental protocol capability.
-2. The `initialized` notification.
-3. `skills/list` for the supplied directory.
-4. `mcpServerStatus/list`, with bounded pagination.
+## SSH experiment acceptance procedure
 
-It starts no thread or model turn, calls no MCP tool or native input API, and answers no approval. It returns booleans about the enabled Computer Use skill and listed `node_repl.js`/`cua_repl.js` tools without returning private skill paths, tool schemas, or inventory content. A false inventory boolean means “not listed in this probe,” not “native capability is absent.” Some plugin inventories are thread-specific. `connection.state: probe_passed` records a successful handshake at `checked_at`; the dedicated process closes when the probe completes. Even a complete inventory leaves delegation blocked.
+Choose a server profile locally and get its read-only preflight to pass first.
+Then let target Codex check the selected project, remote directory, resource needs
+and intended deployment. Use a stable experiment ID and an independent experiment
+directory. Record a durable remote submission marker before starting work, plus
+a scheduler job ID or PID with logs and output paths. On disconnection, query the
+same record and remote job before doing anything else. An ambiguous submission
+must not be retried under a new ID. Generic deployment instructions do not enforce
+remote exactly-once execution; the selected scheduler or deployment script must
+implement its own idempotency. This remote experiment behavior remains unaccepted.
 
-The internal protocol client handles responses, notifications, and server-initiated requests. It sends each RPC once without automatic replay. Loss or timeout after a request may have been sent produces a `TransportError` with `OutcomeUnknown: true`; a pre-send cancellation is distinguishable. Raw upstream error text and process stderr are not exposed because they may include private content. Pending approval, elicitation, and user-input requests remain in a bounded memory queue. No automatic acceptance or approval-response API exists in this release. Queue overflow fails closed instead of dropping an approval or silently proceeding. The arbitrary RPC primitive is internal and is not a public DotControl method.
+## Validation and limits
 
-The beta uses the official public process/protocol only. It does not copy proprietary runtime components, directly launch native helper binaries, use private protocols, or install a replacement native backend.
+Automated tests exercise durable deduplication, ownership, transport uncertainty,
+profile privacy, permission IDs, host-form review, cancellation races, restart
+guards, image separation and the shared desktop lease. Platform compilation and
+mock web rendering are recorded separately from installed device tests.
 
-## Requirements before execution can be enabled
-
-A future implementation must first verify native image delivery, actual delegated native action, local human approval, and interruption/unknown outcomes on the exact supported version and OS. It must enforce allowed apps and working directories; prompt instructions alone are insufficient. It must obtain the existing engine's sole device execution gate for the full delegated job, preserve the 60-second human-idle threshold, immediately respect human activity and pause, and invalidate observations after interruption. This beta deliberately adds no competing input lease because no Codex job executes.
-
-Target-local approval must be reviewable by the human on that device. A remote task request cannot act as an approval, and a background responder must never auto-accept it. Cancellation needs confirmed `turn/interrupt` behavior for actual delegated native work; stopping a process or setting a flag does not prove that an already-issued desktop action had no effect. Reconnection must reconcile only owned jobs and preserve unknown outcomes without replay. Execution cannot be enabled by an inventory report or an editable “passed” flag.
-
-## Verification
-
-Automated tests cover concurrent request deduplication, conflicting bodies, restart recovery, input privacy, cross-device/foreign-ID rejection, process locking, corrupt journals, protocol framing, no retry after disconnect, timeout uncertainty, pending approvals without automatic responses, read-only probe sequencing, service routing, and MCP in-memory/HTTP argument round trips. These checks validate the blocked beta contract and transport behavior; they are not native desktop acceptance.
+Unverified gates are compiled closed, with no environment/configuration bypass.
+The adapter uses public [App Server](https://learn.chatgpt.com/docs/app-server)
+stdio only, the documented [thread deep link](https://learn.chatgpt.com/docs/reference/commands),
+and the target's own official components. It exposes no App Server network port,
+uses no private helper protocol and redistributes no proprietary Computer Use binary.

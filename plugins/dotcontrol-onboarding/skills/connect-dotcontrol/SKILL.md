@@ -85,6 +85,38 @@ result's actual status. Don't publish screenshots to unrelated cloud services.
 
 ## Native target Codex delegation
 
+Use the target's protected local wizard section “连接本机 Codex” to discover and
+save the official desktop executable, choose a local project folder, read its
+existing permission profiles, and save a named execution profile. Preserve the
+exact official permission ID, including a leading colon. Terminal and Computer
+Use are separate execution choices; visible/background controls opening the task
+UI and does not make Windows native Computer Use a background input facility.
+
+For SSH, let the user save a named alias or user@host, port, remote directory and
+optional private-key file reference in the same local wizard. Use its read-only
+connection check. Never ask for a password, passphrase or private-key body in chat.
+If authentication fails, guide normal target-local SSH setup or ssh-agent unlock;
+do not pass a chat secret as a command argument or change host-key checking.
+An optional saved deployment command is not authorization to execute it during setup.
+
+Read devices.codex_profiles to select saved profile IDs without reading private
+paths or server details. codex_submit uses profile_id and optionally server_profile_id;
+codex_continue uses a new stable request_id for the same owned job. A repeated
+request keeps its original ID and body. Unknown dispatch must be reconciled by
+querying the original job, never by creating a replacement task or training run.
+
+If an approval is pending, codex_review takes only device_id, job_id and approval_id
+and opens the host's human confirmation. Never supply an approval decision through
+another tool or invent a response if the host cannot display the form. Wait and
+explain the specific target-local interaction. Cancelling a control task does not
+stop an already submitted server experiment. Treat that as a separate user action.
+
+Report official turn completion, independently checked output, MCP image return
+and source display separately. Do not claim model text is verified experiment output.
+The current candidate's release gates remain closed; configuring a profile cannot
+enable an unaccepted platform. The released alpha.2 installer above does not yet
+contain the new configuration UI; do not claim it does or fabricate a newer asset.
+
 Read `devices.capabilities` first. Basic Cua desktop control, Codex connection,
 and official Computer Use acceptance are separate. If native delegation is gated,
 say “Codex 桌面委派暂不可用” with the returned reason. Never replace it with Cua,

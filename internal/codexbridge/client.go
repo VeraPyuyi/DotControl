@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 )
@@ -22,7 +23,15 @@ type TransportError struct {
 
 func (e *TransportError) Error() string { return e.Code }
 
-type RPCError struct{ Code int }
+type RPCError struct{ Code int; LocalTakeover bool `json:"-"` }
+
+var activeWriterError=regexp.MustCompile(`^thread [A-Za-z0-9-]+ already has an active writer$`)
+func (e *RPCError) UnmarshalJSON(data []byte) error {
+ var wire struct {Code int `json:"code"`;Message string `json:"message"`}
+ if err:=json.Unmarshal(data,&wire);err!=nil{return err}
+ e.Code=wire.Code;e.LocalTakeover=wire.Code==-32600&&activeWriterError.MatchString(wire.Message)
+ return nil // raw upstream text is deliberately discarded
+}
 
 func (e *RPCError) Error() string { return fmt.Sprintf("codex_rpc_error_%d", e.Code) }
 
@@ -115,8 +124,7 @@ func (c *Client) read() {
 		}
 		if m.Method != "" {
 			if len(m.ID) > 0 && string(m.ID) != "null" {
-				// Approval/elicitation/tool/user-input requests stay pending. This
-				// release has deliberately no response/approval API or auto-accept.
+				// Requests stay pending until an explicitly bound human response.
 				c.mu.Lock()
 				if len(c.serverRequests) >= 64 {
 					c.mu.Unlock()
@@ -126,6 +134,16 @@ func (c *Client) read() {
 				c.serverRequests[string(m.ID)] = ServerRequest{ID: m.ID, Method: m.Method, Params: m.Params}
 				c.mu.Unlock()
 			} else {
+				if m.Method == "serverRequest/resolved" {
+					var resolved struct {
+						RequestID json.RawMessage `json:"requestId"`
+					}
+					if json.Unmarshal(m.Params, &resolved) == nil {
+						c.mu.Lock()
+						delete(c.serverRequests, string(resolved.RequestID))
+						c.mu.Unlock()
+					}
+				}
 				select {
 				case c.notifications <- Notification{Method: m.Method, Params: m.Params}:
 				default:
@@ -281,6 +299,28 @@ func (c *Client) PendingRequests() []ServerRequest {
 	}
 	sort.Slice(out, func(i, j int) bool { return string(out[i].ID) < string(out[j].ID) })
 	return out
+}
+
+// Respond is an internal transport primitive, never a model-callable approval
+// tool. The coordinator must first bind a human answer to the live thread/turn.
+// Consume before writing: a lost response must never be automatically replayed.
+func (c *Client) Respond(ctx context.Context, id json.RawMessage, result any) error {
+	if ctx.Err() != nil {
+		return failure("cancelled")
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return failure("invalid_codex_params")
+	}
+	c.mu.Lock()
+	if _, ok := c.serverRequests[string(id)]; !ok {
+		c.mu.Unlock()
+		return failure("approval_not_pending")
+	}
+	delete(c.serverRequests, string(id))
+	c.mu.Unlock()
+	message, _ := json.Marshal(rpcMessage{ID: id, Result: data})
+	return c.write(ctx, append(message, '\n'))
 }
 func (c *Client) Close() error {
 	c.shutdown(&TransportError{Code: "codex_connection_closed", OutcomeUnknown: true})

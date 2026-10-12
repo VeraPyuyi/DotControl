@@ -4,6 +4,8 @@
 
 **0.2.0-alpha.2：自动安装与驱动重连修复预发布版。** 本版提供自带组件的安装器、三阶段本地向导、登录启动、连接修复和 Codex 引导插件。当前支持状态以[发布支持矩阵](docs/RELEASE_SUPPORT.md)为准；构建通过不代表真机验收通过。
 
+本分支是 **0.2.0-alpha.3-dev 委派候选版**：新增本机 Codex／SSH 配置向导和真实 App Server 执行循环。平台发布开关仍关闭，尚不能作为已验收的跨电脑 Codex 委派产品。下方快速开始仍指向已发布安装器。
+
 ## 快速开始
 
 从 [GitHub Releases](https://github.com/VeraPyuyi/DotControl/releases) 下载对应安装包：
@@ -30,9 +32,9 @@
 
 ## 目标端 Codex 委派
 
-计划路线：源 Dot → 目标 DotControl → 目标 Codex → 官方 Computer Use。
+实现路线：源 Dot → 目标 DotControl → 目标 Codex → 官方 Computer Use／本机 SSH。
 
-当前 Windows 官方 App Server 已实测完成 stdio 连接、模型轮次、官方原生 API 加载和应用发现；真实委派动作、审批、中断和图片回传尚未完成。因此原生委派保持关闭，不能以 Cua 执行替代。Mac 原生委派也未验收。详见[官方入口证据](docs/validation/codex-app-server-2026-10-12.json)。
+当前 Windows 已实测创建官方持久任务、后台继续对话、重复提交去重、终端 CPU 计算和轮次取消；官方原生应用发现与人工授权事件也已观察到。真实 GUI 动作、Mac 远程审批与图片回传、SSH 实验尚未通过，因此对应发布能力保持关闭。Mac 目标端原生委派未验收。详见[委派协议与限制](docs/CODEX_DELEGATION.md)及[本轮证据](docs/validation/target-codex-progress-2026-10-12.json)。
 
 ## 已有跨电脑证据
 

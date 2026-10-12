@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dotcontrol/dotcontrol/internal/model"
 	"github.com/dotcontrol/dotcontrol/internal/service"
@@ -27,6 +28,16 @@ type TaskArgs struct {
 type CodexJobArgs struct {
 	DeviceID string `json:"device_id"`
 	JobID    string `json:"job_id"`
+}
+type CodexSubmitArgs struct {
+	DeviceID        string   `json:"device_id"`
+	RequestID       string   `json:"request_id"`
+	Prompt          string   `json:"prompt"`
+	ProfileID       string   `json:"profile_id,omitempty"`
+	ServerProfileID string   `json:"server_profile_id,omitempty"`
+	Presentation    string   `json:"presentation,omitempty"`
+	AllowedApps     []string `json:"allowed_apps,omitempty"`
+	WorkingDirs     []string `json:"working_dirs,omitempty"`
 }
 
 // json.RawMessage is []byte to the schema generator. Expose a JSON object at
@@ -66,8 +77,9 @@ func New(backend service.Backend) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "cancel", Description: "Permanently cancel this task's future actions and request interruption of its in-flight action. Already-issued native input cannot be undone; inspect unknown outcomes.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a TaskArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "cancel", service.Request{DeviceID: a.DeviceID, TaskID: a.TaskID})
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "codex_submit", Description: "Submit a bounded task to this device's owned Codex job store with stable request_id, prompt, exact allowed_apps, and absolute working_dirs. Returns an immediate durable job; identical retries return it, changed request bodies conflict. This release blocks native delegation pending official Computer Use acceptance. Blocked is not completed, and Codex connection or inventory alone is not native acceptance. Never retry an unknown outcome under a new request_id.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a model.CodexSubmit) (*mcp.CallToolResult, any, error) {
-		return call(ctx, backend, "codex_submit", service.Request{DeviceID: a.DeviceID, Codex: &a})
+	mcp.AddTool(s, &mcp.Tool{Name: "codex_submit", Description: "Submit a task to this target computer's official Codex using a locally configured profile_id and stable request_id. Optional server_profile_id selects local SSH configuration, never credentials. presentation defaults to visible; background hides presentation only, not foreground Computer Use. Returns an immediate durable job. Identical retries return it; changed bodies conflict. Unaccepted platform capabilities remain blocked. Never replay unknown outcomes. Model completion, verified output, and image delivery are distinct.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexSubmitArgs) (*mcp.CallToolResult, any, error) {
+		input := model.CodexSubmit{DeviceID: a.DeviceID, RequestID: a.RequestID, Prompt: a.Prompt, ProfileID: a.ProfileID, ServerProfileID: a.ServerProfileID, Presentation: a.Presentation, AllowedApps: a.AllowedApps, WorkingDirs: a.WorkingDirs}
+		return call(ctx, backend, "codex_submit", service.Request{DeviceID: a.DeviceID, Codex: &input})
 	})
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_job", Description: "Read a durable Codex job owned by this DotControl device. Accepts only returned job_id values; never reads or imports the user's other Codex threads. A blocked/rejected job has started no desktop work.", Annotations: read}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "codex_job", service.Request{DeviceID: a.DeviceID, JobID: a.JobID})
@@ -75,6 +87,10 @@ func New(backend service.Backend) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_cancel", Description: "Record cancellation intent for a Codex job owned by this device. Terminal blocked/rejected jobs preserve their original state. Cancellation intent does not prove a native interruption or undo an effect; foreign thread IDs are refused.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "codex_cancel", service.Request{DeviceID: a.DeviceID, JobID: a.JobID})
 	})
+	mcp.AddTool(s, &mcp.Tool{Name: "codex_continue", Description: "Continue only a DotControl-owned Codex job with a stable new request_id. A local user taking ownership blocks remote continuation. Never resend uncertain turns. Continuing the controller does not restart a server experiment.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a model.CodexContinue) (*mcp.CallToolResult, any, error) {
+		return call(ctx, backend, "codex_continue", service.Request{DeviceID: a.DeviceID, Continuation: &a})
+	})
+	addReviewTool(s, backend)
 	return s
 }
 func call(ctx context.Context, b service.Backend, method string, r service.Request) (*mcp.CallToolResult, any, error) {
@@ -82,6 +98,9 @@ func call(ctx context.Context, b service.Backend, method string, r service.Reque
 	if err != nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprint(err)}}}, nil, nil
 	}
+	return formatResult(method, v)
+}
+func formatResult(method string, v any) (*mcp.CallToolResult, any, error) {
 	if method == "observe" {
 		// Remote backends return decoded JSON; normalize before extracting images.
 		var obs model.Observation
@@ -101,6 +120,35 @@ func call(ctx context.Context, b service.Backend, method string, r service.Reque
 			res.Content = append(res.Content, &mcp.ImageContent{Data: data, MIMEType: img.MIMEType})
 		}
 		return res, obs, nil
+	}
+	if strings.HasPrefix(method, "codex_") {
+		var job model.CodexJob
+		encoded, err := json.Marshal(v)
+		if err != nil || json.Unmarshal(encoded, &job) != nil {
+			return nil, nil, fmt.Errorf("invalid_codex_job_response")
+		}
+		if job.Runtime != nil && len(job.Runtime.Images) > 0 {
+			imgs := job.Runtime.Images
+			job.Runtime.Images = nil
+			encoded, _ = json.Marshal(job)
+			res := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(encoded)}}}
+			if len(imgs) > 8 {
+				return nil, nil, fmt.Errorf("too_many_result_images")
+			}
+			total := 0
+			for _, img := range imgs {
+				if len(img.Data) > 14<<20 || (img.MIMEType != "image/png" && img.MIMEType != "image/jpeg" && img.MIMEType != "image/webp" && img.MIMEType != "image/gif") {
+					return nil, nil, fmt.Errorf("invalid_image_response")
+				}
+				data, e := base64.StdEncoding.DecodeString(img.Data)
+				total += len(data)
+				if e != nil || len(data) == 0 || total > 16<<20 {
+					return nil, nil, fmt.Errorf("invalid_image_response")
+				}
+				res.Content = append(res.Content, &mcp.ImageContent{Data: data, MIMEType: img.MIMEType})
+			}
+			return res, job, nil
+		}
 	}
 	return nil, v, nil
 }

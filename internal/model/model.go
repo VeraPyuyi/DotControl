@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.0-alpha.2"
+const Version = "0.2.0-alpha.3-dev"
 
 type Target struct {
 	PID      int    `json:"pid"`
@@ -83,14 +83,28 @@ type Driver interface {
 	Release(context.Context) error
 }
 type Device struct {
-	ID           string             `json:"device_id"`
-	Name         string             `json:"name"`
-	OS           string             `json:"os"`
-	Version      string             `json:"version"`
-	Paused       bool               `json:"paused"`
-	Activity     Activity           `json:"activity"`
-	Nonce        string             `json:"nonce"`
-	Capabilities DeviceCapabilities `json:"capabilities"`
+	ID            string               `json:"device_id"`
+	Name          string               `json:"name"`
+	OS            string               `json:"os"`
+	Version       string               `json:"version"`
+	Paused        bool                 `json:"paused"`
+	Activity      Activity             `json:"activity"`
+	Nonce         string               `json:"nonce"`
+	Capabilities  DeviceCapabilities   `json:"capabilities"`
+	CodexProfiles *CodexProfileCatalog `json:"codex_profiles,omitempty"`
+}
+
+// Only the target user's deliberately configured choices are discoverable.
+// Paths, SSH endpoints, identity files and deployment commands stay local.
+type CodexProfileCatalog struct {
+	Execution []CodexProfileSummary `json:"execution"`
+	Servers   []CodexProfileSummary `json:"servers"`
+}
+type CodexProfileSummary struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Execution    string `json:"execution,omitempty"`
+	Presentation string `json:"presentation,omitempty"`
 }
 
 // Capability separates a live connection from acceptance of desktop execution.
@@ -109,27 +123,99 @@ type DeviceCapabilities struct {
 type CodexCapabilities = DeviceCapabilities
 
 type CodexSubmit struct {
-	DeviceID    string   `json:"device_id"`
-	RequestID   string   `json:"request_id"`
-	Prompt      string   `json:"prompt"`
-	AllowedApps []string `json:"allowed_apps"`
-	WorkingDirs []string `json:"working_dirs"`
+	DeviceID        string   `json:"device_id"`
+	RequestID       string   `json:"request_id"`
+	Prompt          string   `json:"prompt"`
+	AllowedApps     []string `json:"allowed_apps"`
+	WorkingDirs     []string `json:"working_dirs"`
+	ProfileID       string   `json:"profile_id,omitempty"`
+	ServerProfileID string   `json:"server_profile_id,omitempty"`
+	Presentation    string   `json:"presentation,omitempty"`
 }
 
-// CodexJob never contains prompts, app names, paths, screenshots, or model text.
-// Hashes use a random per-store HMAC key; they are not unsalted prompt digests.
+type CodexContinue struct {
+	DeviceID  string `json:"device_id"`
+	JobID     string `json:"job_id"`
+	RequestID string `json:"request_id"`
+	Prompt    string `json:"prompt"`
+}
+
+// Legacy CodexJob records contain only fixed status and keyed hashes. Optional
+// Runtime carries bounded owned results in memory; the runtime journal strips
+// all result text, images, evidence and human-review details before persistence.
 type CodexJob struct {
-	JobID           string    `json:"job_id"`
-	DeviceID        string    `json:"device_id"`
-	RequestID       string    `json:"request_id"`
-	State           string    `json:"state"`
-	Code            string    `json:"code"`
-	Message         string    `json:"message"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	PromptHash      string    `json:"prompt_hash"`
-	RequestHash     string    `json:"request_hash"`
-	CancelRequested bool      `json:"cancel_requested"`
+	JobID           string            `json:"job_id"`
+	DeviceID        string            `json:"device_id"`
+	RequestID       string            `json:"request_id"`
+	State           string            `json:"state"`
+	Code            string            `json:"code"`
+	Message         string            `json:"message"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	PromptHash      string            `json:"prompt_hash"`
+	RequestHash     string            `json:"request_hash"`
+	CancelRequested bool              `json:"cancel_requested"`
+	ProfileID       string            `json:"profile_id,omitempty"`
+	ServerProfileID string            `json:"server_profile_id,omitempty"`
+	ThreadID        string            `json:"thread_id,omitempty"`
+	TurnID          string            `json:"turn_id,omitempty"`
+	Runtime         *CodexRuntimeInfo `json:"runtime,omitempty"`
+}
+
+// Runtime payloads are bounded and returned only to the owning caller. They are
+// never written to the general job journal; restart explicitly loses results.
+type CodexRuntimeInfo struct {
+	Execution         string          `json:"execution"`
+	Presentation      string          `json:"presentation"`
+	PresentationState string          `json:"presentation_state"`
+	TurnState         string          `json:"turn_state,omitempty"`
+	Verification      string          `json:"verification"`
+	ResultStatus      string          `json:"result_status"`
+	Text              string          `json:"text,omitempty"`
+	Images            []Image         `json:"images,omitempty"`
+	Evidence          []CodexEvidence `json:"evidence,omitempty"`
+	Approvals         []CodexApproval `json:"approvals,omitempty"`
+}
+
+type CodexEvidence struct {
+	Kind     string `json:"kind"`
+	ItemID   string `json:"item_id"`
+	Status   string `json:"status"`
+	ExitCode *int   `json:"exit_code,omitempty"`
+	Source   string `json:"source,omitempty"`
+	Output   string `json:"output,omitempty"`
+}
+
+// Approval summaries contain no command, file contents, secret or raw schema.
+// Exact operation details are supplied only to a trusted human review callback.
+type CodexApproval struct {
+	ApprovalID string    `json:"approval_id"`
+	Kind       string    `json:"kind"`
+	Operation  string    `json:"operation"`
+	Scope      string    `json:"scope"`
+	State      string    `json:"state"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+type ReviewPrompt struct {
+	DeviceID   string
+	JobID      string
+	ApprovalID string
+	ThreadID   string
+	TurnID     string
+	Kind       string
+	Operation  string
+	Scope      string
+	Details    string
+	Message    string
+	Schema     any
+	Choices    []string
+	ExpiresAt  time.Time
+}
+
+type ReviewAnswer struct {
+	Action  string
+	Content map[string]any
 }
 
 type CodexUnsupported struct {
