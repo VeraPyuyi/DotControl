@@ -44,7 +44,9 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 		if s.BaseStatus != nil {
 			device.Capabilities.Base = s.BaseStatus()
 		}
-		if device.Paused {
+		if s.Bridge != nil && s.Bridge.TerminalOnly() {
+			device.Capabilities.Base = model.Capability{State: "not_required", Code: "terminal_only"}
+		} else if device.Paused {
 			device.Capabilities.Base = model.Capability{State: "paused", Code: "device_paused"}
 		} else if !device.Activity.Available {
 			device.Capabilities.Base = model.Capability{State: "unavailable", Code: "activity_unavailable"}
@@ -55,6 +57,9 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 	}
 	if r.DeviceID != device.ID {
 		return nil, errors.New("wrong_device")
+	}
+	if s.Bridge != nil && s.Bridge.TerminalOnly() && (method == "apps" || method == "observe" || method == "execute") {
+		return nil, errors.New("terminal_only")
 	}
 	switch method {
 	case "codex_submit", "codex_job", "codex_cancel", "codex_continue", "codex_review":

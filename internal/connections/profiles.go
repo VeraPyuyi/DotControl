@@ -29,6 +29,7 @@ type ExecutionProfile struct {
 	AllowedApps       []string `json:"allowed_apps,omitempty"`
 	Presentation      string   `json:"presentation"`
 	PermissionProfile string   `json:"permission_profile"`
+	ApprovalPolicy    string   `json:"approval_policy,omitempty"`
 	Execution         string   `json:"execution"`
 }
 
@@ -101,6 +102,12 @@ func (p ExecutionProfile) Validate() error {
 	}
 	if p.Execution != "terminal" && p.Execution != "computer_use" {
 		return failure("invalid_execution")
+	}
+	if p.ApprovalPolicy != "" && p.ApprovalPolicy != "on-request" && p.ApprovalPolicy != "never" {
+		return failure("invalid_approval_policy")
+	}
+	if p.ApprovalPolicy == "never" && p.Execution != "terminal" {
+		return failure("invalid_approval_policy")
 	}
 	if len(p.AllowedApps) > 256 || (p.Execution == "computer_use" && len(p.AllowedApps) == 0) {
 		return failure("invalid_allowed_apps")

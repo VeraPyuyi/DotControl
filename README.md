@@ -34,7 +34,7 @@
 
 实现路线：源 Dot → 目标 DotControl → 目标 Codex → 官方 Computer Use／本机 SSH。
 
-当前 Windows 已实测创建官方持久任务、后台继续对话、重复提交去重、终端 CPU 计算和轮次取消；官方原生应用发现与人工授权事件也已观察到。真实 GUI 动作、Mac 远程审批与图片回传、SSH 实验尚未通过，因此对应发布能力保持关闭。Mac 目标端原生委派未验收。详见[委派协议与限制](docs/CODEX_DELEGATION.md)及[本轮证据](docs/validation/target-codex-progress-2026-10-12.json)。
+当前候选版支持[简化的 Windows 终端安装](docs/TERMINAL_INSTALL.md)：本机点击“连接并启用 Codex”，无需先配置 SSH、服务器或桌面权限。已用真实官方任务验证工作区权限下的文件写入、独立摘要核验、续聊和去重；旧安装不会自动启用。SSH 实验、Mac 源端完整闭环、原生 Computer Use 与远程审批仍分别待验收。详见[委派协议与限制](docs/CODEX_DELEGATION.md)及[最新证据](docs/validation/terminal-install-2026-10-13.json)。
 
 ## 已有跨电脑证据
 

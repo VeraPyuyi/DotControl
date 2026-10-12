@@ -64,6 +64,56 @@ func (b *Bridge) profileHash(cfg connections.Config, p connections.ExecutionProf
 	data, _ := json.Marshal([]any{cfg.CodexExecutable, p, s})
 	return b.hash("runtime-profile", data)
 }
+
+func effectiveApprovalPolicy(p connections.ExecutionProfile) string {
+	if p.ApprovalPolicy == "" {
+		return "on-request"
+	}
+	return p.ApprovalPolicy
+}
+
+// Admission is shared by submissions and continuations. Local terminal mode
+// never grants permissions or changes the independent acceptance decision.
+func (b *Bridge) runtimeAdmission(cfg connections.Config, p connections.ExecutionProfile, s *connections.ServerProfile) string {
+	if p.Execution == "terminal" && b.runtime.cfg.TerminalOptInRequired && (!b.runtime.cfg.TerminalOnly || !b.runtime.cfg.TerminalEnabled) {
+		return "terminal_disabled"
+	}
+	if b.runtime.cfg.TerminalOnly {
+		if p.Execution != "terminal" {
+			return "terminal_only"
+		}
+		if !b.runtime.cfg.TerminalEnabled {
+			return "terminal_disabled"
+		}
+	}
+	a := b.acceptance()
+	if (p.Execution == "terminal" && !a.Terminal) || (p.Execution == "computer_use" && !a.NativeComputerUse) {
+		return "runtime_acceptance_required"
+	}
+	if b.runtime.cfg.TerminalOnly && p.ApprovalPolicy != "never" {
+		return "needs_local_setup"
+	}
+	if b.runtime.cfg.TerminalOnly {
+		selected := b.runtime.cfg
+		if !validID.MatchString(selected.TerminalProfileID) || !terminalConfigHashPattern.MatchString(selected.TerminalConfigHash) {
+			return "needs_local_setup"
+		}
+		serverID := ""
+		if s != nil {
+			serverID = s.ID
+		}
+		if p.ID != selected.TerminalProfileID || serverID != selected.TerminalServerID {
+			return "terminal_selection_mismatch"
+		}
+		if TerminalConfigHash(cfg) != selected.TerminalConfigHash {
+			return "terminal_configuration_changed"
+		}
+	}
+	if p.Execution == "computer_use" && b.runtime.cfg.Engine == nil {
+		return "desktop_lease_unavailable"
+	}
+	return ""
+}
 func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.CodexJob, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -114,12 +164,8 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 		if reason != "" {
 			state, code = "blocked", reason
 		} else {
-			a := b.acceptance()
-			if (p.Execution == "terminal" && !a.Terminal) || (p.Execution == "computer_use" && !a.NativeComputerUse) {
-				state, code = "blocked", "runtime_acceptance_required"
-			}
-			if p.Execution == "computer_use" && b.runtime.cfg.Engine == nil {
-				state, code = "blocked", "desktop_lease_unavailable"
+			if reason = b.runtimeAdmission(cfg, p, server); reason != "" {
+				state, code = "blocked", reason
 			}
 		}
 	}
@@ -147,6 +193,9 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	}
 	now := time.Now().UTC()
 	info := &model.CodexRuntimeInfo{Execution: p.Execution, Presentation: presentation, PresentationState: "pending", Verification: "unverified", ResultStatus: "pending"}
+	if p.Execution == "terminal" {
+		info.ImageDeliveryStatus = "not_required"
+	}
 	if state == "blocked" || state == "rejected" {
 		info.PresentationState = "not_started"
 	}
@@ -188,6 +237,16 @@ func runtimeMessage(code string) string {
 		return "Waiting for the owned turn to stop before opening it for local review."
 	case "local_takeover_open_failed":
 		return "The owned turn stopped, but opening it for local review failed."
+	case "needs_local_setup":
+		return "This terminal profile requires local setup. No human approval is forwarded; inspect the turn state to confirm whether interruption finished."
+	case "terminal_only":
+		return "This device is configured for terminal execution only."
+	case "terminal_disabled":
+		return "Terminal execution has not been enabled locally."
+	case "terminal_selection_mismatch":
+		return "This execution and server profile pair was not selected for terminal execution locally."
+	case "terminal_configuration_changed":
+		return "The saved terminal configuration changed after local validation. Validate it locally before enabling execution again."
 	}
 	return "Execution is unavailable or its outcome is not confirmed; see the status code."
 }
@@ -244,9 +303,8 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	if interrupted && p.Execution != "terminal" {
 		return model.CodexJob{}, failure("job_not_continuable")
 	}
-	a := b.acceptance()
-	if (p.Execution == "terminal" && !a.Terminal) || (p.Execution == "computer_use" && !a.NativeComputerUse) {
-		return model.CodexJob{}, failure("runtime_acceptance_required")
+	if code := b.runtimeAdmission(cfg, p, s); code != "" {
+		return model.CodexJob{}, failure(code)
 	}
 	// Prepare the complete intent separately: a failed append must not clear the
 	// cancellation latch or consume this request in the live entry.
@@ -270,6 +328,9 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	next.entry.Job.Runtime.Text = ""
 	next.entry.Job.Runtime.Images = nil
 	next.entry.Job.Runtime.ImageDeliveryStatus = ""
+	if p.Execution == "terminal" {
+		next.entry.Job.Runtime.ImageDeliveryStatus = "not_required"
+	}
 	next.entry.Job.Runtime.ReviewLocation = ""
 	next.entry.Job.Runtime.Evidence = nil
 	next.entry.Job.Runtime.Approvals = nil
@@ -289,7 +350,10 @@ func (b *Bridge) cancelRuntimeLocked(id string) (model.CodexJob, error) {
 	j.entry.Job.UpdatedAt = time.Now().UTC()
 	if !runtimeTerminal(j.entry.Job.State) {
 		j.entry.Job.Code = "interrupt_requested"
-		j.entry.Job.Message = runtimeMessage("interrupt_requested")
+		if j.entry.NeedsLocalSetup {
+			j.entry.Job.Code = "needs_local_setup"
+		}
+		j.entry.Job.Message = runtimeMessage(j.entry.Job.Code)
 	}
 	if e := b.saveRuntimeLocked(j); e != nil {
 		return model.CodexJob{}, e
@@ -327,6 +391,9 @@ func (b *Bridge) updateRuntime(id, state, code, phase string) bool {
 		j.entry.Job.State = state
 	}
 	if code != "" {
+		if j.entry.NeedsLocalSetup {
+			code = "needs_local_setup"
+		}
 		j.entry.Job.Code = code
 		j.entry.Job.Message = runtimeMessage(code)
 	}
@@ -415,14 +482,27 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	experimentBinding := j.entry.ExperimentBinding
 	cfg, p, server, code := b.runtimeProfile(snapshot.ProfileID, snapshot.ServerProfileID)
 	b.mu.Unlock()
+	preflightState := "blocked"
+	if recoverOnly {
+		preflightState = "outcome_unknown"
+	}
 	if code != "" {
-		b.updateRuntime(id, "blocked", code, "")
+		b.updateRuntime(id, preflightState, code, "")
 		return
 	}
 	if b.profileHash(cfg, p, server) != profileHash {
-		b.updateRuntime(id, "blocked", "profile_changed", "")
+		b.updateRuntime(id, preflightState, "profile_changed", "")
 		return
 	}
+	if !recoverOnly {
+		if code := b.runtimeAdmission(cfg, p, server); code != "" {
+			b.updateRuntime(id, "blocked", code, "")
+			return
+		}
+	}
+	b.mu.Lock()
+	b.runtime.jobs[id].approvalPolicy = effectiveApprovalPolicy(p)
+	b.mu.Unlock()
 	if !recoverOnly && snapshot.ExperimentID != "" && experimentBinding == "" {
 		b.updateRuntime(id, "blocked", "experiment_binding_missing", "")
 		return
@@ -437,7 +517,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		found, e := connections.DiscoverCodex(versionCtx, cfg.CodexExecutable, connections.DiscoveryOptions{})
 		done()
 		if e != nil || !supportedRuntimeVersion(found.Version, b.runtime.cfg.SupportedVersions) {
-			b.updateRuntime(id, "blocked", "codex_version_not_accepted", "")
+			b.updateRuntime(id, preflightState, "codex_version_not_accepted", "")
 			return
 		}
 		start = Start
@@ -445,7 +525,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	var err error
 	c, err = start(context.Background(), cfg.CodexExecutable, p.ProjectDir)
 	if err != nil {
-		b.updateRuntime(id, "blocked", "codex_start_failed", "")
+		b.updateRuntime(id, preflightState, "codex_start_failed", "")
 		return
 	}
 	b.mu.Lock()
@@ -453,6 +533,10 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	b.mu.Unlock()
 	var init json.RawMessage
 	if err = runtimeCallContext(ctx, c, "initialize", map[string]any{"clientInfo": map[string]string{"name": "dotcontrol_owned_delegation", "version": model.Version}, "capabilities": map[string]bool{"experimentalApi": true}}, &init); err != nil {
+		if recoverOnly {
+			b.updateRuntime(id, "outcome_unknown", "owned_thread_read_unavailable", "")
+			return
+		}
 		if !recoverOnly && !b.beforeRuntimeDispatch(ctx, id) {
 			return
 		}
@@ -463,6 +547,10 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	err = c.Notify(notifyCtx, "initialized", map[string]any{})
 	notifyDone()
 	if err != nil {
+		if recoverOnly {
+			b.updateRuntime(id, "outcome_unknown", "owned_thread_read_unavailable", "")
+			return
+		}
 		if !recoverOnly && !b.beforeRuntimeDispatch(ctx, id) {
 			return
 		}
@@ -548,7 +636,9 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		stopped = true
 		return
 	}
-	params := map[string]any{"cwd": cwd, "runtimeWorkspaceRoots": []string{p.ProjectDir}, "permissions": p.PermissionProfile, "approvalPolicy": "on-request", "approvalsReviewer": "user"}
+	// Use the same cwd-derived permission roots as permissionProfile/list. A
+	// project-root override here would silently widen the inspected owned scope.
+	params := map[string]any{"cwd": cwd, "permissions": p.PermissionProfile, "approvalPolicy": effectiveApprovalPolicy(p), "approvalsReviewer": "user"}
 	if p.Execution == "terminal" {
 		params["config"] = map[string]any{"features.computer_use": false}
 	}
@@ -709,6 +799,11 @@ func (b *Bridge) operationError(id string, err error, sideEffect bool) {
 	}
 	b.updateRuntime(id, "failed", "codex_operation_failed", "")
 }
+
+// ProbeWorkspace gives local setup checks the same owned-directory semantics
+// as a delegated task. The fixed leaf cannot select unrelated project paths.
+func ProbeWorkspace(project string) (string, error) { return ownedWorkspace(project, "preflight") }
+
 func ownedWorkspace(project, id string) (string, error) {
 	canonical, e := filepath.EvalSymlinks(project)
 	if e != nil {

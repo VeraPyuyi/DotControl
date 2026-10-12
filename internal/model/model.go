@@ -117,6 +117,7 @@ type Capability struct {
 type DeviceCapabilities struct {
 	Base                Capability `json:"base"`
 	CodexConnection     Capability `json:"codex_connection"`
+	CodexTerminal       Capability `json:"codex_terminal"`
 	OfficialComputerUse Capability `json:"official_computer_use"`
 	CodexDelegation     Capability `json:"codex_delegation"`
 }

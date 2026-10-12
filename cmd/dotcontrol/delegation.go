@@ -11,7 +11,10 @@ import (
 // This release table is an acceptance decision, not a user-editable bypass.
 // Native desktop / remote approval stay off until their real host loop passes.
 func delegationAcceptance() map[string]codexbridge.PlatformAcceptance {
-	return map[string]codexbridge.PlatformAcceptance{}
+	// Windows terminal-only :workspace/never was exercised through real model
+	// turns and independently checked file readback. This does not accept SSH,
+	// Mac source display, native desktop input, or remote human review.
+	return map[string]codexbridge.PlatformAcceptance{"windows": {Terminal: true}}
 }
 
 var officialThreadID = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)

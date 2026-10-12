@@ -15,8 +15,20 @@ import (
 )
 
 func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsRequest) (any, error) {
+	o.connectionsMu.Lock()
+	defer o.connectionsMu.Unlock()
+	switch r.Operation {
+	case "save_codex", "save_execution", "save_server":
+		if err := o.invalidateTerminalConfiguration(); err != nil {
+			return nil, err
+		}
+	}
 	store := connections.NewStore(filepath.Join(o.dir, "connections"))
 	switch r.Operation {
+	case "connect_basic":
+		return o.connectBasicTerminal(ctx, store)
+	case "terminal_mode", "check_terminal", "enable_terminal":
+		return o.configureTerminal(ctx, r)
 	case "authorize_prepare", "authorize_start", "authorize_status":
 		return o.authorizeConnection(ctx, store, r)
 	case "pick_public_key":
@@ -44,7 +56,11 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 		}
 		bounded, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
-		client, err := codexbridge.Start(bounded, found.Executable, r.Execution.ProjectDir)
+		cwd, err := codexbridge.ProbeWorkspace(r.Execution.ProjectDir)
+		if err != nil {
+			return nil, err
+		}
+		client, err := codexbridge.Start(bounded, found.Executable, cwd)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +71,7 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 		if err = client.Notify(bounded, "initialized", map[string]any{}); err != nil {
 			return nil, err
 		}
-		return codexbridge.ReadPermissionProfiles(bounded, client, r.Execution.ProjectDir)
+		return codexbridge.ReadPermissionProfiles(bounded, client, cwd)
 	case "list":
 		return store.Load()
 	case "discover":

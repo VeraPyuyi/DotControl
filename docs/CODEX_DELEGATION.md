@@ -2,9 +2,10 @@
 
 DotControl can now run an owned official Codex task through the public App Server
 stdio protocol, continue it, collect events and native MCP images, and request
-interruption. This implementation is being validated; **the packaged application's
-platform acceptance table remains closed**. A configuration profile or successful
-tool inventory does not enable delegation. The existing Cua route is separate.
+interruption. **The candidate accepts Windows terminal-only delegation after local
+opt-in; native desktop and remote human-review gates remain closed.** Installation
+does not require SSH or server setup; see [the simple installation flow](TERMINAL_INSTALL.md).
+The existing Cua route is separate.
 
 See [the earlier evidence](validation/target-codex-progress-2026-10-12.json) and
 [the native/SSH follow-up](validation/native-ssh-progress-2026-10-12.json) for real
@@ -13,10 +14,22 @@ visibility, background continuation, a real terminal CPU check, request deduplic
 and a cancelled turn. Native app discovery and a real official application approval
 request were observed. A delegated GUI action, screenshot, Mac human review over
 the tunnel, and authenticated server experiment have not passed.
+The [terminal installation test](validation/terminal-install-2026-10-13.json)
+also exercised real `:workspace` / `never` model turns, independent file readback,
+and same-thread continuation without a human approval request. It did not test SSH
+or the source Mac Dot result loop.
 
 ## Local configuration
 
 Open the installed agent's **onboard** page and choose “连接本机 Codex”:
+
+The primary **连接并启用 Codex** button performs basic setup without server fields:
+it chooses an independent task directory, the official `:workspace` permission
+profile and `approvalPolicy: never`. The selected profile remains the permission
+boundary; unsupported actions fail instead of granting full access or waiting on
+repeated approval pages. It does not test model login, account quota or arbitrary
+network access. Existing installations must opt in locally. Advanced settings
+retain the following per-project configuration:
 
 1. Discover the program bundled with the running official desktop application.
    Save its reference. The execution adapter accepts the explicitly tested version
@@ -182,6 +195,21 @@ verified official takeover mechanism, plus real multi-action/interruption tests.
 See Microsoft's [input timestamp contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getlastinputinfo).
 
 Terminal tasks do not acquire the desktop lease; they still respect local pause.
+Terminal-only mode does not start, repair or probe the Cua driver or activity
+monitor. A locked screen, active user or absent monitor is irrelevant to terminal
+admission. Global pause and revocation remain authoritative. `codex_terminal`
+reports readiness independently of the desktop capabilities and an active App
+Server connection. Stored local enablement is bound to the exact execution/server
+pair (including no server), and the normalized connection configuration digest.
+Changing configuration requires rechecking and local enablement; restart cannot
+silently bless changed references. Upstream profile definitions may still change;
+the official executor enforces the effective permissions on every run.
+
+Legacy profiles with an absent approval policy remain `on-request`; saving or
+upgrading does not silently convert them. Unexpected human requests in a new
+`never` task become `needs_local_setup` and trigger an interrupt, never an approval.
+Missing stop confirmation retains `outcome_unknown`, including after cancellation
+or restart. Images for terminal-only tasks are explicitly `not_required`.
 Cancelling a Codex control task does **not** mean an independently submitted server
 experiment was killed. A server stop is a separate explicit operation.
 

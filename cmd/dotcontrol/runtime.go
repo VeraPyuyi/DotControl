@@ -19,6 +19,7 @@ import (
 	"github.com/dotcontrol/dotcontrol/internal/activity"
 	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
 	"github.com/dotcontrol/dotcontrol/internal/config"
+	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/desktop"
 	"github.com/dotcontrol/dotcontrol/internal/driver"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
@@ -39,6 +40,8 @@ type connectionProof struct {
 }
 type runtimeOwner struct {
 	mu                       sync.Mutex
+	componentsMu             sync.Mutex
+	connectionsMu            sync.Mutex
 	ctx                      context.Context
 	stop                     context.CancelFunc
 	dir                      string
@@ -79,6 +82,16 @@ func (b observedBackend) Call(ctx context.Context, method string, r service.Requ
 	return v, err
 }
 func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
+	if c.TerminalOnly {
+		if c.GatewayListen != "" {
+			return errors.New("terminal_gateway_unsupported")
+		}
+		for _, arg := range args {
+			if arg == "--gateway" {
+				return errors.New("terminal_gateway_unsupported")
+			}
+		}
+	}
 	if err := desktop.OwnChildren(); err != nil {
 		return err
 	}
@@ -102,14 +115,14 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	defer listener.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	monitor := activity.NewManaged(ctx, c.ActivityHelper)
+	monitor := newRuntimeMonitor(ctx, c)
 	defer monitor.Close()
 	eng, err := engine.New(engine.Config{DeviceID: c.DeviceID, Name: c.Name, StateDir: dir, InitialPaused: true, IdleThreshold: time.Duration(c.IdleSeconds) * time.Second}, unavailableDriver{}, monitor)
 	if err != nil {
 		return err
 	}
 	defer eng.Close()
-	bridge, err := codexbridge.New(codexbridge.Config{DeviceID: c.DeviceID, StateDir: dir, Runtime: &codexbridge.RuntimeConfig{ConnectionsDir: filepath.Join(dir, "connections"), Engine: eng, Acceptance: delegationAcceptance(), OpenThread: openOwnedCodexThread}})
+	bridge, err := codexbridge.New(codexbridge.Config{DeviceID: c.DeviceID, StateDir: dir, Runtime: &codexbridge.RuntimeConfig{ConnectionsDir: filepath.Join(dir, "connections"), Engine: eng, Acceptance: delegationAcceptance(), OpenThread: openOwnedCodexThread, TerminalOptInRequired: true, TerminalOnly: c.TerminalOnly, TerminalEnabled: c.TerminalEnabled, TerminalProfileID: c.TerminalProfileID, TerminalServerID: c.TerminalServerID, TerminalConfigHash: c.TerminalConfigHash}})
 	if err != nil {
 		return err
 	}
@@ -140,7 +153,9 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 			_, _ = owner.Action(ctx, action)
 		}
 	})
-	startMacSessionComponents(ctx, dir)
+	if !c.TerminalOnly {
+		startMacSessionComponents(ctx, dir)
+	}
 	owner.bridge = bridge
 	backend := service.Local{Engine: eng, Bridge: bridge, BaseStatus: owner.baseStatus}
 	guard := func(h http.Handler) http.Handler {
@@ -284,15 +299,15 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 		revoked := o.revoked
 		connected := o.native != nil && o.native.Diagnostic()["connected"] == true
 		if action == "resume" {
-			if revoked {
-				return nil, errors.New("access_revoked")
-			}
 			d := o.eng.Device()
-			if !connected || !d.Activity.Available || d.Activity.Locked {
-				return nil, errors.New("local_checks_not_ready")
+			if err := resumeReadiness(o.cfg, revoked, connected, o.permissions, d.Activity); err != nil {
+				return nil, err
 			}
-			if !o.permissions.ready() {
-				return nil, errors.New("permissions_not_ready")
+			if o.cfg.TerminalOnly {
+				current, err := connections.NewStore(filepath.Join(o.dir, "connections")).Load()
+				if err != nil || codexbridge.TerminalConfigHash(current) != o.cfg.TerminalConfigHash {
+					return nil, errors.New("terminal_configuration_changed")
+				}
 			}
 		}
 		if e := o.eng.Pause(action == "pause"); e != nil {
@@ -319,6 +334,12 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 		}
 		o.proof.ImageConfirmed = true
 	case "permissions", "permissions_screen", "permissions_activity":
+		o.mu.Lock()
+		terminalOnly := o.cfg.TerminalOnly
+		o.mu.Unlock()
+		if terminalOnly {
+			return nil, errors.New("desktop_not_required")
+		}
 		if runtime.GOOS == "darwin" {
 			setting := "Privacy_Accessibility"
 			if action == "permissions_screen" {
@@ -369,16 +390,23 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	d := o.eng.Device()
 	d.Name = o.cfg.Name
 	caps := o.bridge.Capabilities()
+	if o.cfg.TerminalOnly {
+		caps.Base = model.Capability{State: "not_required", Code: "terminal_only"}
+	}
 	d.Capabilities = caps
 	d.CodexProfiles = o.bridge.ProfileCatalog()
-	return map[string]any{"device": d, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": "任务配置、连接状态和平台验收分别检查；完整跨电脑委派尚未通过验收。"}}, nil
+	reason := "任务配置、连接状态和平台验收分别检查。"
+	if o.cfg.TerminalOnly {
+		reason = "任务由本机 Codex 执行。SSH 和服务器可在之后按实际任务配置。"
+	}
+	return map[string]any{"device": d, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	ds := o.driverStatus()
 	d := o.eng.Device()
-	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "codex_capabilities": o.bridge.Capabilities()}, nil
+	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "codex_capabilities": o.bridge.Capabilities()}, nil
 }
 func (o *runtimeOwner) maintain() {
 	ticker := time.NewTicker(10 * time.Second)
@@ -387,18 +415,19 @@ func (o *runtimeOwner) maintain() {
 	first := true
 	driverRepairPending := false
 	for {
-		if !first && (force || !o.monitor.Snapshot().Available) {
-			o.monitor.Restart()
-			o.eng.Invalidate()
-		}
-		first = false
+		o.componentsMu.Lock()
 		o.mu.Lock()
 		c := o.cfg
 		native := o.native
 		sup := o.sup
 		needDriver := native == nil || native.Diagnostic()["connected"] != true
 		o.mu.Unlock()
-		if force || needDriver || driverRepairPending {
+		if !c.TerminalOnly && !first && (force || !o.monitor.Snapshot().Available) {
+			o.monitor.Restart()
+			o.eng.Invalidate()
+		}
+		first = false
+		if !c.TerminalOnly && (force || needDriver || driverRepairPending) {
 			ctx, cancel := context.WithTimeout(o.ctx, 12*time.Second)
 			reconnectErr := o.eng.Reconnect(ctx, func() model.Driver {
 				d, err := driver.New(ctx, c.DriverPath)
@@ -423,6 +452,14 @@ func (o *runtimeOwner) maintain() {
 			driverRepairPending = reconnectErr != nil
 			cancel()
 		}
+		permissions := permissionStatus{State: "not_required"}
+		if !c.TerminalOnly {
+			permissions = checkPermissions(o.ctx, c.DriverPath)
+		}
+		o.mu.Lock()
+		o.permissions = permissions
+		o.mu.Unlock()
+		o.componentsMu.Unlock()
 		if force {
 			sup.Stop()
 			sup = &tunnel.Supervisor{}
@@ -430,10 +467,6 @@ func (o *runtimeOwner) maintain() {
 			o.sup = sup
 			o.mu.Unlock()
 		}
-		permissions := checkPermissions(o.ctx, c.DriverPath)
-		o.mu.Lock()
-		o.permissions = permissions
-		o.mu.Unlock()
 		// Serialize credential reads and publishing the supervisor with Connect
 		// and revoke. A stale snapshot must never start a previously revoked ID.
 		o.mu.Lock()
@@ -460,6 +493,9 @@ func (o *runtimeOwner) maintain() {
 func (o *runtimeOwner) baseStatus() model.Capability {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.cfg.TerminalOnly {
+		return model.Capability{State: "not_required", Code: "terminal_only"}
+	}
 	if o.native != nil && o.native.Diagnostic()["connected"] == true {
 		if !o.permissions.ready() {
 			return model.Capability{State: "unavailable", Code: "permissions_" + o.permissions.State}

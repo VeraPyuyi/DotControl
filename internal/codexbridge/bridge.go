@@ -306,7 +306,7 @@ func (b *Bridge) Cancel(deviceID, jobID string) (model.CodexJob, error) {
 	return j, nil
 }
 func DisabledCapabilities() model.CodexCapabilities {
-	return model.CodexCapabilities{Base: model.Capability{State: "not_probed", Code: "driver_not_probed"}, CodexConnection: model.Capability{State: "not_probed", Code: "codex_not_probed"}, OfficialComputerUse: model.Capability{State: "not_verified", Code: "official_cu_acceptance_required"}, CodexDelegation: model.Capability{State: "blocked", Code: "official_cu_acceptance_required"}}
+	return model.CodexCapabilities{Base: model.Capability{State: "not_probed", Code: "driver_not_probed"}, CodexConnection: model.Capability{State: "not_probed", Code: "codex_not_probed"}, CodexTerminal: model.Capability{State: "disabled", Code: "codex_bridge_not_configured"}, OfficialComputerUse: model.Capability{State: "not_verified", Code: "official_cu_acceptance_required"}, CodexDelegation: model.Capability{State: "blocked", Code: "official_cu_acceptance_required"}}
 }
 func (b *Bridge) Capabilities() model.CodexCapabilities { return b.runtimeCapabilities() }
 func (b *Bridge) Close() error {

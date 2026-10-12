@@ -85,6 +85,19 @@ result's actual status. Don't publish screenshots to unrelated cloud services.
 
 ## Native target Codex delegation
 
+For basic installation, use the protected local **连接并启用 Codex** button.
+It discovers the official executable and selects an independent task directory,
+the official workspace profile and never-ask policy. It does not grant full access.
+Do not require SSH configuration, public-key authorization, a server profile,
+Computer Use or image delivery to finish basic installation. SSH and deployment
+can be handled later in the target's own Codex task. Advanced settings are optional.
+
+In terminal-only mode, inspect `devices.capabilities.codex_terminal` and use the
+four submit/job/continue/cancel tools. Do not call apps/observe as a prerequisite.
+No driver, activity monitoring, idle time or desktop system permissions are needed.
+Pause, revocation and locally selected permissions still apply. Unexpected human
+requirements mean target-local handling; do not ask for repeated remote approvals.
+
 Use the target's protected local wizard section “连接本机 Codex” to discover and
 save the official desktop executable, choose a local project folder, read its
 existing permission profiles, and save a named execution profile. Preserve the
@@ -113,7 +126,8 @@ stop an already submitted server experiment. Treat that as a separate user actio
 
 Report official turn completion, independently checked output, MCP image return
 and source display separately. Do not claim model text is verified experiment output.
-The current candidate's release gates remain closed; configuring a profile cannot
+The current candidate accepts Windows terminal delegation only after local opt-in;
+native desktop and remote review remain gated. Configuring a profile cannot
 enable an unaccepted platform. The released alpha.2 installer above does not yet
 contain the new configuration UI; do not claim it does or fabricate a newer asset.
 
@@ -121,8 +135,9 @@ Read `devices.capabilities` first. Basic Cua desktop control, Codex connection,
 and official Computer Use acceptance are separate. If native delegation is gated,
 say “Codex 桌面委派暂不可用” with the returned reason. Never replace it with Cua,
 private helper protocols, model completion text, or a newly attached target.
-Only delegate when the installed platform has actual approval/interruption/image
-acceptance. Delegated tasks consume the target Codex account's quota.
+Native desktop delegation requires actual approval/interruption/image acceptance.
+Terminal delegation uses its separate capability; images are not required.
+Delegated tasks consume the target Codex account's quota.
 
 ## Recovery and report
 

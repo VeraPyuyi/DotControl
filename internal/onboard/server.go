@@ -36,6 +36,7 @@ type ConnectionsRequest struct {
 	Execution       *connections.ExecutionProfile `json:"execution,omitempty"`
 	Server          *connections.ServerProfile    `json:"server,omitempty"`
 	ProfileID       string                        `json:"profile_id,omitempty"`
+	ServerProfileID string                        `json:"server_profile_id,omitempty"`
 	PublicKeyPath   string                        `json:"public_key_path,omitempty"`
 	AuthorizationID string                        `json:"authorization_id,omitempty"`
 }

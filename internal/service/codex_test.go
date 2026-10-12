@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
+	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
@@ -16,6 +19,74 @@ type quietDriver struct{}
 func (quietDriver) Apps(context.Context) (json.RawMessage, error) {
 	return nil, errors.New("must not inspect apps")
 }
+
+func TestTerminalOnlyServiceRejectsDesktopCallsWithoutDriver(t *testing.T) {
+	s := localForCodex(t)
+	b, err := codexbridge.New(codexbridge.Config{DeviceID: "device-a", StateDir: t.TempDir(), Runtime: &codexbridge.RuntimeConfig{TerminalOnly: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	s.Bridge = b
+	for _, method := range []string{"apps", "observe", "execute"} {
+		_, err = s.Call(context.Background(), method, Request{DeviceID: "device-a", Action: &model.Action{DeviceID: "device-a"}})
+		if err == nil || err.Error() != "terminal_only" {
+			t.Fatalf("%s reached desktop path: %v", method, err)
+		}
+	}
+}
+
+func TestDevicesReportsTerminalReadinessDespiteUnavailableDesktop(t *testing.T) {
+	e, err := engine.New(engine.Config{DeviceID: "device-a", StateDir: t.TempDir()}, quietDriver{}, unavailableMonitor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	dir := t.TempDir()
+	store := connections.NewStore(dir)
+	if err = store.SetCodexExecutable(os.Args[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.UpsertExecution(connections.ExecutionProfile{ID: "terminal", Name: "Terminal", ProjectDir: t.TempDir(), Execution: "terminal", Presentation: "background", PermissionProfile: ":read-only", ApprovalPolicy: "never"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.UpsertServer(connections.ServerProfile{ID: "server-a", Name: "server-a", SSHAlias: "fixture.invalid", RemoteDir: "/test"}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := codexbridge.New(codexbridge.Config{DeviceID: "device-a", StateDir: t.TempDir(), Runtime: &codexbridge.RuntimeConfig{TerminalOnly: true, TerminalEnabled: true, TerminalProfileID: "terminal", TerminalServerID: "server-a", TerminalConfigHash: codexbridge.TerminalConfigHash(stored), Engine: e, ConnectionsDir: dir, Acceptance: map[string]codexbridge.PlatformAcceptance{runtime.GOOS: {Terminal: true}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	s := Local{Engine: e, Bridge: b, BaseStatus: func() model.Capability { return model.Capability{State: "not_required", Code: "terminal_only"} }}
+	v, err := s.Call(context.Background(), "devices", Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	caps := v.([]model.Device)[0].Capabilities
+	if caps.Base.State != "not_required" || caps.Base.Code != "terminal_only" || !caps.CodexTerminal.Available || caps.CodexTerminal.State != "ready" || caps.CodexConnection.Available {
+		t.Fatalf("capabilities conflated: %+v", caps)
+	}
+	if err = e.Pause(true); err != nil {
+		t.Fatal(err)
+	}
+	v, err = s.Call(context.Background(), "devices", Request{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	caps = v.([]model.Device)[0].Capabilities
+	if caps.Base.State != "not_required" || caps.CodexTerminal.Available || caps.CodexTerminal.State != "paused" {
+		t.Fatalf("global pause ignored: %+v", caps)
+	}
+}
+
+type unavailableMonitor struct{}
+
+func (unavailableMonitor) Snapshot() model.Activity { return model.Activity{} }
 func (quietDriver) Observe(context.Context, model.Target) (model.View, error) {
 	return model.View{}, errors.New("must not inspect desktop")
 }

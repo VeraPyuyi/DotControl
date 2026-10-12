@@ -67,7 +67,29 @@ func (b *Bridge) refreshApprovals(id string, c *Client) {
 			ThreadID string `json:"threadId"`
 			TurnID   string `json:"turnId"`
 		}
-		if json.Unmarshal(request.Params, &params) != nil || params.ThreadID != j.entry.Job.ThreadID || params.TurnID != j.entry.Job.TurnID {
+		parseErr := json.Unmarshal(request.Params, &params)
+		if j.approvalPolicy == "never" {
+			// This client is dedicated to the owned run. A request that cannot
+			// bind safely must stop that run rather than wait indefinitely or
+			// receive an approval. Explicit foreign bindings remain untouched.
+			if parseErr == nil && ((params.ThreadID != "" && params.ThreadID != j.entry.Job.ThreadID) || (params.TurnID != "" && params.TurnID != j.entry.Job.TurnID)) {
+				continue
+			}
+			if !j.entry.NeedsLocalSetup {
+				j.entry.NeedsLocalSetup = true
+				j.entry.Job.CancelRequested = true
+				j.entry.Job.Code = "needs_local_setup"
+				j.entry.Job.Message = runtimeMessage("needs_local_setup")
+				j.entry.Job.UpdatedAt = time.Now().UTC()
+				j.entry.Job.Runtime.Approvals = nil
+				_ = b.saveRuntimeLocked(j)
+				if j.cancel != nil {
+					j.cancel()
+				}
+			}
+			return
+		}
+		if parseErr != nil || params.ThreadID != j.entry.Job.ThreadID || params.TurnID != j.entry.Job.TurnID {
 			continue
 		}
 		raw, _ := json.Marshal(request)

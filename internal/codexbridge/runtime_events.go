@@ -29,6 +29,9 @@ func (b *Bridge) finishTurn(id, status string) {
 	defer b.mu.Unlock()
 	j := b.runtime.jobs[id]
 	b.latchNativeInterruptionLocked(j)
+	if j.entry.NeedsLocalSetup {
+		state, code = "blocked", "needs_local_setup"
+	}
 	if j.handoffRequested && !b.runtimeInterruptedLocked(j) {
 		state, code = "awaiting_target", "interrupt_for_local_takeover"
 	}
@@ -79,7 +82,10 @@ func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 			thread, turn := j.entry.Job.ThreadID, j.entry.Job.TurnID
 			j.entry.Job.CancelRequested = true
 			j.entry.Job.Code = "interrupt_requested"
-			j.entry.Job.Message = runtimeMessage("interrupt_requested")
+			if j.entry.NeedsLocalSetup {
+				j.entry.Job.Code = "needs_local_setup"
+			}
+			j.entry.Job.Message = runtimeMessage(j.entry.Job.Code)
 			err := b.saveRuntimeLocked(j)
 			b.mu.Unlock()
 			if err != nil {
@@ -148,6 +154,15 @@ func (b *Bridge) consumeNotification(id string, n Notification) bool {
 	case "turn/completed":
 		if event.Turn.ID != turn || !terminalTurn(event.Turn.Status) {
 			return false
+		}
+		// A final notification can arrive before the periodic approval refresh.
+		// Preserve unexpected permission requests even when a terminal receipt
+		// wins that race; completion must not hide a broken unattended setup.
+		b.mu.Lock()
+		client := b.runtime.jobs[id].client
+		b.mu.Unlock()
+		if client != nil {
+			b.refreshApprovals(id, client)
 		}
 		// Completed items may appear only in the terminal event. Item IDs dedupe both paths.
 		for _, item := range event.Turn.Items {
@@ -244,7 +259,7 @@ func (b *Bridge) collectItem(id string, raw json.RawMessage) {
 		remaining = 0
 	}
 	r.Evidence = append(r.Evidence, model.CodexEvidence{Kind: item.Type, ItemID: boundedText(item.ID, 256), Status: boundedText(item.Status, 64), ExitCode: item.ExitCode, Source: boundedText(source, 256), Output: boundedText(output, remaining)})
-	if item.Type == "mcpToolCall" && item.Result != nil {
+	if item.Type == "mcpToolCall" && item.Result != nil && !b.runtime.cfg.TerminalOnly {
 		for _, content := range item.Result.Content {
 			if content.Type != "image" || len(r.Images) >= maxResultImages || len(content.Data) > base64.StdEncoding.EncodedLen(maxImageBytes) {
 				continue

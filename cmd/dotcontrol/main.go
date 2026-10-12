@@ -99,6 +99,12 @@ func run(args []string) error {
 	if args[0] == "experiment" {
 		return experimentCLI(ctx, *dir, args[1:])
 	}
+	if args[0] == "terminal-check-helper" {
+		return terminalCheckCLI(ctx, *dir, args[1:])
+	}
+	if args[0] == "terminal-check" {
+		return terminalCheckCommand(ctx, *dir, args[1:])
+	}
 	if args[0] == "install" || args[0] == "uninstall" || (args[0] == "repair" && len(args) > 1) {
 		return installation(ctx, *dir, args[0], args[1:])
 	}
@@ -480,7 +486,9 @@ func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, arg
 		}
 		return s
 	}
-	if err := driver.ValidateExecutable(ctx, c.DriverPath); err != nil {
+	if c.TerminalOnly {
+		checks["driver_version"] = "not_required"
+	} else if err := driver.ValidateExecutable(ctx, c.DriverPath); err != nil {
 		checks["driver_version"] = err.Error()
 	} else {
 		checks["driver_version"] = version(c.DriverPath)
@@ -488,13 +496,18 @@ func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, arg
 	checks["tunnel_version"] = version(c.TunnelPath)
 	key, keyErr := v.Get("tunnel-key")
 	checks["runtime_key_in_os_vault"] = keyErr == nil && key != ""
-	monitor, e := activity.Start(ctx, c.ActivityHelper)
-	if monitor != nil {
-		defer monitor.Close()
-		time.Sleep(100 * time.Millisecond)
-		checks["activity"] = monitor.Snapshot()
+	if c.TerminalOnly {
+		checks["activity"] = "not_required"
+		checks["terminal_only"] = true
+	} else {
+		monitor, e := activity.Start(ctx, c.ActivityHelper)
+		if monitor != nil {
+			defer monitor.Close()
+			time.Sleep(100 * time.Millisecond)
+			checks["activity"] = monitor.Snapshot()
+		}
+		checks["activity_initialization_ok"] = e == nil
 	}
-	checks["activity_initialization_ok"] = e == nil
 	token, e := v.Get("admin-token")
 	if e == nil {
 		data, e := (localapi.Client{Address: c.Listen, Token: token}).Post(ctx, "/admin/status", map[string]any{})

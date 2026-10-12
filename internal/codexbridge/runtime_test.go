@@ -54,6 +54,8 @@ type runtimePeer struct {
 	mu                                sync.Mutex
 	conn                              net.Conn
 	methods                           []string
+	params                            map[string][]json.RawMessage
+	approvalPolicy                    string
 	starts                            int
 	lost                              bool
 	takeover                          bool
@@ -118,6 +120,10 @@ func runtimeFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSubmit) {
 				}
 				p.mu.Lock()
 				p.methods = append(p.methods, r.Method)
+				if p.params == nil {
+					p.params = map[string][]json.RawMessage{}
+				}
+				p.params[r.Method] = append(p.params[r.Method], append(json.RawMessage(nil), r.Params...))
 				p.mu.Unlock()
 				if r.Method == p.blockMethod && p.blockEntered != nil {
 					close(p.blockEntered)
@@ -135,7 +141,11 @@ func runtimeFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSubmit) {
 				case "thread/start":
 					var params map[string]any
 					json.Unmarshal(r.Params, &params)
-					if params["ephemeral"] != false || params["approvalPolicy"] != "on-request" || params["approvalsReviewer"] != "user" || params["permissions"] != "read-only" {
+					policy := p.approvalPolicy
+					if policy == "" {
+						policy = "on-request"
+					}
+					if params["ephemeral"] != false || params["approvalPolicy"] != policy || params["approvalsReviewer"] != "user" || params["permissions"] != "read-only" {
 						t.Errorf("wrong thread contract: %v", params)
 					}
 					if _, ok := params["model"]; ok {

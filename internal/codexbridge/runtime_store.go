@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
 	"github.com/dotcontrol/dotcontrol/internal/experiment"
 	"github.com/dotcontrol/dotcontrol/internal/model"
@@ -22,11 +23,20 @@ import (
 // Enabling a gate is a release acceptance decision, not an inventory inference.
 type PlatformAcceptance struct{ Terminal, NativeComputerUse, RemoteReview bool }
 type RuntimeConfig struct {
-	ConnectionsDir    string
-	Acceptance        map[string]PlatformAcceptance
-	Engine            *engine.Engine
-	OpenThread        func(context.Context, string) error
-	SupportedVersions []string
+	ConnectionsDir string
+	// Copied at startup; later changes require the protected idle-only setter.
+	TerminalOnly    bool
+	TerminalEnabled bool
+	// Product entry points require explicit local opt-in even after platform
+	// acceptance opens. Zero preserves the private legacy protocol test seam.
+	TerminalOptInRequired bool
+	TerminalProfileID     string
+	TerminalServerID      string
+	TerminalConfigHash    string
+	Acceptance            map[string]PlatformAcceptance
+	Engine                *engine.Engine
+	OpenThread            func(context.Context, string) error
+	SupportedVersions     []string
 	// StartClient is the official stdio transport seam, used by protocol tests.
 	StartClient      func(context.Context, string, string) (*Client, error)
 	ExperimentStatus func(context.Context, string, string, string) (experiment.Status, error)
@@ -55,6 +65,7 @@ type runtimeEntry struct {
 	HadResults        bool              `json:"had_results,omitempty"`
 	LastReviewID      string            `json:"last_review_id,omitempty"`
 	DesktopPending    bool              `json:"desktop_pending,omitempty"`
+	NeedsLocalSetup   bool              `json:"needs_local_setup,omitempty"`
 }
 type runtimeRecord struct {
 	Entry    runtimeEntry `json:"entry"`
@@ -73,6 +84,7 @@ type runtimeJob struct {
 	approvals        map[string]*runtimeApproval
 	reviewWrites     map[string]context.CancelFunc
 	reviewItems      map[string]json.RawMessage
+	approvalPolicy   string
 }
 type runtimeApproval struct {
 	request   ServerRequest
@@ -182,7 +194,7 @@ func (b *Bridge) openRuntime(cfg Config) error {
 	}
 	for _, j := range rs.jobs {
 		j.entry.Job.Runtime.ResultStatus = "unavailable_after_restart"
-		if j.entry.Job.Runtime.ImageDeliveryStatus != "" {
+		if j.entry.Job.Runtime.ImageDeliveryStatus != "" && j.entry.Job.Runtime.ImageDeliveryStatus != "not_required" {
 			j.entry.Job.Runtime.ImageDeliveryStatus = "unavailable_after_restart"
 		}
 		if !runtimeTerminal(j.entry.Job.State) {
@@ -260,18 +272,122 @@ func (b *Bridge) runtimeCapabilities() model.CodexCapabilities {
 	if b.runtime == nil {
 		return c
 	}
+	c.CodexTerminal = b.terminalCapabilityLocked()
 	if b.runtime.connections > 0 {
 		c.CodexConnection = model.Capability{Available: true, State: "connected"}
 	}
 	// Acceptance is necessary but a live connection is independently required.
 	a := b.acceptance()
-	if b.runtime.connections > 0 && (a.Terminal || (a.NativeComputerUse && b.runtime.nativeConnections > 0)) {
+	terminalAccepted := a.Terminal && (!b.runtime.cfg.TerminalOptInRequired || (b.runtime.cfg.TerminalOnly && b.runtime.cfg.TerminalEnabled))
+	if b.runtime.connections > 0 && (terminalAccepted || (a.NativeComputerUse && b.runtime.nativeConnections > 0)) {
 		c.CodexDelegation = model.Capability{Available: true, State: "accepted"}
 	}
 	if b.runtime.nativeConnections > 0 && a.NativeComputerUse {
 		c.OfficialComputerUse = model.Capability{Available: true, State: "accepted"}
 	}
+	if b.runtime.cfg.TerminalOnly {
+		c.OfficialComputerUse = model.Capability{State: "disabled", Code: "terminal_only"}
+		c.CodexDelegation = c.CodexTerminal
+	}
 	return c
+}
+
+// ConfigureTerminal is a trusted local configuration operation, never a remote
+// tool. It cannot change policy beneath an active or unresolved owned turn.
+func (b *Bridge) ConfigureTerminal(only, enabled bool, profileID, serverID, configHash string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.healthy(); err != nil {
+		return err
+	}
+	if b.runtime.closing {
+		return failure("closed")
+	}
+	for _, j := range b.runtime.jobs {
+		if j.active || j.client != nil || j.lease != nil || j.entry.DesktopPending || !runtimeTerminal(j.entry.Job.State) {
+			return failure("terminal_runtime_busy")
+		}
+	}
+	if b.runtime.cfg.Engine != nil && !b.runtime.cfg.Engine.Device().Paused {
+		return failure("terminal_mode_pause_required")
+	}
+	if enabled {
+		if !only || !validID.MatchString(profileID) || (serverID != "" && !validID.MatchString(serverID)) || !terminalConfigHashPattern.MatchString(configHash) {
+			return failure("needs_local_setup")
+		}
+		cfg, p, _, code := b.runtimeProfile(profileID, serverID)
+		if code != "" {
+			return failure(code)
+		}
+		if p.Execution != "terminal" || p.ApprovalPolicy != "never" {
+			return failure("needs_local_setup")
+		}
+		if TerminalConfigHash(cfg) != configHash {
+			return failure("terminal_configuration_changed")
+		}
+	}
+	b.runtime.cfg.TerminalOnly, b.runtime.cfg.TerminalEnabled = only, enabled
+	b.runtime.cfg.TerminalProfileID, b.runtime.cfg.TerminalServerID, b.runtime.cfg.TerminalConfigHash = profileID, serverID, configHash
+	return nil
+}
+
+// TerminalOnly exposes the local admission mode without exposing a remote
+// configuration operation or depending on eventual desktop driver cleanup.
+func (b *Bridge) TerminalOnly() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.runtime != nil && b.runtime.cfg.TerminalOnly
+}
+
+func (b *Bridge) terminalCapabilityLocked() model.Capability {
+	if b.closed || b.runtime.closing {
+		return model.Capability{State: "unavailable", Code: "closed"}
+	}
+	if b.broken {
+		return model.Capability{State: "unavailable", Code: "storage_unavailable"}
+	}
+	if (b.runtime.cfg.TerminalOnly && !b.runtime.cfg.TerminalEnabled) || (b.runtime.cfg.TerminalOptInRequired && (!b.runtime.cfg.TerminalOnly || !b.runtime.cfg.TerminalEnabled)) {
+		return model.Capability{State: "disabled", Code: "terminal_disabled"}
+	}
+	if b.runtime.cfg.Engine != nil && b.runtime.cfg.Engine.Device().Paused {
+		return model.Capability{State: "paused", Code: "device_paused"}
+	}
+	if b.runtime.cfg.ConnectionsDir == "" {
+		return model.Capability{State: "disabled", Code: "codex_bridge_not_configured"}
+	}
+	if !b.acceptance().Terminal {
+		return model.Capability{State: "unaccepted", Code: "runtime_acceptance_required"}
+	}
+	if b.runtime.cfg.TerminalOnly {
+		if !validID.MatchString(b.runtime.cfg.TerminalProfileID) || !terminalConfigHashPattern.MatchString(b.runtime.cfg.TerminalConfigHash) {
+			return model.Capability{State: "unavailable", Code: "needs_local_setup"}
+		}
+		cfg, p, s, code := b.runtimeProfile(b.runtime.cfg.TerminalProfileID, b.runtime.cfg.TerminalServerID)
+		if code == "" {
+			code = b.runtimeAdmission(cfg, p, s)
+		}
+		if code != "" {
+			return model.Capability{State: "unavailable", Code: code}
+		}
+		return model.Capability{Available: true, State: "ready", Code: "local_configuration_ready"}
+	}
+	cfg, err := connections.NewStore(b.runtime.cfg.ConnectionsDir).Load()
+	if err != nil {
+		return model.Capability{State: "unavailable", Code: "connections_unavailable"}
+	}
+	code := "terminal_profile_not_configured"
+	for _, p := range cfg.ExecutionProfiles {
+		if p.Execution != "terminal" {
+			continue
+		}
+		_, _, _, reason := b.runtimeProfile(p.ID, "")
+		if reason != "" {
+			code = reason
+			continue
+		}
+		return model.Capability{Available: true, State: "ready", Code: "local_configuration_ready"}
+	}
+	return model.Capability{State: "unavailable", Code: code}
 }
 func (b *Bridge) closeRuntime() {
 	b.mu.Lock()
