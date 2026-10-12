@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.2",
+  "release": "https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.2",
+  "draft": false,
+  "prerelease": true,
+  "installation_source_commit": "ec65d7275a816398a91397d53c89b6a5edf38336",
+  "onboarding_metadata_commit": "a6d10bdabc08051bf5714184301b03c188f090b5",
+  "native_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38202563161",
+  "native_published_payload_verification": "all three platforms passed; downloaded exact public assets on native Windows and macOS runners",
+  "assets": [
+    {
+      "name": "DotControl-0.2.0-alpha.2-macos-amd64.dmg",
+      "bytes": 93734832,
+      "sha256": "2921f1c0ac761a23916bece6bbbd786fa04c548bb48e3f5941e0d91bb1811a9c",
+      "github_asset_digest_matches": true,
+      "public_download_verified_on_target_os": true,
+      "payload": {
+        "arch": "amd64",
+        "files": 46,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.2"
+      },
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-macos-amd64.dmg.sha256",
+      "bytes": 108,
+      "sha256": "4d70b1ee2648a2a7b18506d6b994907215139bd2978461031c39f84d0707a30a",
+      "github_asset_digest_matches": true,
+      "public_download_verified_locally": true,
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-macos-arm64.dmg",
+      "bytes": 92930219,
+      "sha256": "4d841c90538860ec41a7f66f5d5c50e4fd258f084a0a057a3917b6c1f6041979",
+      "github_asset_digest_matches": true,
+      "public_download_verified_on_target_os": true,
+      "payload": {
+        "arch": "arm64",
+        "files": 46,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.2"
+      },
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-macos-arm64.dmg.sha256",
+      "bytes": 108,
+      "sha256": "d489699800a5254246f6e1378a1fb130d76367c95484ec07fa42fbba4534b455",
+      "github_asset_digest_matches": true,
+      "public_download_verified_locally": true,
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-windows-amd64-setup.exe",
+      "bytes": 50326016,
+      "sha256": "dd990bbbebda84521ca09c9a34b974b2221fc6a7f8f4e4842e6f3076053ceafb",
+      "github_asset_digest_matches": true,
+      "public_download_verified_on_target_os": true,
+      "payload": {
+        "arch": "amd64",
+        "files": 43,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.2"
+      },
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.2-windows-amd64-setup.exe.sha256",
+      "bytes": 116,
+      "sha256": "ed996df63a0dd11d61e6ee64a1f1a5a0d82e57064fc70edcee6db55455770567",
+      "github_asset_digest_matches": true,
+      "public_download_verified_locally": true,
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.2.zip",
+      "bytes": 5053,
+      "sha256": "0f4ec48d0c4eb15ba066a8b0a6884a4ae9ee9007748e6917259dd5ad83a2df14",
+      "github_asset_digest_matches": true,
+      "public_download_verified_locally": true,
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.2.zip.sha256",
+      "bytes": 107,
+      "sha256": "281943854bc24ad6a5d6ea371d5350f7dbcaee08df2365a15bf70b4a70d8f778",
+      "github_asset_digest_matches": true,
+      "public_download_verified_locally": true,
+      "identical_to_tested_candidate": true
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 439,
+      "sha256": "9f098ce62bf9b0afcf81873bef7c7e4480b5b05acda0b28cefe635e646cb3070",
+      "github_asset_digest_matches": true,
+      "public_download_verified_locally": true,
+      "identical_to_tested_candidate": true
+    }
+  ],
+  "mac_user_upgrade_acceptance": "pending",
+  "cross_computer_desktop_and_source_image_acceptance": "not_verified_for_alpha2"
+}

@@ -28,3 +28,6 @@ Windows 实际 EXE 在独立中文及空格目录完成安装、两次修复、�
 
 升级时打开本次下载的安装器并选择保留原设备。已有 alpha.1 的隧道和运行密钥无需重建；
 安装后在“检查运行状态”确认桌面驱动已连接。暂停状态仍由本机用户决定是否恢复。
+
+发布后从公开 Release 重新下载的 Windows、Apple Silicon 和 Intel 安装包，均已在对应系统执行包内校验并通过，
+哈希与已测试候选包一致：[下载验收](https://github.com/VeraPyuyi/DotControl/actions/runs/38202563161)。
