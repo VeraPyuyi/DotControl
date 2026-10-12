@@ -429,14 +429,14 @@ func (b *Bridge) review(ctx context.Context, deviceID, jobID, approvalID string,
 	defer b.mu.Unlock()
 	a.reviewing = false
 	j = b.runtime.jobs[jobID]
+	if ctx.Err() != nil || j.client != c || j.runContext != originalRun || j.entry.CurrentRequestID != originalRequestID || j.entry.Job.ThreadID != prompt.ThreadID || j.entry.Job.TurnID != prompt.TurnID || j.handoffRequested || b.runtimeInterruptedLocked(j) || runtimeTerminal(j.entry.Job.State) || time.Now().After(a.expires) || a.consumed || !requestPending(c, a.request) {
+		return model.CodexJob{}, failure("approval_stale")
+	}
 	if err != nil {
 		if err.Error() == "human_input_required" {
 			return cloneJob(j.entry.Job), failure("human_input_required")
 		}
 		return cloneJob(j.entry.Job), failure("human_review_failed")
-	}
-	if ctx.Err() != nil || j.client != c || j.runContext != originalRun || j.entry.CurrentRequestID != originalRequestID || j.entry.Job.ThreadID != prompt.ThreadID || j.entry.Job.TurnID != prompt.TurnID || b.runtimeInterruptedLocked(j) || runtimeTerminal(j.entry.Job.State) || time.Now().After(a.expires) || a.consumed || !requestPending(c, a.request) {
-		return model.CodexJob{}, failure("approval_stale")
 	}
 	if answer.Action != "accept" && answer.Action != "decline" && answer.Action != "cancel" {
 		return model.CodexJob{}, failure("invalid_human_response")
@@ -491,12 +491,16 @@ func (b *Bridge) review(ctx context.Context, deviceID, jobID, approvalID string,
 	// Network writes must not own Bridge.mu. A wedged stdio reader cannot block
 	// Cancel, pause handling, or a terminal event from advancing this job.
 	writeCtx, writeDone := context.WithTimeout(ctx, time.Second)
+	if j.reviewWrites == nil {
+		j.reviewWrites = map[string]context.CancelFunc{}
+	}
+	j.reviewWrites[approvalID] = writeDone
 	stopRun := context.AfterFunc(originalRun, writeDone)
 	stopLease := func() bool { return true }
 	if j.lease != nil {
 		stopLease = context.AfterFunc(j.lease.Context, writeDone)
 	}
-	if b.runtimeInterruptedLocked(j) {
+	if j.handoffRequested || b.runtimeInterruptedLocked(j) {
 		writeDone()
 	}
 	b.mu.Unlock()
@@ -506,9 +510,12 @@ func (b *Bridge) review(ctx context.Context, deviceID, jobID, approvalID string,
 	writeDone()
 	b.mu.Lock()
 	j = b.runtime.jobs[jobID]
+	if j != nil && j.client == c && j.runContext == originalRun {
+		delete(j.reviewWrites, approvalID)
+	}
 	// The old response may finish after cancellation, a terminal event, a new
 	// launch, or another approval. Return the current job without overwriting it.
-	bound := j != nil && j.client == c && j.runContext == originalRun && j.entry.CurrentRequestID == originalRequestID && j.entry.Job.ThreadID == prompt.ThreadID && j.entry.Job.TurnID == prompt.TurnID && j.entry.LastReviewID == approvalID && j.entry.Phase == "review_response_intent" && !b.runtimeInterruptedLocked(j) && !runtimeTerminal(j.entry.Job.State) && j.entry.Job.State != "outcome_unknown"
+	bound := j != nil && j.client == c && j.runContext == originalRun && j.entry.CurrentRequestID == originalRequestID && j.entry.Job.ThreadID == prompt.ThreadID && j.entry.Job.TurnID == prompt.TurnID && j.entry.LastReviewID == approvalID && j.entry.Phase == "review_response_intent" && !j.handoffRequested && !b.runtimeInterruptedLocked(j) && !runtimeTerminal(j.entry.Job.State) && j.entry.Job.State != "outcome_unknown"
 	if !bound {
 		if writeErr != nil {
 			return cloneJob(j.entry.Job), failure("review_response_outcome_unknown")
@@ -570,6 +577,11 @@ func (b *Bridge) TakeOverLocal(ctx context.Context, deviceID, jobID, approvalID 
 	j.entry.LastReviewID = approvalID
 	if err := b.saveRuntimeLocked(j); err != nil {
 		return model.CodexJob{}, err
+	}
+	// Stop any response that already left the coordinator lock. If bytes were
+	// in flight, transport closure remains outcome-unknown, never a stop receipt.
+	for _, stopWrite := range j.reviewWrites {
+		stopWrite()
 	}
 	close(j.handoff)
 	return cloneJob(j.entry.Job), nil

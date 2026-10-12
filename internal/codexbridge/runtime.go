@@ -268,6 +268,7 @@ func (b *Bridge) launchLocked(id, prompt string, recoverOnly bool) {
 	j.active = true
 	j.handoff = make(chan struct{})
 	j.handoffRequested = false
+	j.reviewWrites = nil
 	b.runtime.wg.Add(1)
 	go func() { defer b.runtime.wg.Done(); b.run(ctx, id, prompt, recoverOnly) }()
 }
@@ -346,6 +347,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		j.lease = nil
 		j.client = nil
 		j.approvals = map[string]*runtimeApproval{}
+		j.reviewWrites = nil
 		j.reviewItems = nil
 		j.entry.Job.Runtime.Approvals = nil
 		b.mu.Unlock()

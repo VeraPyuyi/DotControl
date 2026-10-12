@@ -496,3 +496,93 @@ func TestTerminalEvidenceLatchesCancelledNativeLeaseBeforeCleanup(t *testing.T) 
 		t.Fatal("terminal event lost native interruption before cleanup")
 	}
 }
+
+func isolatedCompetingHandoff(t *testing.T) (*Bridge, *runtimeJob, string, string) {
+	t.Helper()
+	b, j, first, _ := isolatedRuntimeReview(t)
+	b.mu.Lock()
+	j.handoff = make(chan struct{})
+	b.runtime.cfg.OpenThread = func(context.Context, string) error { return nil }
+	request := j.approvals[first].request
+	request.ID = json.RawMessage(`"second-approval"`)
+	c := j.client
+	b.mu.Unlock()
+	c.mu.Lock()
+	c.serverRequests[string(request.ID)] = request
+	c.mu.Unlock()
+	b.refreshApprovals(j.entry.Job.JobID, c)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for id := range j.approvals {
+		if id != first {
+			return b, j, first, id
+		}
+	}
+	t.Fatal("second owned approval missing")
+	return nil, nil, "", ""
+}
+
+func TestReviewAnswerCannotRespondAfterDistinctApprovalRequestsTakeover(t *testing.T) {
+	for _, local := range []bool{false, true} {
+		t.Run(map[bool]string{false: "remote", true: "local"}[local], func(t *testing.T) {
+			b, j, first, second := isolatedCompetingHandoff(t)
+			entered, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+			go func() {
+				human := func(ctx context.Context, p model.ReviewPrompt) (model.ReviewAnswer, error) {
+					close(entered)
+					<-release
+					return acceptingReview(ctx, p)
+				}
+				_, err := b.review(context.Background(), "device-a", j.entry.Job.JobID, first, human, local)
+				done <- err
+			}()
+			<-entered
+			if _, err := b.TakeOverLocal(context.Background(), "device-a", j.entry.Job.JobID, second); err != nil {
+				close(release)
+				t.Fatal(err)
+			}
+			close(release)
+			if err := <-done; err == nil || err.Error() != "approval_stale" {
+				t.Fatalf("stale answer sent after takeover: %v", err)
+			}
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if j.entry.Phase != "local_takeover_intent" || j.entry.Job.Code != "interrupt_for_local_takeover" || j.approvals[first].consumed {
+				t.Fatal("old review replaced handoff intent")
+			}
+			if !requestPending(j.client, j.approvals[first].request) {
+				t.Fatal("old approval was responded to")
+			}
+		})
+	}
+}
+
+func TestTakeoverCancelsAlreadyBlockedReviewWrite(t *testing.T) {
+	b, j, first, second := isolatedCompetingHandoff(t)
+	gate := gateReviewWriter(t, b, j.entry.Job.JobID)
+	done := make(chan error, 1)
+	go func() {
+		_, err := b.Review(context.Background(), "device-a", j.entry.Job.JobID, first, acceptingReview)
+		done <- err
+	}()
+	<-gate.entered
+	if _, err := b.TakeOverLocal(context.Background(), "device-a", j.entry.Job.JobID, second); err != nil {
+		gate.Release()
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err == nil || err.Error() != "review_response_outcome_unknown" {
+			t.Fatalf("in-flight response falsely confirmed: %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		gate.Release()
+		<-done
+		t.Fatal("handoff left old review writer active")
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if j.entry.Phase != "local_takeover_intent" || j.entry.Job.Code != "interrupt_for_local_takeover" {
+		t.Fatal("late response overwrote takeover")
+	}
+}

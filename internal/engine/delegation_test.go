@@ -207,3 +207,55 @@ func TestWaitDelegationRechecksAfterSoleWriterBecomesAvailable(t *testing.T) {
 		t.Fatal("wait failed to stop")
 	}
 }
+
+func TestDelegationCancellationWinsWhileWaitingForWriter(t *testing.T) {
+	e, _, m, _ := setup(t)
+	m.set(model.Activity{Available: true, IdleMillis: 120000})
+	if err := e.acquire(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		lease, err := e.WaitAcquireDelegation(ctx, "cancelled-waiter", nil)
+		if lease != nil {
+			lease.Finish(true)
+		}
+		done <- err
+	}()
+	cancel()
+	e.unlock()
+	if err := <-done; err == nil || err.Error() != "cancelled" {
+		t.Fatalf("cancelled writer obtained lease: %v", err)
+	}
+}
+
+func TestDelegationCancellationDuringDurableGrantReturnsCancelledLease(t *testing.T) {
+	e, _, m, _ := setup(t)
+	m.set(model.Activity{Available: true, IdleMillis: 120000})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.mu.Lock()
+	previousSync := e.syncFile
+	e.syncFile = func(f *os.File) error { cancel(); return f.Sync() }
+	e.mu.Unlock()
+	lease, err := e.WaitAcquireDelegation(ctx, "cancelled-grant", nil)
+	e.mu.Lock()
+	e.syncFile = previousSync
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lease.Context.Err() == nil {
+		lease.Finish(true)
+		t.Fatal("stop during durable grant was lost")
+	}
+	// A durable start cannot be silently dropped: the cancelled lease must be
+	// explicitly finished so its stop record clears the external writer guard.
+	if err = lease.Finish(true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = e.Apps(context.Background()); err != nil {
+		t.Fatalf("cancelled grant stranded the guard: %v", err)
+	}
+}

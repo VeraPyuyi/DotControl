@@ -67,6 +67,7 @@ type runtimeJob struct {
 	handoff          chan struct{}
 	handoffRequested bool
 	approvals        map[string]*runtimeApproval
+	reviewWrites     map[string]context.CancelFunc
 	reviewItems      map[string]json.RawMessage
 }
 type runtimeApproval struct {
