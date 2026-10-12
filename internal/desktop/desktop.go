@@ -18,6 +18,18 @@ func ProgramRoot() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "Library", "Application Support", "DotControl", "program")
 }
+
+// A definition on disk is not proof that launchd registered the service.
+type StartupStatus struct {
+	Configured     bool   `json:"configured"`
+	Registered     bool   `json:"registered"`
+	ProgramMatches bool   `json:"program_matches"`
+	Disabled       bool   `json:"disabled"`
+	Running        bool   `json:"running"`
+	Reason         string `json:"reason"`
+}
+
+func (s StartupStatus) Enabled() bool { return s.Registered && s.ProgramMatches && !s.Disabled }
 func OpenURL(value string) error {
 	u, e := url.Parse(value)
 	if e != nil {

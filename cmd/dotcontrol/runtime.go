@@ -363,6 +363,8 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 	return map[string]bool{"ok": true}, nil
 }
 func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
+	executable, _ := os.Executable()
+	startup := desktop.AutostartStatus(executable, o.dir)
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	ds := o.driverStatus()
@@ -373,14 +375,16 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	ts.Configured = o.cfg.TunnelID != ""
 	d := o.eng.Device()
 	d.Name = o.cfg.Name
-	return map[string]any{"device": d, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": false, "reason": "Codex 桌面委派暂不可用：此版本尚未通过官方 Computer Use、审批与中断验收。"}}, nil
+	return map[string]any{"device": d, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": startup.Enabled(), "autostart_status": startup, "activity_status": o.monitor.Diagnostic(), "codex": map[string]any{"available": false, "reason": "Codex 桌面委派暂不可用：此版本尚未通过官方 Computer Use、审批与中断验收。"}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
+	executable, _ := os.Executable()
+	startup := desktop.AutostartStatus(executable, o.dir)
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	ds := o.driverStatus()
 	d := o.eng.Device()
-	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "native_codex": "not_verified"}, nil
+	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "revoked": o.revoked, "activity_available": d.Activity.Available, "activity_status": o.monitor.Diagnostic(), "autostart_status": startup, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "native_codex": "not_verified"}, nil
 }
 func (o *runtimeOwner) maintain() {
 	ticker := time.NewTicker(10 * time.Second)

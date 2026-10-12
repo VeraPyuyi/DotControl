@@ -40,6 +40,17 @@ func (m *Managed) Snapshot() model.Activity {
 	s.Generation += m.epoch << 48
 	return s
 }
+func (m *Managed) Diagnostic() Diagnostic {
+	if m == nil {
+		return Diagnostic{Reason: "helper_unavailable"}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.current == nil {
+		return Diagnostic{Reason: "helper_unavailable"}
+	}
+	return m.current.Diagnostic()
+}
 func (m *Managed) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

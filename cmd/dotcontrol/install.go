@@ -51,6 +51,11 @@ func installation(ctx context.Context, dir, command string, args []string) error
 	if *bundle == "" {
 		return errors.New("bundle_required")
 	}
+	if !*noStart {
+		if err := desktop.ValidateAutostart(dir); err != nil {
+			return err
+		}
+	}
 	oldConfig, oldErr := config.Load(dir)
 	if oldErr != nil && !os.IsNotExist(oldErr) {
 		return errors.New("existing_configuration_invalid")
@@ -118,10 +123,7 @@ func installation(ctx context.Context, dir, command string, args []string) error
 			if *noStart {
 				return nil
 			}
-			if e := desktop.Autostart(executable, dir, true); e != nil {
-				return errors.New("autostart_unavailable")
-			}
-			if e := desktop.StartDetached(executable, "--state", dir, "serve"); e != nil {
+			if e := desktop.StartAgent(executable, dir); e != nil {
 				return e
 			}
 			return waitLocal(ctx, dir, c, v)
@@ -157,10 +159,7 @@ func installation(ctx context.Context, dir, command string, args []string) error
 			}
 			if previous != nil && !*noStart {
 				exe := filepath.Join(previous.Dir, agentName())
-				if e := desktop.Autostart(exe, dir, true); e != nil {
-					return e
-				}
-				if e := desktop.StartDetached(exe, "--state", dir, "serve"); e != nil {
+				if e := desktop.StartAgent(exe, dir); e != nil {
 					return e
 				}
 				c, e := config.Load(dir)
@@ -291,11 +290,17 @@ func ensureLocal(ctx context.Context, dir string, c config.Config, v vault.Vault
 	check, cancel := context.WithTimeout(ctx, time.Second)
 	_, e = (localapi.Client{Address: c.Listen, Token: token}).Post(check, "/admin/status", map[string]any{})
 	cancel()
+	exe, _ := os.Executable()
 	if e == nil {
+		if runtime.GOOS == "darwin" {
+			startup := desktop.AutostartStatus(exe, dir)
+			if !startup.Enabled() || !startup.Running {
+				return errors.New("agent_unmanaged_instance")
+			}
+		}
 		return nil
 	}
-	exe, _ := os.Executable()
-	if e = desktop.StartDetached(exe, "--state", dir, "serve"); e != nil {
+	if e = desktop.EnsureAgent(exe, dir); e != nil {
 		return e
 	}
 	return waitLocal(ctx, dir, c, v)
