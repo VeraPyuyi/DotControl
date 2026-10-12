@@ -6,7 +6,8 @@ interruption. This implementation is being validated; **the packaged application
 platform acceptance table remains closed**. A configuration profile or successful
 tool inventory does not enable delegation. The existing Cua route is separate.
 
-See [the dated evidence](validation/target-codex-progress-2026-10-12.json) for real
+See [the earlier evidence](validation/target-codex-progress-2026-10-12.json) and
+[the native/SSH follow-up](validation/native-ssh-progress-2026-10-12.json) for real
 tests versus automated tests. Windows has passed persistent official thread
 visibility, background continuation, a real terminal CPU check, request deduplication
 and a cancelled turn. Native app discovery and a real official application approval
@@ -76,7 +77,7 @@ created by this DotControl device:
 
 | Tool | Required inputs | Behavior |
 | --- | --- | --- |
-| `codex_submit` | device_id, request_id, prompt, profile_id | Records a job and returns immediately. Optional server_profile_id and presentation. |
+| `codex_submit` | device_id, request_id, prompt, profile_id | Records a job and returns immediately. Optional server_profile_id, experiment_id and presentation. An experiment requires an existing local server profile. |
 | `codex_job` | device_id, job_id | Returns current phase, owned official thread/turn IDs, pending review, bounded results and MCP images. |
 | `codex_continue` | device_id, job_id, request_id, prompt | Appends a new turn to that owned thread, when no other turn is active. |
 | `codex_cancel` | device_id, job_id | Persists cancellation and requests interruption; waits for official terminal evidence before confirming stop. |
@@ -100,6 +101,13 @@ same request ID and identical decoded body returns the existing job. Different
 content under the same ID is a conflict. Continue IDs use the same per-device
 namespace. A profile change blocks continuation until the user chooses a new task.
 Legacy requests without a profile retain the old blocked contract and journal.
+
+An interrupted terminal task may receive a new explicit continuation only after
+the bound official turn has a durable `interrupted` receipt and its connection
+has finished closing. It retains the same thread and experiment binding, appends
+a new request intent and obtains fresh approvals. Unknown outcomes, native desktop
+cancellations, pre-dispatch cancellation and historical blocked records cannot
+use this path. A failed intent write cannot clear the cancellation state.
 
 Only the official thread recorded for an owned job is used. No arbitrary thread
 resume or RPC is exposed. A desktop active-writer response becomes `local_takeover`;
@@ -128,6 +136,12 @@ answers, rather than transferring it into a new turn. Unconfirmed stopping retai
 the desktop guard and does not open a competing executor. This local handoff is
 reported separately and does not count as Mac remote approval acceptance.
 
+The local page shows each approval's deadline and a receipt beside its controls.
+After the list is opened, read-only refreshes are serialized and preserve entered
+fields. Expired, consumed, missing or terminal requests disable the expanded form
+as well as its list button. A failed answer response remains uncertain and is not
+automatically resent. None of these UI refreshes extends an approval's lifetime.
+
 The release gate for remote review remains closed until the actual source Mac Dot
 and Secure MCP Tunnel display accept, reject and cancel correctly. Automated HTTP
 MCP tests do not establish this host compatibility. DotControl never treats the
@@ -144,6 +158,18 @@ Human input or local pause revokes the lease and requests official interruption.
 A successful interrupt RPC is not stop confirmation. If stop is uncertain, a
 durable guard prevents another desktop executor from acquiring the device, even
 after restart. Fresh observation is required after delegated input.
+
+Windows native input has an additional unresolved acceptance constraint. Its
+conservative monitor treats every changed `GetLastInputInfo` timestamp as
+activity, including injected input, and the native lease revokes on any activity
+generation change. Thus an official action using `SendInput` is expected to
+interrupt its own task. This is a code-level finding, not a completed physical
+desktop test; UI Automation actions may behave differently. Removing that
+fallback or ignoring all injected input would weaken touch, pen and accessibility
+takeover detection, so this implementation does neither. Native delegation stays
+closed pending a supported way to distinguish executor input or an equivalently
+verified official takeover mechanism, plus real multi-action/interruption tests.
+See Microsoft's [input timestamp contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getlastinputinfo).
 
 Terminal tasks do not acquire the desktop lease; they still respect local pause.
 Cancelling a Codex control task does **not** mean an independently submitted server
@@ -173,20 +199,38 @@ These are independent facts:
 it does not establish that source Dot rendered them. Restart reports lost in-memory
 image data as `unavailable_after_restart`.
 
-The bridge leaves task verification `unverified`; a model saying “done” does not
-verify an experiment. Native image return does not prove source rendering.
+Model text alone leaves task verification `unverified`. The fixed fixture can
+become `verified_fixture` only through the independent SSH readback described
+below. Native image return does not prove source rendering.
 
 ## SSH experiment acceptance procedure
 
 Choose a server profile locally and get its read-only preflight to pass first.
-Then let target Codex check the selected project, remote directory, resource needs
-and intended deployment. Use a stable experiment ID and an independent experiment
-directory. Record a durable remote submission marker before starting work, plus
-a scheduler job ID or PID with logs and output paths. On disconnection, query the
-same record and remote job before doing anything else. An ambiguous submission
-must not be retried under a new ID. Generic deployment instructions do not enforce
-remote exactly-once execution; the selected scheduler or deployment script must
-implement its own idempotency. This remote experiment behavior remains unaccepted.
+For the first acceptance, submit `experiment_id` with that saved profile. The
+bundled helper supports only the fixed sum `1...1,000,000 = 500000500000`, using
+one AWK process on a Linux server, no GPU and no dependency installation. It does
+not execute a configured arbitrary deployment command. General deployments need
+their own reviewed job adapter; a prompt alone does not provide deduplication.
+
+The target Codex receives exact helper argument arrays for `experiment status`,
+`submit` and explicit `stop`, then invokes them through its official terminal tool.
+The controller freezes the accepted server/fixture binding before dispatch. The
+helper checks that record even if an invocation omits its expected-binding flag;
+editing the profile mid-task cannot redirect the experiment or verify another
+server's output. A separate durable intent permits only one launch attempt.
+
+Remote atomic directory creation claims `<remote_dir>/dotcontrol-<experiment_id>`.
+The detached worker records its process identity, log, exit code and result hash.
+An independent SSH query checks the actual output bytes, exit code and SHA-256.
+`runtime.experiment` and `verification=verified_fixture` describe that evidence,
+separately from completion of the Codex turn. An ambiguous attempt becomes
+query-only and must not be replayed with a fresh ID. Existing legacy unknown
+records retain that meaning after upgrade.
+
+`experiment stop` writes a cooperative request only for an owned running fixture
+whose recorded identity still matches. It never signals arbitrary processes;
+`stop_requested` still needs a later terminal-state check. Cancelling the Codex
+control task does not call stop. See the [helper contract](../internal/experiment/README.md).
 
 ## Validation and limits
 
