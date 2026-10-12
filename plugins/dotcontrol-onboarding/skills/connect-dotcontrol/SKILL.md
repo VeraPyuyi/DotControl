@@ -24,10 +24,10 @@ edit credential stores directly, or alter DNS/proxy/TLS settings.
    `current.json` identifies the installed version directory. Verify the selected
    path stays beneath this root before executing.
 4. Otherwise download the appropriate asset and `.sha256` file from the fixed
-   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.1`.
-   Asset names: `DotControl-0.2.0-alpha.1-windows-amd64-setup.exe`,
-   `DotControl-0.2.0-alpha.1-macos-arm64.dmg`, or
-   `DotControl-0.2.0-alpha.1-macos-amd64.dmg`.
+   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.2`.
+   Asset names: `DotControl-0.2.0-alpha.2-windows-amd64-setup.exe`,
+   `DotControl-0.2.0-alpha.2-macos-arm64.dmg`, or
+   `DotControl-0.2.0-alpha.2-macos-amd64.dmg`.
    Verify SHA-256 using built-in OS facilities before launching. Do not substitute
    another tag or ignore mismatched/missing assets. A checksum protects download
    integrity; these alpha installers are not publisher-signed/notarized.

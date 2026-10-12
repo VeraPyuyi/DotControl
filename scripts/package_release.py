@@ -15,7 +15,7 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.0-alpha.1'
+VERSION = '0.2.0-alpha.2'
 LOCK = json.loads((ROOT / 'dependencies.lock.json').read_text())
 
 def run(*args, **kw):
@@ -53,7 +53,7 @@ def app_info(path, name, binary, identifier):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(plistlib.dumps({'CFBundleIdentifier': identifier,
         'CFBundleName': name, 'CFBundleExecutable': binary,
-        'CFBundleShortVersionString': '0.2.0', 'CFBundleVersion': '2',
+        'CFBundleShortVersionString': '0.2.0', 'CFBundleVersion': '3',
         'CFBundlePackageType': 'APPL', 'LSUIElement': True,
         'LSMinimumSystemVersion': '14.0',
         'NSInputMonitoringUsageDescription': 'Detect human activity without reading key contents.'}))
@@ -68,7 +68,7 @@ def main():
     parser.add_argument('--os', choices=['windows', 'darwin'], required=True)
     parser.add_argument('--arch', choices=['amd64', 'arm64'], required=True)
     parser.add_argument('--go', default='go')
-    parser.add_argument('--output', default='dist/v0.2.0-alpha.1')
+    parser.add_argument('--output', default=f'dist/v{VERSION}')
     args = parser.parse_args()
     out = (ROOT / args.output).resolve(); out.mkdir(parents=True, exist_ok=True)
     cache = ROOT / '.tools' / 'release-cache'; cache.mkdir(parents=True, exist_ok=True)

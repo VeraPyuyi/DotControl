@@ -4,7 +4,7 @@
 
 ## 1. 安装
 
-- Windows 11 x64：打开 DotControl-0.2.0-alpha.1-windows-amd64-setup.exe。
+- Windows 11 x64：打开 DotControl-0.2.0-alpha.2-windows-amd64-setup.exe。
 - Mac Apple Silicon：打开 macos-arm64.dmg 内的 DotControl Setup.app。
 - Mac Intel：使用 macos-amd64.dmg。
 

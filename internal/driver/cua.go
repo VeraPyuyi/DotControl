@@ -3,6 +3,7 @@ package driver
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -74,6 +75,7 @@ type Caller interface {
 type Cua struct {
 	client         Caller
 	session        *mcp.ClientSession
+	sessionLabel   string
 	mu             sync.Mutex
 	poisoned       bool
 	treeFormat     bool
@@ -176,7 +178,13 @@ func (d *Cua) call(ctx context.Context, name string, args map[string]any) (*mcp.
 		d.recordFailure(name, err, false, false)
 		return nil, err
 	}
-	args["session"] = "dotcontrol"
+	// The macOS daemon outlives this connection and remembers ended labels.
+	// Keep one private label for this connection, including its cleanup, while
+	// allowing future connections and other agents to own independent sessions.
+	if d.sessionLabel == "" {
+		d.sessionLabel = "dotcontrol-" + rand.Text()
+	}
+	args["session"] = d.sessionLabel
 	r, err := d.client.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {
 		// Cancelling an observation cannot leave native input in flight. Keep

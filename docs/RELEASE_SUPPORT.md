@@ -1,6 +1,16 @@
-# 0.2.0-alpha.1 支持与验收
+# 0.2 支持与验收
 
 [预发布下载](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.1) · [安装指南](INSTALL.md)
+
+## alpha.2 修复状态
+
+alpha.2 修复了驱动连接复用已结束会话、旧代理退出错误提示和启动诊断丢失分类的问题。
+[说明与边界](RELEASE_NOTES_0_2_ALPHA_2.md) · [会话故障复现](validation/driver-session-reconnect-2026-10-12.json)。
+Mac alpha.1 已完成旧设备迁移并通过插件返回新版设备信息；用户随后报告权限与活动检测通过，
+但直接查询显示驱动守护进程未运行。当前未确认该 Mac 的具体退出原因。
+alpha.2 构建和发布文件检查单独记录，以下 alpha.1 的证据不自动计为 alpha.2 验收。
+
+## alpha.1 已验证范围
 
 本版交付 Windows EXE、Mac 两种架构的 DMG 和 Codex 安装助手。
 目标端原生 Codex 委派仍关闭。以下“通过”仅覆盖所列检查，不代表完整计划验收。

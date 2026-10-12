@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-12",
+  "scope": "Driver connection lifecycle, not desktop action acceptance",
+  "driver_version": "0.34.1",
+  "upstream_commit": "0c69d9a2c8abbb5051a2df4a23f0fa166d5385dc",
+  "isolated_native_reproduction": {
+    "platform": "Windows x64",
+    "transport": "Public Cua CLI through an isolated daemon endpoint",
+    "first_list_apps_exit": 0,
+    "end_own_session_exit": 0,
+    "same_label_list_apps_exit": 1,
+    "same_label_error_class": "session has ended; tool call rejected",
+    "new_label_list_apps_exit": 0,
+    "owned_daemon_graceful_stop_exit": 0,
+    "owned_daemon_exited": true,
+    "desktop_inputs_sent": 0,
+    "application_content_saved": false
+  },
+  "regression": {
+    "transport": "Real Go MCP client/server connections with persistent ended-label state",
+    "before_fix": "closing one client disabled another: app_discovery_failed",
+    "after_fix": "independent clients and reconnect succeed; each connection cleans up only its own label",
+    "uncertain_actions_replayed": false
+  },
+  "mac_user_report": {
+    "version": "0.2.0-alpha.1",
+    "activity_available": true,
+    "accessibility": true,
+    "screen_recording": true,
+    "later_direct_status": "daemon is not running",
+    "later_direct_apps_and_windows": "daemon is not running",
+    "same_root_cause_confirmed": false,
+    "reason": "The missing daemon is a separate observed blocker; an ended-session error has not been observed on this Mac."
+  }
+}

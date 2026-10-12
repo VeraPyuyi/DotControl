@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dotcontrol-onboarding",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "description": "Install and connect DotControl on this Windows or Mac through the same verified local installer and official setup pages.",
   "author": {"name": "VeraPyuyi"},
   "license": "MIT",
