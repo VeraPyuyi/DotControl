@@ -165,16 +165,19 @@ type CodexJob struct {
 // Runtime payloads are bounded and returned only to the owning caller. They are
 // never written to the general job journal; restart explicitly loses results.
 type CodexRuntimeInfo struct {
-	Execution         string          `json:"execution"`
-	Presentation      string          `json:"presentation"`
-	PresentationState string          `json:"presentation_state"`
-	TurnState         string          `json:"turn_state,omitempty"`
-	Verification      string          `json:"verification"`
-	ResultStatus      string          `json:"result_status"`
-	Text              string          `json:"text,omitempty"`
-	Images            []Image         `json:"images,omitempty"`
-	Evidence          []CodexEvidence `json:"evidence,omitempty"`
-	Approvals         []CodexApproval `json:"approvals,omitempty"`
+	Execution         string `json:"execution"`
+	Presentation      string `json:"presentation"`
+	PresentationState string `json:"presentation_state"`
+	TurnState         string `json:"turn_state,omitempty"`
+	Verification      string `json:"verification"`
+	ResultStatus      string `json:"result_status"`
+	// These are observed transport/review routes, never proof of remote display.
+	ImageDeliveryStatus string          `json:"image_delivery_status,omitempty"`
+	ReviewLocation      string          `json:"review_location,omitempty"`
+	Text                string          `json:"text,omitempty"`
+	Images              []Image         `json:"images,omitempty"`
+	Evidence            []CodexEvidence `json:"evidence,omitempty"`
+	Approvals           []CodexApproval `json:"approvals,omitempty"`
 }
 
 type CodexEvidence struct {

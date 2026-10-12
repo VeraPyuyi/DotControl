@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,6 +13,35 @@ import (
 )
 
 const reviewTTL = 5 * time.Minute
+
+// LocalJobs inventories only this bridge's owned runtime records for the
+// protected local UI. Results contain no private text, image bytes, or outputs.
+// It never discovers arbitrary official threads and is not an MCP tool.
+func (b *Bridge) LocalJobs(deviceID string) ([]model.CodexJob, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.healthy(); err != nil {
+		return nil, err
+	}
+	if deviceID != b.deviceID {
+		return nil, failure("wrong_device")
+	}
+	jobs := make([]model.CodexJob, 0, len(b.runtime.jobs))
+	for _, j := range b.runtime.jobs {
+		view := cloneJob(j.entry.Job)
+		view.Runtime.Text = ""
+		view.Runtime.Images = nil
+		view.Runtime.Evidence = nil
+		jobs = append(jobs, view)
+	}
+	sort.Slice(jobs, func(i, j int) bool {
+		if jobs[i].UpdatedAt.Equal(jobs[j].UpdatedAt) {
+			return jobs[i].JobID < jobs[j].JobID
+		}
+		return jobs[i].UpdatedAt.After(jobs[j].UpdatedAt)
+	})
+	return jobs, nil
+}
 
 func sensitiveReview(s string) bool {
 	lower := strings.ToLower(s)
@@ -66,7 +96,7 @@ func (b *Bridge) refreshApprovals(id string, c *Client) {
 		}
 	}
 	j.entry.Job.Runtime.Approvals = summaries
-	if len(summaries) > 0 && !j.entry.Job.CancelRequested {
+	if len(summaries) > 0 && !j.entry.Job.CancelRequested && !j.handoffRequested {
 		j.entry.Job.State = "awaiting_approval"
 		j.entry.Job.Code = "awaiting_human_review"
 		j.entry.Job.Message = runtimeMessage("awaiting_human_review")
@@ -343,6 +373,17 @@ func requestPending(c *Client, r ServerRequest) bool {
 	return false
 }
 func (b *Bridge) Review(ctx context.Context, deviceID, jobID, approvalID string, human HumanReview) (model.CodexJob, error) {
+	return b.review(ctx, deviceID, jobID, approvalID, human, false)
+}
+
+// ReviewLocal is reserved for the protected local human review UI. It must not
+// be exposed as an MCP parameter that lets the model select a review channel.
+// Local native review requires stopping and handing the owned thread over.
+func (b *Bridge) ReviewLocal(ctx context.Context, deviceID, jobID, approvalID string, human HumanReview) (model.CodexJob, error) {
+	return b.review(ctx, deviceID, jobID, approvalID, human, true)
+}
+
+func (b *Bridge) review(ctx context.Context, deviceID, jobID, approvalID string, human HumanReview, local bool) (model.CodexJob, error) {
 	b.mu.Lock()
 	if _, e := b.job(deviceID, jobID); e != nil {
 		b.mu.Unlock()
@@ -359,19 +400,23 @@ func (b *Bridge) Review(ctx context.Context, deviceID, jobID, approvalID string,
 	b.mu.Lock()
 	j = b.runtime.jobs[jobID]
 	a := j.approvals[approvalID]
-	if a == nil || a.consumed || a.reviewing || b.runtimeInterruptedLocked(j) || runtimeTerminal(j.entry.Job.State) || time.Now().After(a.expires) || !requestPending(c, a.request) {
+	if a == nil || a.consumed || a.reviewing || j.handoffRequested || b.runtimeInterruptedLocked(j) || runtimeTerminal(j.entry.Job.State) || time.Now().After(a.expires) || !requestPending(c, a.request) {
 		b.mu.Unlock()
 		return model.CodexJob{}, failure("approval_stale")
 	}
-	if a.prompt.Schema == nil {
+	if a.prompt.Schema == nil || (local && j.entry.Job.Runtime.Execution != "terminal") {
 		b.mu.Unlock()
 		return model.CodexJob{}, failure("review_on_target_required")
 	}
-	if human == nil || !b.acceptance().RemoteReview {
+	if human == nil || (!local && !b.acceptance().RemoteReview) {
 		b.mu.Unlock()
 		return model.CodexJob{}, failure("human_review_required")
 	}
 	a.reviewing = true
+	j.entry.Job.Runtime.ReviewLocation = "remote_human"
+	if local {
+		j.entry.Job.Runtime.ReviewLocation = "local_web"
+	}
 	originalRun := j.runContext
 	originalRequestID := j.entry.CurrentRequestID
 	prompt := a.prompt
@@ -484,5 +529,48 @@ func (b *Bridge) Review(ctx context.Context, deviceID, jobID, approvalID string,
 			break
 		}
 	}
+	return cloneJob(j.entry.Job), nil
+}
+
+// TakeOverLocal is a trusted local UI action, never an approval RPC response.
+// It binds the request to a current approval, requests interruption, and leaves
+// the run to await official terminal evidence and clean up before presentation.
+// No human-input exemption is granted to a native lease.
+func (b *Bridge) TakeOverLocal(ctx context.Context, deviceID, jobID, approvalID string) (model.CodexJob, error) {
+	b.mu.Lock()
+	if _, err := b.job(deviceID, jobID); err != nil {
+		b.mu.Unlock()
+		return model.CodexJob{}, err
+	}
+	j := b.runtime.jobs[jobID]
+	if j == nil || j.client == nil {
+		b.mu.Unlock()
+		return model.CodexJob{}, failure("approval_not_found")
+	}
+	c := j.client
+	b.mu.Unlock()
+	b.refreshApprovals(jobID, c)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	j = b.runtime.jobs[jobID]
+	a := j.approvals[approvalID]
+	if ctx.Err() != nil || j.client != c || a == nil || a.consumed || a.reviewing || j.handoffRequested || j.handoff == nil || b.runtimeInterruptedLocked(j) || runtimeTerminal(j.entry.Job.State) || time.Now().After(a.expires) || !requestPending(c, a.request) {
+		return model.CodexJob{}, failure("approval_stale")
+	}
+	if b.runtime.cfg.OpenThread == nil {
+		return model.CodexJob{}, failure("visible_presentation_unavailable")
+	}
+	a.consumed = true
+	j.handoffRequested = true
+	j.entry.Job.State = "awaiting_target"
+	j.entry.Job.Code = "interrupt_for_local_takeover"
+	j.entry.Job.Message = runtimeMessage(j.entry.Job.Code)
+	j.entry.Job.UpdatedAt = time.Now().UTC()
+	j.entry.Phase = "local_takeover_intent"
+	j.entry.LastReviewID = approvalID
+	if err := b.saveRuntimeLocked(j); err != nil {
+		return model.CodexJob{}, err
+	}
+	close(j.handoff)
 	return cloneJob(j.entry.Job), nil
 }

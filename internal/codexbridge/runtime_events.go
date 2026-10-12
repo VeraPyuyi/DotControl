@@ -28,6 +28,10 @@ func (b *Bridge) finishTurn(id, status string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	j := b.runtime.jobs[id]
+	b.latchNativeInterruptionLocked(j)
+	if j.handoffRequested && !b.runtimeInterruptedLocked(j) {
+		state, code = "awaiting_target", "interrupt_for_local_takeover"
+	}
 	j.entry.Job.State = state
 	j.entry.Job.Code = code
 	j.entry.Job.Message = runtimeMessage(code)
@@ -46,6 +50,9 @@ func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 	tick := time.NewTicker(40 * time.Millisecond)
 	defer tick.Stop()
 	cancelled := ctx.Done()
+	b.mu.Lock()
+	handoff := b.runtime.jobs[id].handoff
+	b.mu.Unlock()
 	var deadline <-chan time.Time
 	var timer *time.Timer
 	defer func() {
@@ -55,6 +62,16 @@ func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 	}()
 	for {
 		select {
+		case <-handoff:
+			handoff = nil
+			b.mu.Lock()
+			j := b.runtime.jobs[id]
+			thread, turn := j.entry.Job.ThreadID, j.entry.Job.TurnID
+			b.mu.Unlock()
+			var ack json.RawMessage
+			_ = runtimeCall(c, "turn/interrupt", map[string]any{"threadId": thread, "turnId": turn}, &ack)
+			timer = time.NewTimer(3 * time.Second)
+			deadline = timer.C
 		case <-cancelled:
 			cancelled = nil
 			b.mu.Lock()
@@ -71,8 +88,10 @@ func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 			var ack json.RawMessage
 			// RPC acknowledgement is never a stop receipt. Wait for turn/completed below.
 			_ = runtimeCall(c, "turn/interrupt", map[string]any{"threadId": thread, "turnId": turn}, &ack)
-			timer = time.NewTimer(3 * time.Second)
-			deadline = timer.C
+			if timer == nil {
+				timer = time.NewTimer(3 * time.Second)
+				deadline = timer.C
+			}
 		case <-deadline:
 			b.updateRuntime(id, "outcome_unknown", "interrupt_stop_unconfirmed", "")
 			return false
@@ -239,6 +258,7 @@ func (b *Bridge) collectItem(id string, raw json.RawMessage) {
 			}
 			// Only native in-band base64 is accepted. Never open paths or fetch result URLs.
 			r.Images = append(r.Images, model.Image{Data: content.Data, MIMEType: content.MIME})
+			r.ImageDeliveryStatus = "received_in_band"
 		}
 	}
 	j.entry.HadResults = true

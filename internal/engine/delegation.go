@@ -16,6 +16,61 @@ type DelegationLease struct {
 
 func (l *DelegationLease) Finish(stopped bool) error { return l.finish(stopped) }
 
+// WaitAcquireDelegation waits without sending desktop input or reserving the
+// sole-writer gate while a human is active. Monitor idle time is the continuous
+// interval since actual input; a generation change cannot accumulate old idle.
+// AcquireDelegation repeats all checks after acquiring the gate.
+func (e *Engine) WaitAcquireDelegation(ctx context.Context, jobID string, waiting func()) (*DelegationLease, error) {
+	if !validID.MatchString(jobID) {
+		return nil, fail("invalid_id")
+	}
+	tick := time.NewTicker(20 * time.Millisecond)
+	defer tick.Stop()
+	reported := false
+	for {
+		if ctx.Err() != nil {
+			return nil, fail("cancelled")
+		}
+		e.mu.Lock()
+		err := e.healthyLocked()
+		a := e.monitor.Snapshot()
+		if err == nil {
+			switch {
+			case e.paused:
+				err = fail("device_paused")
+			case !a.Available:
+				err = fail("activity_unavailable")
+			case a.Locked:
+				err = fail("device_locked")
+			case e.externalPending != "":
+				err = fail("external_execution_unresolved")
+			}
+		}
+		idle := a.IdleMillis >= e.cfg.IdleThreshold.Milliseconds()
+		e.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		if idle {
+			lease, err := e.AcquireDelegation(ctx, jobID)
+			if err == nil || err.Error() != "waiting_for_idle" {
+				return lease, err
+			}
+		}
+		if !reported && waiting != nil {
+			waiting()
+			reported = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fail("cancelled")
+		case <-e.stop:
+			return nil, fail("closed")
+		case <-tick.C:
+		}
+	}
+}
+
 func (e *Engine) AcquireDelegation(ctx context.Context, jobID string) (*DelegationLease, error) {
 	if !validID.MatchString(jobID) {
 		return nil, fail("invalid_id")
@@ -28,6 +83,8 @@ func (e *Engine) AcquireDelegation(ctx context.Context, jobID string) (*Delegati
 	err := e.healthyLocked()
 	if err == nil {
 		switch {
+		case ctx.Err() != nil:
+			err = fail("cancelled")
 		case e.paused:
 			err = fail("device_paused")
 		case !initial.Available:

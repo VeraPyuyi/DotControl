@@ -170,6 +170,12 @@ func runtimeMessage(code string) string {
 		return "The owned Codex turn reported interruption."
 	case "awaiting_human_review":
 		return "The owned turn is waiting for human review."
+	case "waiting_for_idle":
+		return "Waiting for a continuous idle interval before acquiring the desktop."
+	case "interrupt_for_local_takeover":
+		return "Waiting for the owned turn to stop before opening it for local review."
+	case "local_takeover_open_failed":
+		return "The owned turn stopped, but opening it for local review failed."
 	}
 	return "Execution is unavailable or its outcome is not confirmed; see the status code."
 }
@@ -225,6 +231,8 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	j.entry.Job.UpdatedAt = time.Now().UTC()
 	j.entry.Job.Runtime.Text = ""
 	j.entry.Job.Runtime.Images = nil
+	j.entry.Job.Runtime.ImageDeliveryStatus = ""
+	j.entry.Job.Runtime.ReviewLocation = ""
 	j.entry.Job.Runtime.Evidence = nil
 	j.entry.Job.Runtime.Approvals = nil
 	j.entry.Job.Runtime.ResultStatus = "pending"
@@ -258,6 +266,8 @@ func (b *Bridge) launchLocked(id, prompt string, recoverOnly bool) {
 	j.cancel = cancel
 	j.runContext = ctx
 	j.active = true
+	j.handoff = make(chan struct{})
+	j.handoffRequested = false
 	b.runtime.wg.Add(1)
 	go func() { defer b.runtime.wg.Done(); b.run(ctx, id, prompt, recoverOnly) }()
 }
@@ -301,8 +311,8 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		stopWatcher()
 		b.mu.Lock()
 		j := b.runtime.jobs[id]
-		if j.runContext == originalRun && j.cancel != nil {
-			j.cancel()
+		if j.runContext == originalRun {
+			b.latchNativeInterruptionLocked(j)
 		}
 		if connected {
 			b.runtime.connections--
@@ -319,9 +329,9 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 			_ = c.Close()
 		}
 		b.mu.Lock()
-		defer b.mu.Unlock()
 		j = b.runtime.jobs[id]
 		if j.runContext != originalRun {
+			b.mu.Unlock()
 			return
 		}
 		if lease != nil && stopped && releaseErr == nil {
@@ -335,11 +345,24 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		}
 		j.lease = nil
 		j.client = nil
-		j.cancel = nil
-		j.runContext = nil
 		j.approvals = map[string]*runtimeApproval{}
 		j.reviewItems = nil
 		j.entry.Job.Runtime.Approvals = nil
+		b.mu.Unlock()
+		if !recoverOnly && stopped && releaseErr == nil {
+			b.presentFinishedRuntime(originalRun, id)
+		}
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		j = b.runtime.jobs[id]
+		if j.runContext != originalRun {
+			return
+		}
+		if j.cancel != nil {
+			j.cancel()
+		}
+		j.cancel = nil
+		j.runContext = nil
 		// Continue may acquire this job only after both the desktop lease and the
 		// previous App Server writer have finished cleaning up.
 		j.active = false
@@ -456,12 +479,17 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		if err != nil {
 			return
 		}
-		lease, e = b.runtime.cfg.Engine.AcquireDelegation(ctx, id)
+		lease, e = b.runtime.cfg.Engine.WaitAcquireDelegation(ctx, id, func() {
+			b.updateRuntime(id, "waiting_for_idle", "waiting_for_idle", "")
+		})
 		if e != nil {
 			b.mu.Lock()
 			b.runtime.jobs[id].entry.DesktopPending = false
 			b.mu.Unlock()
-			b.updateRuntime(id, "blocked", "desktop_lease_unavailable", "")
+			if !b.beforeRuntimeDispatch(ctx, id) {
+				return
+			}
+			b.updateRuntime(id, "blocked", e.Error(), "")
 			return
 		}
 		b.mu.Lock()
@@ -520,22 +548,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	if err != nil {
 		return
 	}
-	if snapshot.Runtime.Presentation == "visible" {
-		if !b.beforeRuntimeDispatch(ctx, id) {
-			return
-		}
-		openCtx, done := context.WithTimeout(ctx, 10*time.Second)
-		err = b.runtime.cfg.OpenThread(openCtx, result.Thread.ID)
-		done()
-		if err != nil {
-			b.updateRuntime(id, "blocked", "visible_presentation_unavailable", "")
-			stopped = true
-			return
-		}
-		b.mu.Lock()
-		b.runtime.jobs[id].entry.Job.Runtime.PresentationState = "open_requested"
-		b.mu.Unlock()
-	} else {
+	if snapshot.Runtime.Presentation != "visible" {
 		b.mu.Lock()
 		b.runtime.jobs[id].entry.Job.Runtime.PresentationState = "background"
 		b.mu.Unlock()
@@ -588,6 +601,51 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		return
 	}
 	stopped = b.consume(ctx, id, c)
+}
+
+// Presentation is a post-execution action. The old writer and lease must be
+// gone, while active/runContext still reserve this job against Continue.
+func (b *Bridge) presentFinishedRuntime(run context.Context, id string) {
+	b.mu.Lock()
+	j := b.runtime.jobs[id]
+	handoff := j.handoffRequested && j.entry.Job.State == "awaiting_target"
+	visible := j.entry.Job.Runtime.Presentation == "visible" && (j.entry.Job.State == "completed" || j.entry.Job.State == "failed")
+	if j.runContext != run || b.runtimeInterruptedLocked(j) || j.entry.DesktopPending || j.client != nil || j.lease != nil || (!handoff && !visible) || !terminalTurn(j.entry.Job.Runtime.TurnState) {
+		b.mu.Unlock()
+		return
+	}
+	thread, requestID := j.entry.Job.ThreadID, j.entry.CurrentRequestID
+	open := b.runtime.cfg.OpenThread
+	b.mu.Unlock()
+	if open == nil || run.Err() != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(run, 10*time.Second)
+	err := open(ctx, thread)
+	cancel()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	j = b.runtime.jobs[id]
+	if j.runContext != run || j.entry.CurrentRequestID != requestID || b.runtimeInterruptedLocked(j) {
+		return
+	}
+	j.entry.Job.Runtime.PresentationState = "open_requested"
+	if err != nil {
+		j.entry.Job.Runtime.PresentationState = "open_failed"
+	}
+	if handoff {
+		j.entry.Job.State = "local_takeover"
+		j.entry.Job.Code = "local_takeover"
+		if err != nil {
+			j.entry.Job.State = "awaiting_target"
+			j.entry.Job.Code = "local_takeover_open_failed"
+		}
+		if err == nil {
+			j.entry.Job.Runtime.ReviewLocation = "target_codex_open_requested"
+		}
+		j.entry.Job.Message = runtimeMessage(j.entry.Job.Code)
+	}
+	_ = b.saveRuntimeLocked(j)
 }
 func (b *Bridge) operationError(id string, err error, sideEffect bool) {
 	var rpc *RPCError
@@ -729,6 +787,17 @@ func (b *Bridge) runtimeInterruptedLocked(j *runtimeJob) bool {
 		return true
 	}
 	return b.runtime.cfg.Engine != nil && b.runtime.cfg.Engine.Device().Paused
+}
+
+// A terminal event can be selected before consume sees lease cancellation.
+// Latch the input interruption before cleanup drops the lease reference.
+func (b *Bridge) latchNativeInterruptionLocked(j *runtimeJob) {
+	if j.lease != nil && j.lease.Context.Err() != nil {
+		j.entry.Job.CancelRequested = true
+		if j.cancel != nil {
+			j.cancel()
+		}
+	}
 }
 
 // The startup watcher runs independently of protocol calls. A temporary pause

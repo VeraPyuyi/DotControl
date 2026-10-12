@@ -58,14 +58,16 @@ type runtimeRecord struct {
 	MAC      string       `json:"mac"`
 }
 type runtimeJob struct {
-	entry       runtimeEntry
-	client      *Client
-	lease       *engine.DelegationLease
-	cancel      context.CancelFunc
-	runContext  context.Context
-	active      bool
-	approvals   map[string]*runtimeApproval
-	reviewItems map[string]json.RawMessage
+	entry            runtimeEntry
+	client           *Client
+	lease            *engine.DelegationLease
+	cancel           context.CancelFunc
+	runContext       context.Context
+	active           bool
+	handoff          chan struct{}
+	handoffRequested bool
+	approvals        map[string]*runtimeApproval
+	reviewItems      map[string]json.RawMessage
 }
 type runtimeApproval struct {
 	request   ServerRequest
@@ -173,6 +175,9 @@ func (b *Bridge) openRuntime(cfg Config) error {
 	}
 	for _, j := range rs.jobs {
 		j.entry.Job.Runtime.ResultStatus = "unavailable_after_restart"
+		if j.entry.Job.Runtime.ImageDeliveryStatus != "" {
+			j.entry.Job.Runtime.ImageDeliveryStatus = "unavailable_after_restart"
+		}
 		if !runtimeTerminal(j.entry.Job.State) {
 			j.entry.Job.State = "recovery_required"
 			j.entry.Job.Code = "owned_thread_recovery_required"

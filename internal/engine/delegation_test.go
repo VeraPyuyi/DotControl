@@ -109,3 +109,101 @@ func TestUnconfirmedDelegationSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWaitDelegationUsesContinuousIdleAndNeverSendsInput(t *testing.T) {
+	e, d, m, _ := setup(t)
+	m.set(model.Activity{Available: true, IdleMillis: 0, Generation: 1})
+	waiting := make(chan struct{}, 1)
+	result := make(chan *DelegationLease, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		l, _ := e.WaitAcquireDelegation(ctx, "waiting-native", func() { waiting <- struct{}{} })
+		result <- l
+	}()
+	select {
+	case <-waiting:
+	case <-time.After(time.Second):
+		t.Fatal("no waiting state")
+	}
+	m.set(model.Activity{Available: true, IdleMillis: 900, Generation: 1})
+	time.Sleep(30 * time.Millisecond)
+	m.set(model.Activity{Available: true, IdleMillis: 0, Generation: 2})
+	time.Sleep(30 * time.Millisecond)
+	select {
+	case <-result:
+		t.Fatal("acquired before continuous idle threshold")
+	default:
+	}
+	if d.calls.Load() != 0 {
+		t.Fatal("input sent while waiting")
+	}
+	m.set(model.Activity{Available: true, IdleMillis: 1000, Generation: 2})
+	select {
+	case l := <-result:
+		if l == nil {
+			t.Fatal("no lease")
+		}
+		l.Finish(true)
+	case <-time.After(time.Second):
+		t.Fatal("never acquired idle lease")
+	}
+}
+
+func TestWaitDelegationStopsOnCancelPauseLockOrUnavailable(t *testing.T) {
+	for _, mode := range []string{"cancel", "pause", "lock", "unavailable"} {
+		t.Run(mode, func(t *testing.T) {
+			e, _, m, _ := setup(t)
+			m.set(model.Activity{Available: true})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			waiting, done := make(chan struct{}, 1), make(chan error, 1)
+			go func() {
+				_, err := e.WaitAcquireDelegation(ctx, "waiting-native", func() { waiting <- struct{}{} })
+				done <- err
+			}()
+			<-waiting
+			switch mode {
+			case "cancel":
+				cancel()
+			case "pause":
+				e.Pause(true)
+			case "lock":
+				m.set(model.Activity{Available: true, Locked: true})
+			case "unavailable":
+				m.set(model.Activity{})
+			}
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("unsafe grant")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("wait failed to stop")
+			}
+		})
+	}
+}
+
+func TestWaitDelegationRechecksAfterSoleWriterBecomesAvailable(t *testing.T) {
+	e, _, m, _ := setup(t)
+	if err := e.acquire(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.set(model.Activity{Available: true, IdleMillis: 120000})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := e.WaitAcquireDelegation(ctx, "waiting-native", nil); done <- err }()
+	time.Sleep(30 * time.Millisecond)
+	m.set(model.Activity{Available: true, Locked: true, IdleMillis: 120000})
+	e.unlock()
+	select {
+	case err := <-done:
+		if err == nil || err.Error() != "device_locked" {
+			t.Fatalf("missed recheck: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("wait failed to stop")
+	}
+}
