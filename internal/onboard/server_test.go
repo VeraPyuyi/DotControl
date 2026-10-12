@@ -11,6 +11,33 @@ import (
 
 type fake struct{ connected int }
 
+func (f *connectionFake) History(context.Context, HistoryRequest) (any, error) {
+	f.calls++
+	return map[string]bool{"local": true}, nil
+}
+func TestHistoryPolicyRequiresLocalSession(t *testing.T) {
+	f := &connectionFake{}
+	s := New("127.0.0.1:9317", f)
+	origin := "http://127.0.0.1:9317"
+	if req(s, "/onboard/api/history", `{"operation":"apply"}`, origin, "", nil).Code != 401 {
+		t.Fatal("unprotected history")
+	}
+	ticket := strings.Split(s.LaunchURL(), "#")[1]
+	w := req(s, "/onboard/api/session", `{"ticket":"`+ticket+`"}`, origin, "", nil)
+	var session map[string]string
+	json.Unmarshal(w.Body.Bytes(), &session)
+	cookie := w.Result().Cookies()[0]
+	if req(s, "/onboard/api/history", `{"operation":"apply"}`, origin, "wrong", cookie).Code != 403 {
+		t.Fatal("csrf missing")
+	}
+	if req(s, "/onboard/api/history", `{"operation":"apply","password":"never"}`, origin, session["csrf"], cookie).Code != 400 {
+		t.Fatal("unknown fields accepted")
+	}
+	if req(s, "/onboard/api/history", `{"operation":"status"}`, origin, session["csrf"], cookie).Code != 200 || f.calls != 1 {
+		t.Fatal("local history unreachable")
+	}
+}
+
 type connectionFake struct {
 	fake
 	calls int

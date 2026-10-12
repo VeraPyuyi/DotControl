@@ -15,6 +15,11 @@ MCP Streamable HTTP 位于本机 `/mcp`，由官方 Go SDK 处理协商、初始
 | codex_cancel | device_id、job_id | 记录取消意图；不虚构已运行或已停止的原生任务 |
 | codex_continue | device_id、job_id、request_id、prompt | 向本入口创建的官方任务追加轮次，稳定编号去重 |
 | codex_review | device_id、job_id、approval_id | 打开宿主人工确认；不接受模型传入同意或拒绝 |
+| codex_projects | device_id、limit、cursor | 共享范围内有官方项目归属的项目；不猜测未归属会话 |
+| codex_threads | device_id、search、cwd、project_id、archived、limit、cursor | 仅允许共享的会话元数据及分页凭据 |
+| codex_read_thread | device_id、thread_id、limit、cursor | 默认最近 5 轮、最多 20 轮用户/助手正文；省略推理、工具日志与附件正文 |
+
+历史接口须先在本机启用，独立于终端委派。`devices.capabilities.codex_history` 报告状态、共享模式和修订号。远程不能修改权限；暂停、撤销、清单损坏及旧分页会被拒绝。仅读取不授予其他会话的续聊或取消权限。详细契约见 [HISTORY_SHARING](HISTORY_SHARING.md)。
 
 `capabilities` 分别报告基础桌面、Codex 连接、官方 Computer Use 和原生委派状态。
 `codex_profiles` 仅列出本机配置的名称、编号、执行方式和呈现方式；不返回服务器地址、密钥路径或部署命令。

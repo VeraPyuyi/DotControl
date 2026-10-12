@@ -16,7 +16,7 @@ function rows(id,items){const box=el(id);box.replaceChildren();for(const [label,
 function renderState(s){
  const first=!state;state=s;const terminal=!!s.terminal_only;if(first&&s.tunnel?.ready)el('account-settings').open=false;
  for(const button of document.querySelectorAll('[data-action^=permissions]'))button.hidden=terminal||s.device.os!=='darwin';
- for(const button of document.querySelectorAll('[data-action]')){if(button.dataset.action==='confirm_image')button.hidden=terminal;if(button.dataset.action==='resume')button.textContent=terminal?'恢复终端任务':'启用桌面任务'}
+ for(const button of document.querySelectorAll('[data-action]')){if(button.dataset.action==='confirm_image')button.hidden=terminal;if(button.dataset.action==='resume')button.textContent=s.history_enabled?'恢复已启用功能':terminal?'恢复终端任务':'启用桌面任务'}
  el('connection').textContent=s.revoked?'访问已撤销':s.tunnel?.ready?(s.device.paused?'已连接 · 已暂停':'已连接 · 已启用'):'等待连接';
  const desktopChecks=terminal?[['桌面组件','本模式不需要',true]]:[['桌面驱动',s.driver_connected?'已连接':(s.driver_error||'等待驱动或系统权限'),s.driver_connected],['系统权限',({granted:'已授权（仍需验证截图）',not_required:'无需额外授权',required:'需要授权',unknown:'尚未确认'}[s.permissions?.state]||'检查中'),['granted','not_required'].includes(s.permissions?.state)],['活动检测',s.device.activity.available?'可用':'等待输入监控权限',s.device.activity.available],['屏幕',s.device.activity.locked?'已锁定':'已解锁',!s.device.activity.locked]];
  rows('checks',[['设备',s.device.name,true],...desktopChecks,['随登录启动',s.autostart?'已设置':'尚未设置',s.autostart]]);

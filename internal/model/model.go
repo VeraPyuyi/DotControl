@@ -115,11 +115,20 @@ type Capability struct {
 	Code      string `json:"code,omitempty"`
 }
 type DeviceCapabilities struct {
-	Base                Capability `json:"base"`
-	CodexConnection     Capability `json:"codex_connection"`
-	CodexTerminal       Capability `json:"codex_terminal"`
-	OfficialComputerUse Capability `json:"official_computer_use"`
-	CodexDelegation     Capability `json:"codex_delegation"`
+	CodexHistory        HistoryCapability `json:"codex_history"`
+	Base                Capability        `json:"base"`
+	CodexConnection     Capability        `json:"codex_connection"`
+	CodexTerminal       Capability        `json:"codex_terminal"`
+	OfficialComputerUse Capability        `json:"official_computer_use"`
+	CodexDelegation     Capability        `json:"codex_delegation"`
+}
+
+type HistoryCapability struct {
+	Available bool   `json:"available"`
+	State     string `json:"state"`
+	Code      string `json:"code,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Revision  uint64 `json:"revision,omitempty"`
 }
 type CodexCapabilities = DeviceCapabilities
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/dotcontrol/dotcontrol/internal/activity"
 	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
+	"github.com/dotcontrol/dotcontrol/internal/codexhistory"
 	"github.com/dotcontrol/dotcontrol/internal/config"
 	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/desktop"
@@ -39,6 +40,10 @@ type connectionProof struct {
 	ImageConfirmed bool `json:"image_confirmed"`
 }
 type runtimeOwner struct {
+	historyMu                sync.Mutex
+	historyEpoch             uint64
+	history                  *codexhistory.Service
+	historyPreviews          map[string]historyPreview
 	mu                       sync.Mutex
 	componentsMu             sync.Mutex
 	connectionsMu            sync.Mutex
@@ -157,7 +162,11 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		startMacSessionComponents(ctx, dir)
 	}
 	owner.bridge = bridge
-	backend := service.Local{Engine: eng, Bridge: bridge, BaseStatus: owner.baseStatus}
+	owner.history = owner.newHistory()
+	if c.HistoryEnabled {
+		go func() { _ = owner.history.Check(ctx) }()
+	}
+	backend := service.Local{Engine: eng, Bridge: bridge, BaseStatus: owner.baseStatus, History: owner.history}
 	guard := func(h http.Handler) http.Handler {
 		return localapi.Guard(mcpToken, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			owner.mu.Lock()
@@ -183,6 +192,16 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		var out any
 		var e error
 		switch r.URL.Path {
+		case "/admin/history":
+			var input onboard.HistoryRequest
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			d := json.NewDecoder(r.Body)
+			d.DisallowUnknownFields()
+			if d.Decode(&input) != nil {
+				e = errors.New("history_invalid_request")
+			} else {
+				out, e = owner.History(r.Context(), input)
+			}
 		case "/admin/status":
 			out, e = owner.Status(r.Context())
 		case "/admin/onboard":
@@ -303,7 +322,7 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 			if err := resumeReadiness(o.cfg, revoked, connected, o.permissions, d.Activity); err != nil {
 				return nil, err
 			}
-			if o.cfg.TerminalOnly {
+			if o.cfg.TerminalOnly && o.cfg.TerminalEnabled && !o.cfg.HistoryEnabled {
 				current, err := connections.NewStore(filepath.Join(o.dir, "connections")).Load()
 				if err != nil || codexbridge.TerminalConfigHash(current) != o.cfg.TerminalConfigHash {
 					return nil, errors.New("terminal_configuration_changed")
@@ -379,6 +398,10 @@ func (o *runtimeOwner) Action(ctx context.Context, action string) (any, error) {
 	return map[string]bool{"ok": true}, nil
 }
 func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
+	historyCap := model.HistoryCapability{State: "disabled", Code: "history_disabled"}
+	if o.history != nil {
+		historyCap = o.history.Capability()
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	ds := o.driverStatus()
@@ -390,6 +413,7 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	d := o.eng.Device()
 	d.Name = o.cfg.Name
 	caps := o.bridge.Capabilities()
+	caps.CodexHistory = historyCap
 	if o.cfg.TerminalOnly {
 		caps.Base = model.Capability{State: "not_required", Code: "terminal_only"}
 	}
@@ -399,14 +423,20 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	if o.cfg.TerminalOnly {
 		reason = "任务由本机 Codex 执行。SSH 和服务器可在之后按实际任务配置。"
 	}
-	return map[string]any{"device": d, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
+	return map[string]any{"device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
+	historyCap := model.HistoryCapability{State: "disabled", Code: "history_disabled"}
+	if o.history != nil {
+		historyCap = o.history.Capability()
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	ds := o.driverStatus()
 	d := o.eng.Device()
-	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "codex_capabilities": o.bridge.Capabilities()}, nil
+	caps := o.bridge.Capabilities()
+	caps.CodexHistory = historyCap
+	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "plugin": o.proof, "codex_capabilities": caps}, nil
 }
 func (o *runtimeOwner) maintain() {
 	ticker := time.NewTicker(10 * time.Second)

@@ -7,27 +7,31 @@ import (
 	"errors"
 
 	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
+	"github.com/dotcontrol/dotcontrol/internal/codexhistory"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
 
 type Request struct {
-	DeviceID     string                  `json:"device_id,omitempty"`
-	TaskID       string                  `json:"task_id,omitempty"`
-	Target       model.Target            `json:"target,omitempty"`
-	Action       *model.Action           `json:"action,omitempty"`
-	Codex        *model.CodexSubmit      `json:"codex,omitempty"`
-	JobID        string                  `json:"job_id,omitempty"`
-	Continuation *model.CodexContinue    `json:"continuation,omitempty"`
-	ApprovalID   string                  `json:"approval_id,omitempty"`
-	Reviewer     codexbridge.HumanReview `json:"-"`
+	HistoryList  *codexhistory.ListRequest `json:"history_list,omitempty"`
+	HistoryRead  *codexhistory.ReadRequest `json:"history_read,omitempty"`
+	DeviceID     string                    `json:"device_id,omitempty"`
+	TaskID       string                    `json:"task_id,omitempty"`
+	Target       model.Target              `json:"target,omitempty"`
+	Action       *model.Action             `json:"action,omitempty"`
+	Codex        *model.CodexSubmit        `json:"codex,omitempty"`
+	JobID        string                    `json:"job_id,omitempty"`
+	Continuation *model.CodexContinue      `json:"continuation,omitempty"`
+	ApprovalID   string                    `json:"approval_id,omitempty"`
+	Reviewer     codexbridge.HumanReview   `json:"-"`
 }
 type Backend interface {
 	Call(context.Context, string, Request) (any, error)
 }
 type Local struct {
-	Engine *engine.Engine
-	Bridge *codexbridge.Bridge
+	History *codexhistory.Service
+	Engine  *engine.Engine
+	Bridge  *codexbridge.Bridge
 	// BaseStatus can report driver transport readiness without probing desktop
 	// content. Unknown is the safe default; activity alone is not readiness.
 	BaseStatus func() model.Capability
@@ -43,6 +47,10 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 		}
 		if s.BaseStatus != nil {
 			device.Capabilities.Base = s.BaseStatus()
+		}
+		device.Capabilities.CodexHistory = model.HistoryCapability{State: "disabled", Code: "history_disabled"}
+		if s.History != nil {
+			device.Capabilities.CodexHistory = s.History.Capability()
 		}
 		if s.Bridge != nil && s.Bridge.TerminalOnly() {
 			device.Capabilities.Base = model.Capability{State: "not_required", Code: "terminal_only"}
@@ -62,6 +70,23 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 		return nil, errors.New("terminal_only")
 	}
 	switch method {
+	case "codex_projects", "codex_threads", "codex_read_thread":
+		if s.History == nil {
+			return nil, errors.New("history_disabled")
+		}
+		if method == "codex_read_thread" {
+			if r.HistoryRead == nil {
+				return nil, errors.New("history_invalid_request")
+			}
+			return s.History.Read(ctx, *r.HistoryRead)
+		}
+		if r.HistoryList == nil {
+			return nil, errors.New("history_invalid_request")
+		}
+		if method == "codex_projects" {
+			return s.History.Projects(ctx, *r.HistoryList)
+		}
+		return s.History.Threads(ctx, *r.HistoryList)
 	case "codex_submit", "codex_job", "codex_cancel", "codex_continue", "codex_review":
 		if s.Bridge == nil {
 			return model.CodexUnsupported{DeviceID: device.ID, State: "unsupported", Code: "codex_bridge_not_configured"}, nil

@@ -19,6 +19,11 @@ func resumeReadiness(c config.Config, revoked, connected bool, permissions permi
 	if revoked {
 		return errors.New("access_revoked")
 	}
+	// History has its own read-only gate; resuming it needs no desktop input.
+	// Execution continues to enforce the existing terminal/desktop checks.
+	if c.HistoryEnabled {
+		return nil
+	}
 	if c.TerminalOnly {
 		if !c.TerminalEnabled {
 			return errors.New("terminal_not_enabled")

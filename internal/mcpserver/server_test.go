@@ -105,7 +105,7 @@ func TestSDKToolCatalogAndExecuteObjectRoundTrip(t *testing.T) {
 				}
 			}
 			sort.Strings(names)
-			if strings.Join(names, ",") != "apps,cancel,codex_cancel,codex_continue,codex_job,codex_review,codex_submit,devices,execute,observe,task" {
+			if strings.Join(names, ",") != "apps,cancel,codex_cancel,codex_continue,codex_job,codex_projects,codex_read_thread,codex_review,codex_submit,codex_threads,devices,execute,observe,task" {
 				t.Fatalf("tool catalog=%v", names)
 			}
 			args := map[string]any{"device_id": "device-a", "task_id": "task-a", "action_id": "action-a", "observation_id": "obs-a", "target": map[string]any{"pid": 42, "window_id": "window-a"}, "kind": "type_text", "args": map[string]any{"text": "你好，DotControl。🚀", "element_token": "field-1"}, "mode": "background", "expect": "\u200e56"}
@@ -289,7 +289,7 @@ func TestHTTPLegacyInitializationAndToolCalls(t *testing.T) {
 	if err := json.Unmarshal(list["result"], &tools); err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 11 {
+	if len(tools.Tools) != 14 {
 		t.Fatalf("legacy tools=%d", len(tools.Tools))
 	}
 	call := post(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"devices","arguments":{}}}`)

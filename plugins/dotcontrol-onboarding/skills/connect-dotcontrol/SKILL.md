@@ -154,6 +154,14 @@ Delegated tasks consume the target Codex account's quota.
 
 ## Recovery and report
 
+For reading existing Codex conversations, use the sibling `share-codex-history`
+skill and the local **共享 Codex 会话（只读）** page. This has independent opt-in
+and does not require terminal execution or desktop permissions. First enable
+defaults to all local conversations; restrictions require a reviewed exact-ID
+allowlist. Refresh the existing official plugin and check for 14 actual tools,
+including `codex_projects`, `codex_threads`, `codex_read_thread`. Do not run a
+terminal task to bypass a history refusal. Group changes do not grant access.
+
 Use the wizard's redacted diagnostic export. Distinguish missing key, paused,
 locked, unavailable activity, driver error, DNS, TLS and tunnel client exit.
 No secret values, typed content or full desktop content belong in diagnostics.

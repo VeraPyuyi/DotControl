@@ -12,6 +12,7 @@ import (
 )
 
 type Config struct {
+	HistoryEnabled     bool   `json:"history_enabled,omitempty"`
 	DeviceID           string `json:"device_id"`
 	Name               string `json:"name"`
 	Listen             string `json:"listen"`

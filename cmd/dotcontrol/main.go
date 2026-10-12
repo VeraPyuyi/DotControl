@@ -123,6 +123,8 @@ func run(args []string) error {
 		return e
 	case "onboard":
 		return launchOnboarding(ctx, *dir, c, v, args[1:])
+	case "history":
+		return historyCLI(ctx, *dir, args[1:])
 	case "repair":
 		return repairLocal(ctx, *dir, c, v)
 	case "serve":
