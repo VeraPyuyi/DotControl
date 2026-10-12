@@ -16,13 +16,24 @@ operation, including its binding digest. The supported pattern is:
 ```powershell
 $ErrorActionPreference = 'Continue'
 $PSNativeCommandUseErrorActionPreference = $false
-$dcArgs = @('--state', 'C:\private-state', 'experiment', 'status', '--profile', 'saved-id', '--experiment-id', 'stable-id')
-$dcOutput = @(& 'C:\Program Files\DotControl\dotcontrol.exe' @dcArgs 2>&1 | ForEach-Object { $_.ToString() })
+# argumentPayload is the Base64 payload from the generated per-operation command.
+[string[]]$dcCommand = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($argumentPayload)) | ConvertFrom-Json
+$dcExecutable = $dcCommand[0]
+$dcArgs = @($dcCommand | Select-Object -Skip 1)
+$dcOutput = @(& $dcExecutable @dcArgs 2>&1 | ForEach-Object { $_.ToString() })
 $dcExit = $LASTEXITCODE
 foreach ($dcLine in $dcOutput) { [Console]::Out.WriteLine($dcLine) }
 if ($null -eq $dcExit) { [Console]::Error.WriteLine('experiment_exit_unconfirmed'); exit 1 }
 exit $dcExit
 ```
+
+The generated command encodes the complete UTF-8 JSON argument array as Base64
+and decodes it into values before invoking the executable. This also supports
+paths containing Unicode smart quotes, which PowerShell otherwise interprets as
+quote delimiters. The readable argument arrays remain in the task instructions;
+each command also starts with the exact argument array as a safe, ASCII-escaped
+JSON comment for human review. The decoded data is never evaluated as shell code. Use the generated command for
+actual paths rather than constructing new shell literals from them.
 
 A bare PowerShell call can return early with empty output; that is not evidence
 of a successful helper operation. This pattern is tested with both PowerShell 7

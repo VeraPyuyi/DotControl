@@ -20,12 +20,12 @@ import (
 func TestExperimentGUISubsystemWritesRedirectedJSONWithoutAgent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "dotcontrol helper.exe")
+	binary := filepath.Join(t.TempDir(), "dotcontrol 助手 ‘智能’.exe")
 	goBinary := filepath.Join(runtime.GOROOT(), "bin", "go.exe")
 	if out, e := exec.CommandContext(ctx, goBinary, "build", "-ldflags=-H=windowsgui", "-o", binary, ".").CombinedOutput(); e != nil {
 		t.Fatalf("GUI build %v %s", e, out)
 	}
-	state := filepath.Join(t.TempDir(), "state with 'quote' $dollar;")
+	state := filepath.Join(t.TempDir(), "state with 'quote' ‘智能’ $dollar;")
 	_, e := connections.NewStore(filepath.Join(state, "connections")).UpsertServer(connections.ServerProfile{ID: "fixture", Name: "Fictional fixture", SSHAlias: "example.invalid", RemoteDir: "/tmp"})
 	if e != nil {
 		t.Fatal(e)
