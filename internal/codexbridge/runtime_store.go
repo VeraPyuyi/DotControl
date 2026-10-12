@@ -140,7 +140,8 @@ func (b *Bridge) openRuntime(cfg Config) error {
 		}
 		if previous := rs.jobs[j.JobID]; previous != nil {
 			p := previous.entry
-			if p.Job.RequestID != j.RequestID || p.Job.RequestHash != j.RequestHash || p.ProfileHash != e.ProfileHash || p.ExperimentBinding != e.ExperimentBinding || !p.Job.CreatedAt.Equal(j.CreatedAt) || (p.Job.CancelRequested && !j.CancelRequested) {
+			if p.Job.RequestID != j.RequestID || p.Job.RequestHash != j.RequestHash || p.ProfileHash != e.ProfileHash || p.ExperimentBinding != e.ExperimentBinding || !p.Job.CreatedAt.Equal(j.CreatedAt) ||
+				(p.Job.CancelRequested && !j.CancelRequested && !validCancellationReset(p, e)) {
 				return fail()
 			}
 			for id, hash := range p.Requests {
@@ -197,6 +198,30 @@ func (b *Bridge) openRuntime(cfg Config) error {
 	}
 	return nil
 }
+
+// Cancellation remains monotonic within a request. Only a fresh continuation
+// intent following an authenticated official stop receipt may clear it; replay
+// must not mistake an arbitrary later update for permission to run again.
+func validCancellationReset(previous, next runtimeEntry) bool {
+	if !continuableInterrupted(previous) || next.Version != 1 || next.Phase != "continue_intent" || next.DesktopPending ||
+		next.Job.CancelRequested || next.Job.State != "queued" || next.Job.Code != "request_persisted" ||
+		next.Job.ThreadID != previous.Job.ThreadID || next.Job.TurnID != "" ||
+		next.Job.ProfileID != previous.Job.ProfileID || next.Job.ServerProfileID != previous.Job.ServerProfileID || next.Job.ExperimentID != previous.Job.ExperimentID ||
+		next.Job.UpdatedAt.Before(previous.Job.UpdatedAt) || next.Job.Runtime == nil || next.Job.Runtime.Execution != "terminal" || next.Job.Runtime.TurnState != "" ||
+		!validID.MatchString(next.CurrentRequestID) || len(next.Requests) != len(previous.Requests)+1 || len(next.Requests[next.CurrentRequestID]) != 64 || len(previous.Requests[previous.CurrentRequestID]) != 64 {
+		return false
+	}
+	if _, used := previous.Requests[next.CurrentRequestID]; used {
+		return false
+	}
+	for id, hash := range previous.Requests {
+		if next.Requests[id] != hash {
+			return false
+		}
+	}
+	return true
+}
+
 func (b *Bridge) saveRuntimeLocked(j *runtimeJob) error {
 	e := journalEntry(j.entry)
 	r := runtimeRecord{Entry: e, Previous: b.runtime.chain, MAC: b.signRuntime(e, b.runtime.chain)}

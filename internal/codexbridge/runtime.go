@@ -191,6 +191,17 @@ func runtimeMessage(code string) string {
 	}
 	return "Execution is unavailable or its outcome is not confirmed; see the status code."
 }
+
+// Only an official terminal receipt for the bound terminal turn can relax the
+// cancellation latch. An interrupt acknowledgement or a pre-dispatch cancel
+// does not prove that the owned turn stopped. The caller also checks live cleanup.
+func continuableInterrupted(e runtimeEntry) bool {
+	j := e.Job
+	return e.Version == 1 && e.Phase == "turn_terminal" && !e.DesktopPending &&
+		j.State == "cancelled" && j.Code == "turn_interrupted" && j.ThreadID != "" && j.TurnID != "" &&
+		j.Runtime != nil && j.Runtime.Execution == "terminal" && j.Runtime.TurnState == "interrupted"
+}
+
 func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.CodexJob, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -215,7 +226,9 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	if _, ok := b.requests[r.RequestID]; ok {
 		return model.CodexJob{}, failure("request_id_conflict")
 	}
-	if j.active || b.runtime.closing || j.entry.Job.CancelRequested || j.entry.Job.ThreadID == "" || (j.entry.Job.State != "completed" && j.entry.Job.State != "failed" && j.entry.Job.State != "local_takeover") {
+	interrupted := continuableInterrupted(j.entry)
+	if j.active || b.runtime.closing || j.client != nil || j.lease != nil || j.entry.DesktopPending || j.entry.Job.Runtime == nil || j.entry.Job.ThreadID == "" ||
+		(!interrupted && (j.entry.Job.CancelRequested || (j.entry.Job.State != "completed" && j.entry.Job.State != "failed" && j.entry.Job.State != "local_takeover"))) {
 		return model.CodexJob{}, failure("job_not_continuable")
 	}
 	if ctx.Err() != nil {
@@ -228,31 +241,45 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	if b.profileHash(cfg, p, s) != j.entry.ProfileHash {
 		return model.CodexJob{}, failure("profile_changed")
 	}
+	if interrupted && p.Execution != "terminal" {
+		return model.CodexJob{}, failure("job_not_continuable")
+	}
 	a := b.acceptance()
 	if (p.Execution == "terminal" && !a.Terminal) || (p.Execution == "computer_use" && !a.NativeComputerUse) {
 		return model.CodexJob{}, failure("runtime_acceptance_required")
 	}
-	j.entry.Requests[r.RequestID] = hash
-	j.entry.CurrentRequestID = r.RequestID
+	// Prepare the complete intent separately: a failed append must not clear the
+	// cancellation latch or consume this request in the live entry.
+	next := &runtimeJob{entry: j.entry}
+	next.entry.Job = cloneJob(j.entry.Job)
+	next.entry.Requests = make(map[string]string, len(j.entry.Requests)+1)
+	for id, requestHash := range j.entry.Requests {
+		next.entry.Requests[id] = requestHash
+	}
+	next.entry.Requests[r.RequestID] = hash
+	next.entry.CurrentRequestID = r.RequestID
 	// A new request has no associated turn until its own start response is durable.
 	// Recovery must never treat the previous request's terminal turn as its result.
-	j.entry.Job.TurnID = ""
-	j.entry.Phase = "continue_intent"
-	j.entry.Job.State = "queued"
-	j.entry.Job.Code = "request_persisted"
-	j.entry.Job.UpdatedAt = time.Now().UTC()
-	j.entry.Job.Runtime.Text = ""
-	j.entry.Job.Runtime.Images = nil
-	j.entry.Job.Runtime.ImageDeliveryStatus = ""
-	j.entry.Job.Runtime.ReviewLocation = ""
-	j.entry.Job.Runtime.Evidence = nil
-	j.entry.Job.Runtime.Approvals = nil
-	j.entry.Job.Runtime.ResultStatus = "pending"
-	j.entry.Job.Runtime.Verification = "unverified"
-	j.entry.Job.Runtime.TurnState = ""
-	if e := b.saveRuntimeLocked(j); e != nil {
+	next.entry.Job.TurnID = ""
+	next.entry.Phase = "continue_intent"
+	next.entry.Job.State = "queued"
+	next.entry.Job.Code = "request_persisted"
+	next.entry.Job.Message = runtimeMessage("request_persisted")
+	next.entry.Job.CancelRequested = false
+	next.entry.Job.UpdatedAt = time.Now().UTC()
+	next.entry.Job.Runtime.Text = ""
+	next.entry.Job.Runtime.Images = nil
+	next.entry.Job.Runtime.ImageDeliveryStatus = ""
+	next.entry.Job.Runtime.ReviewLocation = ""
+	next.entry.Job.Runtime.Evidence = nil
+	next.entry.Job.Runtime.Approvals = nil
+	next.entry.Job.Runtime.ResultStatus = "pending"
+	next.entry.Job.Runtime.Verification = "unverified"
+	next.entry.Job.Runtime.TurnState = ""
+	if e := b.saveRuntimeLocked(next); e != nil {
 		return model.CodexJob{}, e
 	}
+	j.entry = next.entry
 	b.launchLocked(r.JobID, r.Prompt, false)
 	return cloneJob(j.entry.Job), nil
 }
