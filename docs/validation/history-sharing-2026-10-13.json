@@ -45,7 +45,10 @@
     "tunnel_after_update": "ready",
     "runtime_stdio_catalog_count": 14,
     "rpc_read_before_enable": "history_disabled",
-    "history_opt_in": "waiting_for_local_user"
+    "history_opt_in": "confirmed_by_local_user",
+    "history_after_opt_in": {"available": true, "state": "ready", "mode": "all", "revision": 1},
+    "live_hosted_plugin_projects_search_and_read": "passed",
+    "initial_hosted_search_transport_closed": "observed_later_exact_search_and_read_succeeded"
   },
   "official_plugin": {
     "existing_identity_preserved": true,
@@ -54,13 +57,25 @@
     "history_tools": ["codex_projects", "codex_threads", "codex_read_thread"]
   },
   "mac_source_dot": {
-    "official_attached_still_mac": "confirmed_by_source_dot",
+    "official_attached_still_mac": "confirmed_before_and_after_by_source_dot",
     "windows_attached": false,
-    "actual_existing_source_session_catalog_count": 11,
-    "new_history_tools_discovered": false,
-    "devices_history_state": "blocked_history_disabled",
-    "conversation_bodies_read": false,
-    "cross_computer_allowlist_acceptance": "not_passed_pending_opt_in_and_source_catalog_reload"
+    "previous_source_session_catalog_count": 11,
+    "new_history_tools_discovered": true,
+    "observed_history_tools": ["codex_projects", "codex_threads", "codex_read_thread"],
+    "devices_history_state": "ready_all_revision_1",
+    "conversation_bodies_read": true,
+    "existing_non_dotcontrol_conversation_recent_turn_count": 1,
+    "title_search": "initial_mcp_timeout_minus_32603_then_one_retry_succeeded",
+    "read_result": "title_and_one_turn_returned_with_next_cursor",
+    "omitted_non_text": true,
+    "body_truncation_marker": "not_returned",
+    "source_displayed": "title_turn_count_omission_notice_and_short_topic_summary",
+    "mac_initial_connection": "offline_with_attached_true",
+    "mac_final_connection": "connected_with_attached_true",
+    "local_mac_task_created": false,
+    "mac_process_execution_proven": false,
+    "all_mode_dot_to_windows_read": "passed_at_dot_plugin_boundary_with_mac_attachment_preserved",
+    "cross_computer_allowlist_acceptance": "not_passed_pending_local_scope_confirmation"
   },
   "mac_target_execution": "not_tested",
   "published_installers_updated": false,
