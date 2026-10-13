@@ -77,7 +77,7 @@ function renderState(s){
  rows('validation',[['本地服务','就绪',true],['云端隧道',cloudLabel(s.tunnel),online],['源 Dot 调用',s.plugin?.devices_seen?'已收到 MCP 设备查询；请在源 Dot 核对本次结果':'等待源 Dot 调用',!!s.plugin?.devices_seen],...validation]);
  if(!networkEditing){el('network-mode').value=s.network?.mode||'auto';el('network-proxy').value=s.network?.proxy_url||'';el('network-proxy-row').hidden=el('network-mode').value!=='manual'}
  const source=({system:'系统代理',environment:'进程代理',manual:'手动代理',direct:'直连',none:'直连',bypass:'按绕过规则直连'}[s.tunnel?.proxy_source]||s.tunnel?.proxy_source||'尚未确认');
- el('network-summary').textContent='当前连接方式：'+source+'；'+cloudLabel(s.tunnel)+(s.tunnel?.network_change_pending?'；新设置等待隧道下次启动':'');
+ el('network-summary').textContent='当前连接方式：'+source+'；'+cloudLabel(s.tunnel)+(s.tunnel?.network_change_pending?'；新设置等待隧道下次启动':'')+(s.tunnel?.network_change_error?'；新设置需要处理：'+(messages[s.tunnel.network_change_error]||s.tunnel.network_change_error):'');
  el('codex').textContent=terminal?(cap?.available?'本机 Codex 已就绪；源端工具目录尚未验证。':terminalStatus):(s.codex?.reason||'请连接本机 Codex。');
  el('permission-note').textContent=terminal?'仅终端模式不要求桌面权限。':s.device.os==='darwin'?'桌面功能需要辅助功能、屏幕录制和输入监控权限。':'';
  el('verify-note').textContent=terminal?'本机就绪不代表源端已加载终端工具。升级后，请在源端官方插件设置点击 Refresh tools，再新建会话并复制测试指令核对。SSH 等工作之后在 Windows 中处理。':'启用后再观察一个已打开的无害窗口，确认源 Dot 实际显示了图片。';
