@@ -2,7 +2,7 @@
 // Selections stay local. Titles are rendered as text, never HTML.
 let historyPolicy=null,historyPreview=null,historyCursor='',historyChosen=new Set(),historyRows=new Map(),historyCapability=null,historyStatusSerial=0,historyPollPending=null;
 let historyEditSerial=0,historyResetAt=null,historyChecks=new Map();
-const hapi=data=>api('history',data),hmsg=text=>el('history-message').textContent=text;
+const hapi=data=>api('history',data),hmsg=text=>feedback(el('history-message'),text);
 function historyCount(){el('history-selection-count').textContent='已选 '+historyChosen.size+' 个'}
 async function historyStatus(resetSelection=false){
  if(resetSelection)historyResetAt=historyEditSerial;

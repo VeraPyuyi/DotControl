@@ -36,7 +36,14 @@ Object.assign(messages,{
  open_from_dotcontrol:'当前浏览器尚未连接向导。请从 DotControl 在此浏览器重新打开一次；已保存配置不受影响。',
  session_rejected:'向导访问已过期或代理已重启。请从 DotControl 重新打开一次；已保存配置不受影响。',
  launch_expired_open_dotcontrol:'打开链接已过期或当前浏览器没有有效会话。请从 DotControl 重新打开一次。',
- history_preview_expired:'清单预览已过期，请重新生成并核对；当前共享范围未改变。'
+ history_preview_expired:'清单预览已过期，请重新生成并核对；当前共享范围未改变。',
+ history_revision_conflict:'共享范围已在其他窗口更新，请重新生成预览后确认。',
+ history_access_changed:'共享范围已改变，请重新查找会话；候选选择仍保留。',
+ history_codex_unavailable:'尚未连接本机 Codex，请先在 Codex 区域检查连接。',
+ history_codex_version_unsupported:'本机 Codex 版本与历史读取接口不兼容，请查看诊断。',
+ history_local_interface_unavailable:'本机 Codex 的会话接口暂不可用，请检查连接后重试。',
+ device_revoked:'此设备的远程访问已撤销。',
+ device_paused:'远程访问已暂停，请在概览中恢复后重试。'
 });
 async function requestAPI(path,data){
  const r=await fetch('/onboard/api/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-DotControl-CSRF':csrf},body:JSON.stringify(data)});
@@ -58,7 +65,10 @@ async function api(path,data={}){
 }
 function msg(s){
  const target=typeof consoleView==='string'&&!sessionBlocked?consoleView+'-message':'message';
- const box=el(target)||el('message');box.textContent=s;
+ feedback(el(target)||el('message'),s);
+}
+function feedback(box,s){
+ box.textContent=s;
  if(/^[a-z][a-z0-9_]+$/.test(s)){box.textContent='操作未完成，请检查本机配置。';const details=document.createElement('details'),summary=document.createElement('summary'),code=document.createElement('code');summary.textContent='技术详情';code.textContent=s;details.append(summary,code);box.append(details)}
 }
 function rows(id,items){const box=el(id);box.replaceChildren();for(const [label,value,ok] of items){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=label==='桌面驱动'?(messages[value]||value):value;dd.className=ok?'ok':'pending';box.append(dt,dd)}}
