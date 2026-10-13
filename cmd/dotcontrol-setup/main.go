@@ -53,6 +53,18 @@ func main() {
 		}
 		return
 	}
+	args, err := parseSetupArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "DotControl Setup:", err)
+		os.Exit(1)
+	}
+	if args.Install || args.Extract != "" {
+		if err = runHeadless(context.Background(), args, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "DotControl Setup:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	listener, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
 		return
@@ -100,6 +112,13 @@ func verifyPayload() error {
 func (s *setup) Status(context.Context) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.running {
+		if p, e := install.ReadProgress(desktop.ProgramRoot()); e == nil {
+			if phase := installationPhase(p.Phase); phase != "" {
+				s.phase = phase
+			}
+		}
+	}
 	return map[string]any{"phase": s.phase, "error": s.problem, "running": s.running, "url": s.url, "instances": s.choices}, nil
 }
 func (s *setup) Connect(context.Context, onboard.Connect) error {
@@ -188,6 +207,13 @@ func (s *setup) run() {
 		s.set("安装尚未完成", installationMessage(errText.String()))
 		return
 	}
+	var installed struct {
+		CleanupPending bool `json:"cleanup_pending"`
+	}
+	if json.Unmarshal(out.Bytes(), &installed) == nil && installed.CleanupPending {
+		s.set("新版已启用，旧程序清理待重试", installationMessage("cleanup_pending"))
+		return
+	}
 	current, e := install.ReadCurrent(desktop.ProgramRoot())
 	if e != nil {
 		s.set("安装记录读取失败", "请重新打开安装包修复。")
@@ -215,6 +241,9 @@ func (s *setup) run() {
 }
 func installationMessage(stderr string) string {
 	message := strings.TrimSpace(stderr)
+	if strings.Contains(message, "cleanup_pending") {
+		return "新版已通过健康检查并保持启用。部分旧程序仍被进程或登录启动引用，清理待重试；正常退出引用程序后点击“重试安装”。不会回退新版，也不会删除设备数据。"
+	}
 	code := strings.TrimSpace(strings.TrimPrefix(message, "DotControl:"))
 	lines := strings.Split(code, "\n")
 	code = strings.TrimSpace(lines[0])
@@ -226,6 +255,10 @@ func installationMessage(stderr string) string {
 		}
 	}
 	switch code {
+	case "legacy_executable_required":
+		return "已有设备来自非托管安装。请使用维护安装入口并通过 --legacy-executable 指定原 DotControl 程序，以便健康检查失败时恢复原程序。设备数据保持原样。"
+	case "agent_process_exit_timeout", "agent_exit_recovery_pending", "program_process_referenced", "program_process_reference_unknown", "program_startup_referenced":
+		return "旧程序仍被进程或登录启动引用，安装暂未完成。请正常退出原程序及其任务后重试；不要强制结束进程或删除锁文件。"
 	case "legacy_agent_stop_required":
 		return "旧版代理不支持自动退出。请等待桌面任务结束，再在原终端按 Control+C 正常退出旧代理，然后点击“重试安装”。若在后台运行，请从原启动入口正常退出。无需删除锁文件或设备目录。"
 	case "agent_stop_timeout", "wait_for_active_task_to_stop":

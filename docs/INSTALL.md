@@ -4,7 +4,7 @@
 
 ## 1. 安装
 
-- Windows 11 x64：打开 DotControl-0.2.0-alpha.2-windows-amd64-setup.exe。
+- Windows 11 x64：打开 DotControl-0.2.0-alpha.3-windows-amd64-setup.exe。
 - Mac Apple Silicon：打开 macos-arm64.dmg 内的 DotControl Setup.app。
 - Mac Intel：使用 macos-amd64.dmg。
 
@@ -40,6 +40,10 @@ Mac 的 CuaDriver 固定放在 /Applications/CuaDriver.app。活动检测和菜�
 
 再次运行完整安装包可修复程序文件。旧版正在执行时先正常停止任务；没有新管理接口的 0.1 代理须先退出。已有网关配置的迁移目前拒绝执行，原配置保持不变。
 
+升级先等待已接受任务完成和旧代理及其子进程正常退出，再检查新代理的设备身份、版本和实际程序路径。退出请求被拒绝时不改写配置、不调用取消任务的普通退出接口。健康检查失败会按私有恢复记录还原原配置字节、程序引用和登录启动设置；恢复记录也用于处理中断后的重试。已有设备原先关闭登录启动时，升级保留关闭状态；首次安装默认启用登录启动。
+
+新版通过健康检查后才清理安装清单记录的旧程序文件。程序进程或登录启动仍有引用、文件内容改变或引用无法确认时，显示“旧程序清理待重试”，新版保持启用。重试先完成此前清理，不能回退到已经开始清理的旧版本。用户附加文件、设备身份、隧道、系统凭据、暂停/撤销状态、共享范围与动作记录保留。Mac 的共享 CuaDriver 应用不属于旧版本清理范围。
+
 ## 高级维护
 
 以下为维护命令，不是正常用户安装步骤。对同一设备始终使用同一个 --state 目录：
@@ -52,5 +56,15 @@ Mac 的 CuaDriver 固定放在 /Applications/CuaDriver.app。活动检测和菜�
 - dotcontrol codex-probe --binary <官方 Codex 绝对路径> --working-dir <独立诊断目录>
 
 uninstall 只移除本项目管理的程序文件和登录启动设置，保留设备记录与凭据；不提供隐式清除。请勿手工删除账本以解决结果不确定。安装器的 --verify-payload 仅校验实际包内文件，不安装、不启用桌面任务。
+
+Windows 非托管开发版本迁入托管目录时，先等待任务结束并从原入口正常退出旧代理，再指定原程序的绝对路径：
+
+```text
+DotControl-0.2.0-alpha.3-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
+```
+
+安装器确认候选为普通无链接的 DotControl 程序，并记录 SHA-256；失败时可重新启动原程序。它不会自动删除非托管程序或其目录。非托管迁移在 alpha.3 仅支持 Windows；Mac 托管升级继续使用原设备目录。不能通过删除原设备目录绕过迁移选择。
+
+自动验收可使用完整安装包的 `--install --state <绝对路径> --program-root <绝对路径> --no-start`，返回单个 JSON 结果。`--no-start` 仅用于隔离测试：校验包和二进制版本，更新所选隔离目录，不启动代理、不修改登录启动、不创建凭据、不安装共享 Mac 组件；结果中的 `runtime_verified` 为 false。已提交的清理阻塞返回 `installed: true, cleanup_pending: true`，无需回退新版。`--extract-payload <空目录绝对路径>` 只展开并校验实际嵌入文件，可用于隔离验收。两个维护入口均不打开界面，不接受外部 `--bundle` 替换安装包内载荷。通常使用双击安装。
 
 0.1 源码安装和历史迁移细节已移到 [旧版说明](INSTALL_0_1_LEGACY.md)。
