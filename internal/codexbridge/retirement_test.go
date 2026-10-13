@@ -130,16 +130,24 @@ func TestBoundStartupPendingRequestInterruptsOnceWithoutStartResponse(t *testing
 			case <-time.After(time.Second):
 				t.Fatal("turn start was not dispatched")
 			}
-			peer.send(map[string]any{"id": "setup-input", "method": "item/tool/requestUserInput", "params": map[string]any{"threadId": "owned-thread", "turnId": "turn-1"}})
 			if tc.startResponse == "before_interrupt" {
 				peer.send(startResponse)
+				// Make the response-winning branch deterministic: do not let the
+				// startup watcher cancel the call before its response is bound.
+				waitRuntime(t, b, j.JobID, func(got model.CodexJob) bool { return got.TurnID == "turn-1" && got.State == "running" })
 			}
-			deadline := time.Now().Add(time.Second)
-			for peer.count("turn/interrupt") == 0 && time.Now().Before(deadline) {
-				time.Sleep(time.Millisecond)
-			}
+			peer.send(map[string]any{"id": "setup-input", "method": "item/tool/requestUserInput", "params": map[string]any{"threadId": "owned-thread", "turnId": "turn-1"}})
+			// Wait on the same bounded runtime helper used elsewhere, including
+			// journal persistence. This is a protocol assertion, not a 1s SLA.
+			waitRuntime(t, b, j.JobID, func(got model.CodexJob) bool {
+				return (got.Code == "needs_local_setup" && peer.count("turn/interrupt") != 0) || runtimeTerminal(got.State)
+			})
 			if peer.count("turn/interrupt") != 1 {
-				t.Fatal("bound pending startup request did not send one official interrupt")
+				got, _ := b.Job(r.DeviceID, j.JobID)
+				b.mu.Lock()
+				active, phase := b.runtime.jobs[j.JobID].active, b.runtime.jobs[j.JobID].entry.Phase
+				b.mu.Unlock()
+				t.Fatalf("bound pending startup request interrupt count=%d active=%t phase=%s job=%+v", peer.count("turn/interrupt"), active, phase, got)
 			}
 			peer.mu.Lock()
 			var params struct{ ThreadID, TurnID string }

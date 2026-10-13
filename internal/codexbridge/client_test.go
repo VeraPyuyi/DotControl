@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -177,6 +180,67 @@ func TestRequestTimeoutClosesBlockedWriter(t *testing.T) {
 	case <-c.Done():
 	default:
 		t.Fatal("blocked transport still open")
+	}
+}
+
+type completedWriteCloser struct {
+	wrote chan struct{}
+	once  sync.Once
+	short bool
+}
+
+func (w *completedWriteCloser) Write(data []byte) (int, error) {
+	w.once.Do(func() { close(w.wrote) })
+	if w.short {
+		return len(data) - 1, nil
+	}
+	return len(data), nil
+}
+func (*completedWriteCloser) Close() error { return nil }
+
+type cancelAfterWriteResult struct {
+	context.Context
+	client *Client
+	wrote  <-chan struct{}
+}
+
+func (ctx cancelAfterWriteResult) Done() <-chan struct{} {
+	<-ctx.wrote
+	// writeMu is released only after the buffered result is sent. Both the
+	// result and cancellation are ready when write evaluates its select.
+	ctx.client.writeMu.Lock()
+	ctx.client.writeMu.Unlock()
+	return ctx.Context.Done()
+}
+
+func TestCompletedWriteCancellationKeepsTransportForInterrupt(t *testing.T) {
+	for _, short := range []bool{false, true} {
+		for attempt := range 32 {
+			writer := &completedWriteCloser{wrote: make(chan struct{}), short: short}
+			c := &Client{reader: io.NopCloser(strings.NewReader("")), writer: writer, done: make(chan struct{}), pending: make(map[string]chan response)}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			err := c.write(cancelAfterWriteResult{ctx, c, writer.wrote}, []byte("turn/start\n"))
+			if short {
+				var transport *TransportError
+				if !errors.As(err, &transport) || !transport.OutcomeUnknown {
+					t.Fatalf("partial write lost uncertainty: %v", err)
+				}
+				select {
+				case <-c.Done():
+				default:
+					t.Fatal("partial write left the transport open")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("completed write lost to cancellation on attempt %d: %v", attempt, err)
+				}
+				if err = c.write(context.Background(), []byte("turn/interrupt\n")); err != nil {
+					t.Fatalf("completed write closed the interrupt transport: %v", err)
+				}
+			}
+			_ = c.Close()
+		}
 	}
 }
 

@@ -213,24 +213,32 @@ func (c *Client) write(ctx context.Context, data []byte) error {
 		}
 		result <- err
 	}()
+	var err error
 	select {
-	case err := <-result:
-		if err != nil {
-			e := &TransportError{Code: "codex_connection_lost", OutcomeUnknown: true}
+	case err = <-result:
+	case <-ctx.Done():
+		// A completed write may race cancellation. Preserve the connection
+		// for an official interrupt when its successful result is already
+		// available; genuinely unresolved writes still close with uncertainty.
+		select {
+		case err = <-result:
+		default:
+			e := &TransportError{Code: "codex_request_timeout", OutcomeUnknown: true}
 			c.shutdown(e)
 			return e
 		}
-		return nil
-	case <-ctx.Done():
-		e := &TransportError{Code: "codex_request_timeout", OutcomeUnknown: true}
-		c.shutdown(e)
-		return e
 	case <-c.done:
 		c.mu.Lock()
 		err := c.terminal
 		c.mu.Unlock()
 		return err
 	}
+	if err != nil {
+		e := &TransportError{Code: "codex_connection_lost", OutcomeUnknown: true}
+		c.shutdown(e)
+		return e
+	}
+	return nil
 }
 
 // Call sends exactly one public protocol request. It never retries. It is an
