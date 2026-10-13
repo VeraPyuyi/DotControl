@@ -24,6 +24,21 @@ func TestMain(m *testing.M) {
 			args[os.Args[i]] = os.Args[i+1]
 		}
 		dir := args["--control-plane.tunnel-id"]
+		go func() {
+			for {
+				time.Sleep(20 * time.Millisecond)
+				b, _ := os.ReadFile(filepath.Join(dir, "state"))
+				if string(b) == "exit" {
+					os.WriteFile(filepath.Join(dir, "state"), []byte("polling"), 0600)
+					os.Exit(0)
+				}
+			}
+		}()
+		initial, _ := os.ReadFile(filepath.Join(dir, "state"))
+		if string(initial) == "logs" {
+			os.Stderr.WriteString("{\"msg\":\"poll failed; backing off\",\"error\":\"proxyconnect tcp http://dns-user:tls-password@tls-proxy.example:8080 connection reset\"}\n")
+			os.Stderr.WriteString("{\"msg\":\"network_error\",\"url\":\"http://secret:secret@dns-proxy.example\",\"time\":\"2026-10-13T10:05:20.401403Z\"}\n")
+		}
 		started := time.Now().UTC()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			state, _ := os.ReadFile(filepath.Join(dir, "state"))
@@ -33,6 +48,14 @@ func TestMain(m *testing.M) {
 			details(f, "control-plane")["last_success"] = now
 			details(f, "control-plane")["last_attempt"] = now
 			switch string(state) {
+			case "idle_late":
+				component(f, "control-plane")["state"] = "idle"
+			case "logs":
+				component(f, "control-plane")["state"] = "backoff"
+				component(f, "control-plane")["status"] = "degraded"
+				details(f, "control-plane")["consecutive_failures"] = 1
+				details(f, "control-plane")["last_error"] = now
+				details(f, "control-plane")["failure_category"] = "network_error"
 			case "busy":
 				component(f, "control-plane")["state"] = "idle"
 				details(f, "dispatcher")["active"] = 1
@@ -46,6 +69,15 @@ func TestMain(m *testing.M) {
 				details(f, "control-plane")["failure_category"] = "network"
 			}
 			json.NewEncoder(w).Encode(f)
+			if string(state) == "idle_late" {
+				// Simulate commands already returned by Poll but not yet visible in
+				// queue/dispatcher health when Succeeded records the idle state.
+				os.WriteFile(filepath.Join(dir, "late-received"), []byte("received"), 0600)
+				go func() {
+					time.Sleep(time.Second)
+					os.WriteFile(filepath.Join(dir, "late-completed"), []byte("completed"), 0600)
+				}()
+			}
 		}))
 		if err := os.WriteFile(args["--health.url-file"], []byte(server.URL), 0600); err != nil {
 			os.Exit(2)
@@ -61,7 +93,42 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestLifecycleDefersProxySwitchUntilConfirmedIdle(t *testing.T) {
+func TestStderrURLsAndCredentialsCannotInventDNSOrTLSFailures(t *testing.T) {
+	dir := t.TempDir()
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "state"), []byte("logs"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Start(context.Background(), dir, config.Config{Network: config.Network{Mode: "direct"}, TunnelID: dir, TunnelPath: binary, Listen: "127.0.0.1:1"}, testSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Stop()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(filepath.Join(dir, "launches")); err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if s.Status().Error != "" {
+		t.Fatalf("stderr invented diagnostic: %s", s.Status().Error)
+	}
+	deadline = time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		if s.Status().Error == "tunnel_network_failed" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("structured generic failure was not retained", s.Status())
+}
+
+func TestLifecycleKeepsLateArrivalsAndAppliesProxyOnlyAfterChildExit(t *testing.T) {
 	t.Setenv("NO_PROXY", "")
 	t.Setenv("no_proxy", "")
 	dir := t.TempDir()
@@ -112,7 +179,17 @@ func TestLifecycleDefersProxySwitchUntilConfirmedIdle(t *testing.T) {
 		t.Fatal("busy process was interrupted", s.Status())
 	}
 	writeState("backoff")
-	waitFor("idle backoff did not apply proxy", func() bool {
+	time.Sleep(5500 * time.Millisecond)
+	if launches() != 1 || !s.Status().NetworkChangePending || s.Status().ProxySource != "direct" {
+		t.Fatal("backoff snapshot interrupted live process", s.Status())
+	}
+	writeState("idle_late")
+	waitFor("late command did not complete", func() bool { _, err := os.Stat(filepath.Join(dir, "late-completed")); return err == nil })
+	if launches() != 1 || !s.Status().NetworkChangePending || s.Status().ProxySource != "direct" {
+		t.Fatal("idle snapshot interrupted newly arrived command", s.Status())
+	}
+	writeState("exit")
+	waitFor("natural exit did not apply pending proxy", func() bool {
 		return launches() == 2 && s.Status().ProxySource == "manual" && !s.Status().NetworkChangePending
 	})
 }

@@ -76,37 +76,27 @@ func TestHealthRequiresCurrentSuccessfulCloudEvidence(t *testing.T) {
 	}
 }
 
-func TestHealthGenerationAndSwitchRequireCompleteIdleEvidence(t *testing.T) {
+func TestOfficialHTTPErrorCategoryIsRecognized(t *testing.T) {
+	if got := pollError("http_error", "", 502); got != "tunnel_http_failed" {
+		t.Fatalf("http_error classified as %s", got)
+	}
+	if got := pollError("network_error", "", 0); got != "tunnel_network_failed" {
+		t.Fatalf("network_error classified as %s", got)
+	}
+}
+
+func TestHealthGenerationCannotReuseAnotherProcess(t *testing.T) {
 	now := time.Now().UTC()
 	f := healthFixture(now)
 	g := healthGeneration{launchedAt: now.Add(-time.Minute)}
 	b, _ := json.Marshal(f)
-	if g.observe(b, now).SafeToSwitch {
-		t.Fatal("in-flight poll must defer restart")
-	}
-	component(f, "control-plane")["state"] = "idle"
-	b, _ = json.Marshal(f)
-	if !g.observe(b, now).SafeToSwitch {
-		t.Fatal("complete idle snapshot should allow switch")
-	}
-	for _, pair := range [][2]string{{"dispatcher", "active"}, {"response-delivery", "in_progress"}, {"queue", "depth"}} {
-		d := details(f, pair[0])
-		d[pair[1]] = 1
-		b, _ = json.Marshal(f)
-		if g.observe(b, now).SafeToSwitch {
-			t.Fatal("busy switch allowed", pair)
-		}
-		delete(d, pair[1])
-		b, _ = json.Marshal(f)
-		if g.observe(b, now).SafeToSwitch {
-			t.Fatal("missing counter counted as zero", pair)
-		}
-		d[pair[1]] = 0
+	if !g.observe(b, now).Ready {
+		t.Fatal("current generation should be ready")
 	}
 	f["runtime"].(map[string]any)["instance_id"] = "different"
 	b, _ = json.Marshal(f)
 	got := g.observe(b, now)
-	if got.Ready || got.SafeToSwitch || got.Error != "tunnel_health_generation_mismatch" {
+	if got.Ready || got.Error != "tunnel_health_generation_mismatch" {
 		t.Fatal(got)
 	}
 	g = healthGeneration{launchedAt: now}

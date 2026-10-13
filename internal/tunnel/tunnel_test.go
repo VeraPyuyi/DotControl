@@ -60,26 +60,36 @@ func TestFailureSurvivesRestartAndClearsOnlyAfterNewCloudSuccess(t *testing.T) {
 	}
 }
 
-func TestNetworkUpdateDefersUntilValidIdleAndKeepsActiveSource(t *testing.T) {
+func TestNetworkUpdateCannotAuthorizeLiveRestartAndKeepsActiveSource(t *testing.T) {
 	s := &Supervisor{Running: true, proxySource: "system", network: config.Network{Mode: "auto"}}
 	if err := s.UpdateNetwork(config.Network{Mode: "manual", ProxyURL: "http://local.test:8888"}); err != nil {
 		t.Fatal(err)
 	}
 	current := resolvedNetwork{NetworkStatus: NetworkStatus{Mode: "auto", Source: "system"}, proxyURL: "http://old.test:8080"}
 	next := resolvedNetwork{NetworkStatus: NetworkStatus{Mode: "manual", Source: "manual"}, proxyURL: "http://local.test:8888"}
-	for _, obs := range []healthObservation{{}, {Ready: true, LocalReady: true, CloudState: "online"}, {CloudState: "backpressured"}} {
-		if s.switchNetwork(current, next, obs) {
-			t.Fatal("unconfirmed/busy request permitted restart")
-		}
-		if !s.Status().Running || !s.Status().NetworkChangePending || s.Status().ProxySource != "system" {
-			t.Fatal(s.Status())
-		}
-	}
-	if !s.switchNetwork(current, next, healthObservation{SafeToSwitch: true, CloudState: "degraded"}) {
-		t.Fatal("idle backoff did not permit switch")
+	s.observeNetwork(current, next)
+	if !s.Status().Running || !s.Status().NetworkChangePending || s.Status().ProxySource != "system" {
+		t.Fatal(s.Status())
 	}
 	if err := s.UpdateNetwork(config.Network{Mode: "manual", ProxyURL: "http://user:secret@host"}); err == nil {
 		t.Fatal("credentialed update accepted")
+	}
+}
+
+func TestPendingRouteErrorCannotContaminateActiveCloudHealth(t *testing.T) {
+	now := time.Now()
+	s := &Supervisor{Running: true, Ready: true, localReady: true, cloudState: "online", proxySource: "direct", lastSuccessfulPollAt: &now}
+	s.observeNetworkError("proxy_pac_unsupported")
+	got := s.Status()
+	if !got.Ready || got.Error != "" || got.CloudState != "online" || got.ProxySource != "direct" {
+		t.Fatal("pending route falsified active health", got)
+	}
+	if !got.NetworkChangePending || got.NetworkChangeError != "proxy_pac_unsupported" {
+		t.Fatal("pending route failure missing", got)
+	}
+	s.observeNetwork(resolvedNetwork{}, resolvedNetwork{NetworkStatus: NetworkStatus{Source: "manual"}, proxyURL: "http://proxy:80"})
+	if s.Status().NetworkChangeError != "" {
+		t.Fatal("valid candidate retained prior route error")
 	}
 }
 
@@ -156,25 +166,5 @@ func TestMissingBinaryRetriesWithoutLosingSupervisorAndStopsPromptly(t *testing.
 	}
 	if s.Status().Running {
 		t.Fatal("still running")
-	}
-}
-func TestLogClassifierDoesNotExposeCredentialBearingText(t *testing.T) {
-	s := &Supervisor{}
-	writer := classifiedLog{s}
-	writer.Write([]byte("secret=example PRIVATE upstream x509 certificate failure"))
-	if s.Status().Error != "tunnel_tls_failed" {
-		t.Fatal(s.Status())
-	}
-}
-
-func TestLogDigitsCannotInventAuthenticationFailure(t *testing.T) {
-	s := &Supervisor{}
-	classifiedLog{s}.Write([]byte(`{"time":"2026-10-13T10:05:20.401403Z","message":"poll complete","duration_ms":401}`))
-	if s.Status().Error != "" {
-		t.Fatal("timestamp/duration became auth error", s.Status())
-	}
-	classifiedLog{s}.Write([]byte(`{"message":"proxy authentication required"}`))
-	if s.Status().Error != "requires_local_proxy_auth" {
-		t.Fatal("proxy auth failure not classified", s.Status())
 	}
 }

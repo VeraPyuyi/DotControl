@@ -23,6 +23,9 @@ func TestNetworkResolutionPrecedenceAndBypass(t *testing.T) {
 		{name: "explicit direct ignores invalid env", mode: config.Network{Mode: "direct"}, env: map[string]string{"HTTPS_PROXY": "socks5://secret"}, wantSource: "direct"},
 		{name: "control env priority", env: map[string]string{"CONTROL_PLANE_HTTP_PROXY": "http://one:80", "HTTPS_PROXY": "http://two:80"}, system: systemProxy{URL: "http://three:80"}, wantSource: "environment", wantProxy: "http://one:80"},
 		{name: "https environment", env: map[string]string{"https_proxy": "http://one:80"}, wantSource: "environment", wantProxy: "http://one:80"},
+		{name: "HTTP env does not cover HTTPS", env: map[string]string{"HTTP_PROXY": "http://http-only:80", "http_proxy": "http://http-only-lower:80"}, wantSource: "direct"},
+		{name: "HTTP env does not mask HTTPS system route", env: map[string]string{"HTTP_PROXY": "http://http-only:80"}, system: systemProxy{URL: "http://https-route:80"}, wantSource: "system", wantProxy: "http://https-route:80"},
+		{name: "protocol neutral ALL_PROXY", env: map[string]string{"ALL_PROXY": "http://all:80"}, wantSource: "environment", wantProxy: "http://all:80"},
 		{name: "static user proxy", system: systemProxy{URL: "http://three:80"}, wantSource: "system", wantProxy: "http://three:80"},
 		{name: "env bypass", env: map[string]string{"HTTPS_PROXY": "http://one:80", "NO_PROXY": ".openai.com"}, system: systemProxy{URL: "http://three:80"}, wantSource: "bypass"},
 		{name: "system bypass", system: systemProxy{URL: "http://three:80", Bypass: "*.openai.com;<local>"}, wantSource: "bypass"},
@@ -77,6 +80,15 @@ func TestProxySecretsNeverEnterDiagnosticsOrArguments(t *testing.T) {
 }
 
 func TestSystemProxyParsers(t *testing.T) {
+	if p := parseWindowsProxy("http=http-only:8080", "", false, ""); p.URL != "" {
+		t.Fatal("HTTP-only Windows proxy used for HTTPS")
+	}
+	if p := parseWindowsProxy("neutral:8080", "", false, ""); p.URL != "http://neutral:8080" {
+		t.Fatal("protocol-neutral Windows proxy lost")
+	}
+	if p := parseSCUtilProxy("HTTPEnable : 1\nHTTPProxy : http-only\nHTTPPort : 8080"); p.URL != "" {
+		t.Fatal("HTTP-only Mac proxy used for HTTPS")
+	}
 	w := parseWindowsProxy("http=web:8080;https=secure:8443;socks=socks:1080", "*.example.test", false, "")
 	if w.URL != "http://secure:8443" || w.Bypass != "*.example.test" {
 		t.Fatal(w)

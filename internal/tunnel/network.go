@@ -55,7 +55,9 @@ func resolveNetwork(ctx context.Context, n config.Network, env func(string) (str
 		r.proxyURL = n.ProxyURL
 		return r, nil
 	}
-	raw := firstEnv(env, "DOTCONTROL_CONTROL_PROXY", "CONTROL_PLANE_HTTP_PROXY", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy")
+	// The production control plane uses HTTPS. HTTP_PROXY and protocol-scoped
+	// HTTP-only OS settings do not select a route for that destination.
+	raw := firstEnv(env, "DOTCONTROL_CONTROL_PROXY", "CONTROL_PLANE_HTTP_PROXY", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")
 	if raw != "" {
 		r.Source = "environment"
 		if name, ok := strings.CutPrefix(raw, "env:"); ok {
@@ -176,9 +178,6 @@ func parseWindowsProxy(server, bypass string, autodetect bool, pac string) syste
 	}
 	p.URL = values["https"]
 	if p.URL == "" {
-		p.URL = values["http"]
-	}
-	if p.URL == "" {
 		p.URL = values["all"]
 	}
 	p.SOCKS = values["socks"] != "" || values["socks5"] != ""
@@ -223,7 +222,7 @@ func parseSCUtilProxy(text string) systemProxy {
 		}
 	}
 	p := systemProxy{Bypass: strings.Join(bypass, ";"), PAC: values["ProxyAutoConfigEnable"] == "1" || values["ProxyAutoDiscoveryEnable"] == "1", SOCKS: values["SOCKSEnable"] == "1"}
-	for _, prefix := range []string{"HTTPS", "HTTP"} {
+	for _, prefix := range []string{"HTTPS"} {
 		if values[prefix+"Enable"] != "1" {
 			continue
 		}

@@ -33,6 +33,7 @@ type Supervisor struct {
 	proxySource          string
 	network              config.Network
 	networkChangePending bool
+	networkChangeError   string
 	networkWake          chan struct{}
 	failureAt            time.Time
 	networkRevision      uint64
@@ -47,6 +48,7 @@ type Status struct {
 	LastSuccessfulPollAt *time.Time `json:"last_successful_poll_at,omitempty"`
 	ProxySource          string     `json:"proxy_source"`
 	NetworkChangePending bool       `json:"network_change_pending"`
+	NetworkChangeError   string     `json:"network_change_error,omitempty"`
 }
 
 func (s *Supervisor) applyHealth(h healthObservation, now time.Time) {
@@ -72,8 +74,9 @@ func (s *Supervisor) applyHealth(h healthObservation, now time.Time) {
 	}
 }
 
-// UpdateNetwork queues a change on the existing lifecycle manager. It never
-// terminates a child or replays a task from a UI/configuration request.
+// UpdateNetwork queues a change on the existing lifecycle manager for the next
+// child start. Version 0.0.16 has no lossless admission-freeze/drain protocol;
+// health snapshots cannot authorize terminating a live child.
 func (s *Supervisor) UpdateNetwork(n config.Network) error {
 	if err := config.ValidateNetwork(n); err != nil {
 		return err
@@ -85,6 +88,7 @@ func (s *Supervisor) UpdateNetwork(n config.Network) error {
 	s.network = n
 	s.networkRevision++
 	s.networkChangePending = true
+	s.networkChangeError = ""
 	wake := s.networkWake
 	s.mu.Unlock()
 	if wake != nil {
@@ -100,16 +104,23 @@ func (s *Supervisor) networkConfig() (config.Network, uint64) {
 	defer s.mu.Unlock()
 	return s.network, s.networkRevision
 }
-func (s *Supervisor) switchNetwork(current, next resolvedNetwork, h healthObservation) bool {
+func (s *Supervisor) observeNetwork(current, next resolvedNetwork) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.networkChangeError = ""
 	if current.proxyURL == next.proxyURL {
 		s.networkChangePending = false
 		s.proxySource = next.Source
-		return false
+		return
 	}
 	s.networkChangePending = true
-	return h.SafeToSwitch
+}
+
+func (s *Supervisor) observeNetworkError(code string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.networkChangePending = true
+	s.networkChangeError = code
 }
 
 // ControlPlaneEnvironment is shared by launch and doctor config checks. The
@@ -130,7 +141,7 @@ func (s *Supervisor) Status() Status {
 		value := *s.lastSuccessfulPollAt
 		last = &value
 	}
-	return Status{Configured: s.done != nil, Running: s.Running, Ready: s.Ready, Error: s.LastError, LocalReady: s.localReady, CloudState: s.cloudState, LastSuccessfulPollAt: last, ProxySource: s.proxySource, NetworkChangePending: s.networkChangePending}
+	return Status{Configured: s.done != nil, Running: s.Running, Ready: s.Ready, Error: s.LastError, LocalReady: s.localReady, CloudState: s.cloudState, LastSuccessfulPollAt: last, ProxySource: s.proxySource, NetworkChangePending: s.networkChangePending, NetworkChangeError: s.networkChangeError}
 }
 func (s *Supervisor) Stop() {
 	if s.cancel != nil {
@@ -188,13 +199,9 @@ func Start(ctx context.Context, dir string, c config.Config, v Secrets) (*Superv
 					if revision != latestRevision {
 						continue
 					}
-					ready, changed := s.run(ctx, dir, c, key, token, resolved, revision)
+					ready := s.run(ctx, dir, c, key, token, resolved, revision)
 					if ctx.Err() != nil {
 						return
-					}
-					if changed {
-						delay = time.Second
-						continue
 					}
 					if ready {
 						delay = time.Second
@@ -237,56 +244,28 @@ func (s *Supervisor) set(running, ready bool, code string) {
 	}
 }
 
-type classifiedLog struct{ s *Supervisor }
-
-func (l classifiedLog) Write(p []byte) (int, error) {
-	// Classify in memory and discard. Never retain a key-bearing log line.
-	text := strings.ToLower(string(p))
-	code := ""
-	switch {
-	case strings.Contains(text, "proxy authentication required"):
-		code = "requires_local_proxy_auth"
-	case strings.Contains(text, "unauthorized") || strings.Contains(text, "invalid_api_key"):
-		code = "tunnel_credentials_rejected"
-	case strings.Contains(text, "forbidden"):
-		code = "tunnel_permission_denied"
-	case strings.Contains(text, "certificate") || strings.Contains(text, "x509") || strings.Contains(text, "tls"):
-		code = "tunnel_tls_failed"
-	case strings.Contains(text, "no such host") || strings.Contains(text, "enotfound") || strings.Contains(text, "dns"):
-		code = "tunnel_dns_failed"
-	case strings.Contains(text, "timed out") || strings.Contains(text, "timeout"):
-		code = "tunnel_network_timeout"
-	}
-	if code != "" {
-		l.s.mu.Lock()
-		l.s.LastError = code
-		l.s.failureAt = time.Now()
-		l.s.Ready = false
-		l.s.mu.Unlock()
-	}
-	return len(p), nil
-}
-func (s *Supervisor) run(ctx context.Context, dir string, c config.Config, key, token string, resolved resolvedNetwork, revision uint64) (bool, bool) {
+func (s *Supervisor) run(ctx context.Context, dir string, c config.Config, key, token string, resolved resolvedNetwork, revision uint64) bool {
 	urlfile := filepath.Join(dir, "tunnel-health-"+config.Random()[:12]+".url")
 	defer os.Remove(urlfile)
 	args := []string{"run", "--control-plane.tunnel-id", c.TunnelID, "--control-plane.api-key", "env:DOTCONTROL_TUNNEL_KEY", "--mcp.server-url", "http://" + c.Listen + "/mcp", "--mcp.extra-headers", "X-DotControl-Token: env:DOTCONTROL_MCP_TOKEN", "--health.listen-addr", "127.0.0.1:0", "--health.url-file", urlfile, "--log.level", "warn", "--log.format", "json"}
 	args = append(args, resolved.arguments()...)
-	processCtx, cancelProcess := context.WithCancel(ctx)
-	defer cancelProcess()
-	cmd := exec.CommandContext(processCtx, c.TunnelPath, args...)
+	cmd := exec.CommandContext(ctx, c.TunnelPath, args...)
 	desktop.HideConsole(cmd)
 	cmd.Env = resolved.environment(Environment(key, token))
 	cmd.Stdout = io.Discard
-	cmd.Stderr = classifiedLog{s}
+	// Raw logs can contain URLs, credentials and unrelated DNS/TLS substrings.
+	// Only the bounded official health fields establish a failure category.
+	cmd.Stderr = io.Discard
 	generation := healthGeneration{launchedAt: time.Now()}
 	if cmd.Start() != nil {
 		s.set(false, false, "tunnel_start_failed")
-		return false, false
+		return false
 	}
 	s.set(true, false, "")
 	s.mu.Lock()
 	s.proxySource = resolved.Source
 	s.networkChangePending = revision != s.networkRevision
+	s.networkChangeError = ""
 	s.mu.Unlock()
 	processDone := make(chan error, 1)
 	go func() { processDone <- cmd.Wait() }()
@@ -307,7 +286,7 @@ func (s *Supervisor) run(ctx context.Context, dir string, c config.Config, key, 
 				s.failureAt = time.Now()
 			}
 			s.mu.Unlock()
-			return everReady, false
+			return everReady
 		case <-ticker.C:
 			now := time.Now()
 			observation := unavailable("tunnel_health_unavailable")
@@ -330,26 +309,19 @@ func (s *Supervisor) run(ctx context.Context, dir string, c config.Config, key, 
 				continue
 			}
 			if err != nil {
-				s.mu.Lock()
-				s.networkChangePending = true
-				s.LastError = err.Error()
-				s.failureAt = now
-				s.Ready = false
-				s.mu.Unlock()
+				s.observeNetworkError(err.Error())
 				continue
 			}
-			if s.switchNetwork(resolved, next, observation) {
-				cancelProcess()
-				<-processDone
-				s.set(false, false, "")
-				return everReady, true
-			}
+			// Observations are historical and non-atomic. In 0.0.16 "idle" is
+			// published before received commands are enqueued; even a graceful
+			// signal cancels active work. Preserve the child until it exits.
+			s.observeNetwork(resolved, next)
 			if resolved.proxyURL == next.proxyURL {
 				resolved = next
 				revision = newRevision
 			}
 		case <-s.networkWake:
-			// A change is observed on the next health tick, after fresh idle evidence.
+			// Re-resolve on the next tick; a live child is never stopped here.
 		}
 	}
 }

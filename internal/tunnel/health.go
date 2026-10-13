@@ -17,9 +17,9 @@ type healthGeneration struct {
 	startedAt  time.Time
 }
 type healthObservation struct {
-	Ready, LocalReady, SafeToSwitch bool
-	CloudState, Error               string
-	LastSuccessfulPollAt            *time.Time
+	Ready, LocalReady    bool
+	CloudState, Error    string
+	LastSuccessfulPollAt *time.Time
 }
 type healthComponent struct {
 	Status     string          `json:"status"`
@@ -91,7 +91,7 @@ func (g *healthGeneration) observe(data []byte, now time.Time) healthObservation
 	default:
 		return bad
 	}
-	result := healthObservation{LocalReady: *h.Ready, CloudState: "starting", LastSuccessfulPollAt: p.LastSuccess, SafeToSwitch: snapshotIdle(h, cp.State)}
+	result := healthObservation{LocalReady: *h.Ready, CloudState: "starting", LastSuccessfulPollAt: p.LastSuccess}
 	failed := *p.ConsecutiveFailures > 0 || cp.Status == "degraded" || p.FailureCategory != "" || cp.ReasonCode != "" || (p.LastError != nil && (p.LastSuccess == nil || p.LastError.After(*p.LastSuccess)))
 	if failed {
 		result.CloudState = "degraded"
@@ -142,36 +142,11 @@ func pollError(category, reason string, status int) string {
 		return "tunnel_network_timeout"
 	case "canceled":
 		return "tunnel_poll_canceled"
-	case "http_status", "http":
+	case "http_error", "http_status", "http":
 		return "tunnel_http_failed"
 	default:
 		return "tunnel_network_failed"
 	}
-}
-func snapshotIdle(h healthSnapshot, pollState string) bool {
-	// A poll may still deliver work. Zero local counters alone are not enough.
-	if pollState == "polling" || pollState == "backpressured" {
-		return false
-	}
-	for _, field := range [][2]string{{"dispatcher", "active"}, {"response-delivery", "in_progress"}, {"queue", "depth"}} {
-		c, ok := h.Components[field[0]]
-		if !ok || c.Limited || len(c.Details) == 0 || (c.Status != "ok" && c.Status != "unknown" && c.Status != "degraded") {
-			return false
-		}
-		var d map[string]json.RawMessage
-		if json.Unmarshal(c.Details, &d) != nil {
-			return false
-		}
-		raw, ok := d[field[1]]
-		if !ok || string(raw) == "null" {
-			return false
-		}
-		var count uint64
-		if json.Unmarshal(raw, &count) != nil || count != 0 {
-			return false
-		}
-	}
-	return true
 }
 func (g *healthGeneration) fetch(ctx context.Context, base string, now time.Time) healthObservation {
 	u, err := url.Parse(base)
