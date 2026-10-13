@@ -2,6 +2,9 @@
 
 [预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.6 说明](RELEASE_NOTES_0_2_ALPHA_6.md)
 
+alpha.6 之后的 [0.2 系列复盘与七项源码修复](REVIEW_0_2.md)单独记录安装恢复、结果容量、
+退役记录、脱敏错误与会话共享竞争问题。本轮未发布安装包或升级设备；以下历史发布证据保持原样。
+
 ## alpha.6 当前发布验证
 
 `v0.2.0-alpha.6` 已从 `e160c36912763c78cdfd84860a4b99f0ed4c6d6b` 构建并发布，

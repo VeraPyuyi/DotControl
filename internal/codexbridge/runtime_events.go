@@ -2,6 +2,7 @@ package codexbridge
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"strings"
@@ -165,11 +166,9 @@ func boundedText(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	s = s[:n]
-	for len(s) > 0 && (s[len(s)-1]&0xc0) == 0x80 {
-		s = s[:len(s)-1]
-	}
-	return strings.ToValidUTF8(s, "")
+	// Removing an incomplete rune must not drop a complete Chinese character
+	// whose final byte happens to be exactly at the byte limit.
+	return strings.ToValidUTF8(s[:n], "")
 }
 func (b *Bridge) collectItem(id string, raw json.RawMessage) {
 	var item struct {
@@ -191,27 +190,34 @@ func (b *Bridge) collectItem(id string, raw json.RawMessage) {
 	defer b.mu.Unlock()
 	j := b.runtime.jobs[id]
 	r := j.entry.Job.Runtime
+	key := sha256.Sum256([]byte(item.ID))
+	if _, seen := j.resultItems[key]; seen {
+		return
+	}
 	for _, e := range r.Evidence {
 		if e.ItemID == item.ID {
 			return
 		}
 	}
-	if len(r.Evidence) >= 128 {
-		return
-	}
+	previousText, previousImages := len(r.Text), len(r.Images)
+	previousEvidence := len(r.Evidence)
+	textTruncated, evidenceTruncated := r.TextTruncated, r.EvidenceTruncated
 	switch item.Type {
 	case "agentMessage":
+		r.TextTruncated = r.TextTruncated || len(item.Text) > maxResultText-len(r.Text)
 		r.Text = boundedText(r.Text+item.Text, maxResultText)
 	case "commandExecution", "mcpToolCall", "fileChange":
 	default:
 		return
 	}
 	source, output := item.Source, item.AggregatedOutput
+	outputTruncated := false
 	if item.Type == "mcpToolCall" {
 		source = item.Server + "/" + item.Tool
 		if item.Result != nil {
 			for _, content := range item.Result.Content {
 				if content.Type == "text" {
+					outputTruncated = outputTruncated || len(content.Text) > 8192-len(output)
 					output = boundedText(output+content.Text, 8192)
 				}
 			}
@@ -227,7 +233,11 @@ func (b *Bridge) collectItem(id string, raw json.RawMessage) {
 	if remaining < 0 {
 		remaining = 0
 	}
-	r.Evidence = append(r.Evidence, model.CodexEvidence{Kind: item.Type, ItemID: boundedText(item.ID, 256), Status: boundedText(item.Status, 64), ExitCode: item.ExitCode, Source: boundedText(source, 256), Output: boundedText(output, remaining)})
+	if len(r.Evidence) < 128 {
+		r.Evidence = append(r.Evidence, model.CodexEvidence{Kind: item.Type, ItemID: boundedText(item.ID, 256), Status: boundedText(item.Status, 64), ExitCode: item.ExitCode, Source: boundedText(source, 256), Output: boundedText(output, remaining), OutputTruncated: outputTruncated || len(output) > remaining})
+	} else {
+		r.EvidenceTruncated = true
+	}
 	if item.Type == "mcpToolCall" && item.Result != nil && !b.runtime.cfg.TerminalOnly {
 		for _, content := range item.Result.Content {
 			if content.Type != "image" || len(r.Images) >= maxResultImages || len(content.Data) > base64.StdEncoding.EncodedLen(maxImageBytes) {
@@ -244,6 +254,15 @@ func (b *Bridge) collectItem(id string, raw json.RawMessage) {
 			r.Images = append(r.Images, model.Image{Data: content.Data, MIMEType: content.MIME})
 			r.ImageDeliveryStatus = "received_in_band"
 		}
+	}
+	if len(r.Text) > previousText || len(r.Images) > previousImages {
+		if j.resultItems == nil {
+			j.resultItems = make(map[[32]byte]struct{})
+		}
+		j.resultItems[key] = struct{}{}
+	}
+	if previousText == len(r.Text) && previousImages == len(r.Images) && previousEvidence == len(r.Evidence) && textTruncated == r.TextTruncated && evidenceTruncated == r.EvidenceTruncated && j.entry.HadResults && r.ResultStatus == "available" && r.Verification == "unverified" {
+		return // Saturated/discarded events must not grow the fsync-backed journal.
 	}
 	j.entry.HadResults = true
 	r.ResultStatus = "available"

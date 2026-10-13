@@ -344,7 +344,7 @@ func TestCleanupRejectsUnsafeOwnedPaths(t *testing.T) {
 
 func TestCleanupRecoversAfterProcessExit(t *testing.T) {
 	if root := os.Getenv("DOTCONTROL_CLEANUP_TEST_ROOT"); root != "" {
-		o := Options{Root: root, StateDir: root + "-state", BundleDir: os.Getenv("DOTCONTROL_CLEANUP_TEST_BUNDLE"), CleanupOldVersions: true}
+		o := Options{Root: root, StateDir: os.Getenv("DOTCONTROL_CLEANUP_TEST_STATE"), BundleDir: os.Getenv("DOTCONTROL_CLEANUP_TEST_BUNDLE"), CleanupOldVersions: true}
 		o.Health = func(context.Context, Current) error { return nil }
 		o.BeforeCleanup = func(_ context.Context, candidate Current) error {
 			if candidate.Version == "0.2.0" {
@@ -367,7 +367,7 @@ func TestCleanupRecoversAfterProcessExit(t *testing.T) {
 	}
 	o.BundleDir = bundle(t, "0.2.1", "new")
 	cmd := exec.Command(os.Args[0], "-test.run=^TestCleanupRecoversAfterProcessExit$")
-	cmd.Env = append(os.Environ(), "DOTCONTROL_CLEANUP_TEST_ROOT="+o.Root, "DOTCONTROL_CLEANUP_TEST_BUNDLE="+o.BundleDir)
+	cmd.Env = append(os.Environ(), "DOTCONTROL_CLEANUP_TEST_ROOT="+o.Root, "DOTCONTROL_CLEANUP_TEST_STATE="+o.StateDir, "DOTCONTROL_CLEANUP_TEST_BUNDLE="+o.BundleDir)
 	output, e := cmd.CombinedOutput()
 	var exit *exec.ExitError
 	if !errors.As(e, &exit) || exit.ExitCode() != 29 {

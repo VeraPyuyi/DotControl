@@ -62,7 +62,7 @@ func (o *runtimeOwner) connectBasicTerminal(ctx context.Context, store *connecti
 	if err = os.MkdirAll(profile.ProjectDir, 0700); err != nil {
 		return nil, errors.New("task_directory_unavailable")
 	}
-	if err = store.SetCodexExecutable(found.Executable); err != nil {
+	if err = o.setCodexExecutable(store, found.Executable); err != nil {
 		return nil, err
 	}
 	if _, err = store.UpsertExecution(profile); err != nil {
@@ -282,13 +282,17 @@ func checkTerminal(ctx context.Context, dir, profile, server string) (terminalCh
 	}
 	err = client.Call(bounded, "command/exec", map[string]any{"command": command, "cwd": cwd, "permissionProfile": p.PermissionProfile, "timeoutMs": 35000}, &response)
 	if err != nil {
-		code := "terminal_probe_failed"
-		if strings.Contains(strings.ToLower(err.Error()), "split writable roots") {
-			code = "terminal_sandbox_layout_unsupported"
-		}
-		return terminalCheck{Code: code}, binding, nil
+		return terminalCheck{Code: terminalProbeErrorCode(err)}, binding, nil
 	}
 	return terminalProbeResult(response.ExitCode, response.Stdout, nonce), binding, nil
+}
+
+func terminalProbeErrorCode(err error) string {
+	var rpc *codexbridge.RPCError
+	if errors.As(err, &rpc) && rpc.Reason == "terminal_sandbox_layout_unsupported" {
+		return rpc.Reason
+	}
+	return "terminal_probe_failed"
 }
 
 // Only the protected local wizard can select/enable terminal mode. A mode

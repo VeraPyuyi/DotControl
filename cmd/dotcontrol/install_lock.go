@@ -103,6 +103,9 @@ func snapshotProgramPaths(s *activationSnapshot) []string {
 	if s.Previous != nil {
 		paths = append(paths, s.Previous.Executable)
 	}
+	if s.MissingPrevious != "" {
+		paths = append(paths, s.MissingPrevious)
+	}
 	if runtime.GOOS == "windows" && len(s.Config) > 0 {
 		var c config.Config
 		if json.Unmarshal(s.Config, &c) == nil {

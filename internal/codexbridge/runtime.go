@@ -296,6 +296,8 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	next.entry.Job.CancelRequested = false
 	next.entry.Job.UpdatedAt = time.Now().UTC()
 	next.entry.Job.Runtime.Text = ""
+	next.entry.Job.Runtime.TextTruncated = false
+	next.entry.Job.Runtime.EvidenceTruncated = false
 	next.entry.Job.Runtime.Images = nil
 	next.entry.Job.Runtime.ImageDeliveryStatus = ""
 	if p.Execution == "terminal" {
@@ -311,6 +313,7 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 		return model.CodexJob{}, e
 	}
 	j.entry = next.entry
+	j.resultItems = nil
 	b.launchLocked(r.JobID, r.Prompt, false)
 	return cloneJob(j.entry.Job), nil
 }

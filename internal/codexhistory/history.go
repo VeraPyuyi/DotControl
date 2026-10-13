@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
 	"github.com/dotcontrol/dotcontrol/internal/historyaccess"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
@@ -28,14 +29,85 @@ type Open func(context.Context) (RPC, io.Closer, error)
 type Access struct{ Enabled, Paused, Revoked bool }
 type Capability = model.HistoryCapability
 type Service struct {
-	store     *historyaccess.Store
-	open      Open
-	access    func() Access
-	key       [32]byte
-	mu        sync.Mutex
-	checked   bool
-	checkCode string
-	gate      chan struct{}
+	store        *historyaccess.Store
+	open         Open
+	access       func() Access
+	key          [32]byte
+	mu           sync.Mutex
+	checked      bool
+	checkCode    string
+	gate         chan struct{}
+	generation   uint64
+	healthSerial uint64
+	checkSerial  uint64
+}
+
+type historyCallerKey struct{}
+
+func historyRequestContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	return context.WithValue(ctx, historyCallerKey{}, parent), cancel
+}
+func historyCallerActive(ctx context.Context) bool {
+	if parent, ok := ctx.Value(historyCallerKey{}).(context.Context); ok {
+		ctx = parent
+	}
+	if ctx.Err() != nil {
+		return false
+	}
+	// A derived timer can run before its parent's cancellation callback.
+	deadline, ok := ctx.Deadline()
+	return !ok || time.Now().Before(deadline)
+}
+
+type healthToken struct{ generation, serial uint64 }
+
+// Invalidate fences in-flight checks before and after a local source change.
+// It changes readiness only, never the saved sharing policy or enable flag.
+func (s *Service) Invalidate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generation++
+	s.healthSerial++
+	s.checked, s.checkCode = false, ""
+}
+func (s *Service) healthToken() healthToken {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return healthToken{s.generation, s.healthSerial}
+}
+func (s *Service) interfaceFailed(token healthToken) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if token.generation == s.generation && token.serial == s.healthSerial {
+		s.healthSerial++
+		s.checked, s.checkCode = true, "history_local_interface_unavailable"
+	}
+}
+
+type observedRPC struct {
+	RPC
+	service *Service
+	token   healthToken
+}
+
+func (r observedRPC) Call(ctx context.Context, method string, params, out any) error {
+	err := r.RPC.Call(ctx, method, params, out)
+	if err != nil && historyCallerActive(ctx) && interfaceFailure(err) {
+		r.service.interfaceFailed(r.token)
+	}
+	return err
+}
+func interfaceFailure(err error) bool {
+	var transport *codexbridge.TransportError
+	var rpc *codexbridge.RPCError
+	var syntax *json.SyntaxError
+	var shape *json.UnmarshalTypeError
+	if errors.As(err, &rpc) {
+		// A missing thread or invalid cursor is not evidence of a broken interface.
+		return rpc.Code == -32601 || rpc.Code == -32603
+	}
+	return errors.As(err, &transport) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &syntax) || errors.As(err, &shape)
 }
 
 func New(store *historyaccess.Store, open Open, access func() Access) *Service {
@@ -59,6 +131,9 @@ func (c *releaseCloser) Close() error {
 	return e
 }
 func (s *Service) connect(ctx context.Context) (RPC, io.Closer, error) {
+	return s.connectObserved(ctx, s.healthToken())
+}
+func (s *Service) connectObserved(ctx context.Context, token healthToken) (RPC, io.Closer, error) {
 	select {
 	case s.gate <- struct{}{}:
 	case <-ctx.Done():
@@ -71,9 +146,12 @@ func (s *Service) connect(ctx context.Context) (RPC, io.Closer, error) {
 	rpc, c, e := s.open(ctx)
 	if e != nil {
 		<-s.gate
+		if historyCallerActive(ctx) {
+			s.interfaceFailed(token)
+		}
 		return nil, nil, e
 	}
-	return rpc, &releaseCloser{Closer: c, release: func() { <-s.gate }}, nil
+	return observedRPC{RPC: rpc, service: s, token: token}, &releaseCloser{Closer: c, release: func() { <-s.gate }}, nil
 }
 func (s *Service) policy() (historyaccess.Policy, error) {
 	a := s.access()
@@ -117,9 +195,15 @@ func (s *Service) Capability() Capability {
 // Check proves the official read methods are available, without reading bodies.
 // It is also used locally before enabling sharing, so it ignores the enable flag.
 func (s *Service) Check(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	parent := ctx
+	s.mu.Lock()
+	s.checkSerial++
+	check := s.checkSerial
+	token := healthToken{s.generation, s.healthSerial}
+	s.mu.Unlock()
+	ctx, cancel := historyRequestContext(ctx, 20*time.Second)
 	defer cancel()
-	rpc, c, e := s.connect(ctx)
+	rpc, c, e := s.connectObserved(ctx, token)
 	if e == nil {
 		defer c.Close()
 		var out threadPage
@@ -127,6 +211,16 @@ func (s *Service) Check(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !historyCallerActive(parent) {
+		return fail("history_check_cancelled")
+	}
+	if token.generation != s.generation || token.serial != s.healthSerial || check != s.checkSerial {
+		if e != nil {
+			return fail("history_local_interface_unavailable")
+		}
+		return fail("history_check_superseded")
+	}
+	s.healthSerial++
 	s.checked = true
 	s.checkCode = ""
 	if e != nil {
@@ -271,7 +365,7 @@ func (s *Service) Threads(ctx context.Context, q ListRequest) (ThreadsResult, er
 	for _, id := range p.AllowedThreadIDs {
 		allowed[id] = true
 	}
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	ctx, cancel := historyRequestContext(ctx, 20*time.Second)
 	defer cancel()
 	rpc, c, e := s.connect(ctx)
 	if e != nil {
@@ -323,7 +417,7 @@ func (s *Service) Verify(ctx context.Context, ids []string) ([]Thread, error) {
 	if len(ids) > 500 {
 		return nil, fail("history_selection_too_large")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := historyRequestContext(ctx, 30*time.Second)
 	defer cancel()
 	rpc, c, e := s.connect(ctx)
 	if e != nil {
@@ -353,7 +447,7 @@ func (s *Service) Verify(ctx context.Context, ids []string) ([]Thread, error) {
 // it intentionally ignores the current sharing policy. It uses bounded paging.
 func (s *Service) Catalog(ctx context.Context, q ListRequest) (ThreadsResult, error) {
 	q.Limit = 50
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	ctx, cancel := historyRequestContext(ctx, 20*time.Second)
 	defer cancel()
 	rpc, c, e := s.connect(ctx)
 	if e != nil {
@@ -386,7 +480,7 @@ func (s *Service) Projects(ctx context.Context, q ListRequest) (ProjectsResult, 
 	if e != nil {
 		return out, e
 	}
-	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	ctx, cancel := historyRequestContext(ctx, 25*time.Second)
 	defer cancel()
 	rpc, c, e := s.connect(ctx)
 	if e != nil {
@@ -465,7 +559,7 @@ func (s *Service) Read(ctx context.Context, q ReadRequest) (ReadResult, error) {
 	if e != nil {
 		return out, e
 	}
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	ctx, cancel := historyRequestContext(ctx, 20*time.Second)
 	defer cancel()
 	rpc, c, e := s.connect(ctx)
 	if e != nil {

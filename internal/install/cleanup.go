@@ -55,7 +55,8 @@ func cleanupOldVersions(ctx context.Context, root string, own *ownership, target
 		// files are accepted on retry after a crash between deletion and this write.
 		remaining := append([]ownedVersion(nil), own.Versions[:i]...)
 		remaining = append(remaining, own.Versions[i+1:]...)
-		updated := ownership{Schema: own.Schema, Versions: remaining}
+		updated := *own
+		updated.Versions = remaining
 		if e := atomicJSON(filepath.Join(root, ownerName), updated); e != nil {
 			return e
 		}

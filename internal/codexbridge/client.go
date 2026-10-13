@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -25,7 +26,8 @@ func (e *TransportError) Error() string { return e.Code }
 
 type RPCError struct {
 	Code          int
-	LocalTakeover bool `json:"-"`
+	LocalTakeover bool   `json:"-"`
+	Reason        string `json:"-"`
 }
 
 var activeWriterError = regexp.MustCompile(`^thread [A-Za-z0-9-]+ already has an active writer$`)
@@ -40,6 +42,11 @@ func (e *RPCError) UnmarshalJSON(data []byte) error {
 	}
 	e.Code = wire.Code
 	e.LocalTakeover = wire.Code == -32600 && activeWriterError.MatchString(wire.Message)
+	e.Reason = ""
+	message := strings.ToLower(wire.Message)
+	if strings.Contains(message, "cannot enforce split writable root sets") || strings.Contains(message, "cannot enforce split writable roots") {
+		e.Reason = "terminal_sandbox_layout_unsupported"
+	}
 	return nil // raw upstream text is deliberately discarded
 }
 

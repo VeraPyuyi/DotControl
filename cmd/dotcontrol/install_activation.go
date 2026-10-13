@@ -37,15 +37,16 @@ type legacyReference struct {
 	Version    string `json:"version"`
 }
 type activationSnapshot struct {
-	Schema    int                     `json:"schema"`
-	State     string                  `json:"state"`
-	Phase     string                  `json:"phase"`
-	Config    []byte                  `json:"config,omitempty"`
-	Startup   desktop.StartupSnapshot `json:"startup"`
-	Previous  *legacyReference        `json:"previous,omitempty"`
-	Target    string                  `json:"target"`
-	NoStart   bool                    `json:"no_start"`
-	Processes []int                   `json:"processes,omitempty"`
+	Schema          int                     `json:"schema"`
+	State           string                  `json:"state"`
+	Phase           string                  `json:"phase"`
+	Config          []byte                  `json:"config,omitempty"`
+	Startup         desktop.StartupSnapshot `json:"startup"`
+	Previous        *legacyReference        `json:"previous,omitempty"`
+	Target          string                  `json:"target"`
+	NoStart         bool                    `json:"no_start"`
+	Processes       []int                   `json:"processes,omitempty"`
+	MissingPrevious string                  `json:"missing_previous,omitempty"`
 }
 type installHooks struct {
 	stopUpgrade    func(context.Context, string, func([]int) error) error
@@ -62,10 +63,11 @@ type installHooks struct {
 	restoredHealth func(context.Context, string, config.Config, string, string) error
 	waitPrograms   func(context.Context, []string) error
 	guard          func(context.Context, string) error
+	macComponents  func(context.Context, string) error
 }
 
 func defaultInstallHooks() installHooks {
-	return installHooks{stopUpgrade: stopForUpgradeWithEvidence, stop: stopForUpgradeWithEvidence, globalLock: lockInstallationSettings, waitProcesses: desktop.WaitProcessIDs, checkBinary: checkInstalledBinary, legacy: verifyLegacyExecutable, start: desktop.StartDetached, autostart: desktop.Autostart, snapshot: desktop.SnapshotStartup, restore: desktop.RestoreStartup, health: waitInstalledLocal, restoredHealth: waitRestoredLocal, waitPrograms: desktop.WaitExecutableExit, guard: desktop.CheckProgramReferences}
+	return installHooks{stopUpgrade: stopForUpgradeWithEvidence, stop: stopForUpgradeWithEvidence, globalLock: lockInstallationSettings, waitProcesses: desktop.WaitProcessIDs, checkBinary: checkInstalledBinary, legacy: verifyLegacyExecutable, start: desktop.StartDetached, autostart: desktop.Autostart, snapshot: desktop.SnapshotStartup, restore: desktop.RestoreStartup, health: waitInstalledLocal, restoredHealth: waitRestoredLocal, waitPrograms: desktop.WaitExecutableExit, guard: desktop.CheckProgramReferences, macComponents: installMacComponents}
 }
 
 func checkInstalledBinary(ctx context.Context, exe, version string) error {
@@ -269,6 +271,7 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 	}
 	defer releaseRoot()
 	journal := filepath.Join(r.Root, "activation-recovery.json")
+	rollbackUnavailable := false
 	if r.NoStart {
 		pending, e := loadActivation(journal, r.State)
 		if e != nil {
@@ -333,7 +336,7 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 				return errors.New("rollback_executable_changed")
 			}
 			if runtime.GOOS == "darwin" && previous != nil {
-				if e = installMacComponents(ctx, previous.Dir); e != nil {
+				if e = h.macComponents(ctx, previous.Dir); e != nil {
 					return e
 				}
 			}
@@ -347,6 +350,11 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			if e = h.restoredHealth(ctx, r.State, c, s.Previous.Executable, s.Previous.Version); e != nil {
 				return e
 			}
+		}
+		if s.MissingPrevious != "" && !s.NoStart {
+			// Configuration/startup restoration is complete, but no old executable
+			// can be restarted. Clear recovery intent so a later repair can proceed.
+			rollbackUnavailable = true
 		}
 		return removeActivation(journal)
 	}
@@ -368,11 +376,29 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 		previous, e := install.ReadCurrent(r.Root)
 		if e == nil {
 			p := filepath.Join(previous.Dir, agentName())
-			digest, de := regularExecutableDigest(p)
-			if de != nil {
-				return de
+			spec, e := install.OwnedFile(r.Root, previous, agentName())
+			if e != nil {
+				return e
 			}
-			s.Previous = &legacyReference{Executable: p, SHA256: digest, Version: previous.Version}
+			p, e = install.CanonicalPath(p)
+			if e != nil {
+				return e
+			}
+			if _, statErr := os.Lstat(p); os.IsNotExist(statErr) {
+				s.MissingPrevious = p
+			} else {
+				if statErr != nil {
+					return statErr
+				}
+				digest, de := regularExecutableDigest(p)
+				if de != nil {
+					return de
+				}
+				if digest != spec.SHA256 {
+					return errors.New("previous_program_changed")
+				}
+				s.Previous = &legacyReference{Executable: p, SHA256: digest, Version: previous.Version}
+			}
 		} else if !os.IsNotExist(e) {
 			return e
 		}
@@ -380,7 +406,7 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			if runtime.GOOS != "windows" {
 				return errors.New("legacy_migration_windows_only")
 			}
-			if s.Previous != nil {
+			if s.Previous != nil || s.MissingPrevious != "" {
 				return errors.New("legacy_reference_with_managed_install")
 			}
 			ref, e := h.legacy(ctx, r.Legacy)
@@ -389,8 +415,14 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			}
 			s.Previous = &ref
 		}
-		if len(s.Config) > 0 && s.Previous == nil && !r.NoStart {
-			return errors.New("legacy_executable_required")
+		if len(s.Config) > 0 && s.Previous == nil && s.MissingPrevious == "" && !r.NoStart {
+			retained, err := install.RetainedStateMatches(r.Root, r.State)
+			if err != nil {
+				return err
+			}
+			if !retained {
+				return errors.New("legacy_executable_required")
+			}
 		}
 		if r.NoStart {
 			s.Phase = "activating"
@@ -440,7 +472,7 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 		c.TunnelPath = filepath.Join(target.Dir, "tunnel-client.exe")
 		if runtime.GOOS == "darwin" {
 			if !r.NoStart {
-				if e = installMacComponents(ctx, target.Dir); e != nil {
+				if e = h.macComponents(ctx, target.Dir); e != nil {
 					return e
 				}
 			}
@@ -472,6 +504,9 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 		return h.health(ctx, r.State, c, exe, target.Version)
 	}
 	result, err := install.Repair(ctx, install.Options{Root: r.Root, StateDir: r.State, BundleDir: r.Bundle, BeforeActivate: before, Health: health, Rollback: rollback, CleanupOldVersions: true, BeforeCleanup: func(ctx context.Context, c install.Current) error { return h.guard(ctx, c.Dir) }, Progress: r.Progress})
+	if err != nil && rollbackUnavailable {
+		err = errors.Join(err, errors.New("rollback_previous_program_unavailable"))
+	}
 	if err == nil || errors.Is(err, install.ErrCleanupPending) {
 		if e := removeActivation(journal); e != nil {
 			result.CleanupPending = true

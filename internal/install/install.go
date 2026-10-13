@@ -71,8 +71,10 @@ type ownedVersion struct {
 	Manifest Manifest `json:"manifest"`
 }
 type ownership struct {
-	Schema   int            `json:"schema"`
-	Versions []ownedVersion `json:"versions"`
+	Schema        int            `json:"schema"`
+	Versions      []ownedVersion `json:"versions"`
+	RetainedState string         `json:"retained_state,omitempty"`
+	StateDir      string         `json:"state_dir,omitempty"`
 }
 
 const ownerName = ".dotcontrol-install.json"
@@ -290,6 +292,9 @@ func loadOwnership(root string) (ownership, error) {
 	if own.Schema != 1 {
 		return own, errors.New("unsupported install ownership schema")
 	}
+	if (own.StateDir != "" && !filepath.IsAbs(own.StateDir)) || (own.RetainedState != "" && (own.StateDir == "" || own.RetainedState != own.StateDir)) {
+		return own, errors.New("invalid managed state binding")
+	}
 	seen := map[string]bool{}
 	for _, v := range own.Versions {
 		if !safeRelative(v.Dir) || strings.Contains(v.Dir, "/") || seen[strings.ToLower(v.Dir)] {
@@ -304,6 +309,83 @@ func loadOwnership(root string) (ownership, error) {
 		}
 	}
 	return own, nil
+}
+
+// RetainedStateMatches proves that a prior completed managed uninstall retained this
+// exact state directory. Empty/older ownership records are not such a proof.
+func RetainedStateMatches(root, state string) (bool, error) {
+	root, e := preparePaths(root, state)
+	if e != nil {
+		return false, e
+	}
+	own, e := loadOwnership(root)
+	if e != nil || own.RetainedState == "" {
+		return false, e
+	}
+	saved, e := canonicalInstallPath(own.RetainedState)
+	if e != nil {
+		return false, e
+	}
+	state, e = canonicalInstallPath(state)
+	return e == nil && sameManagedPath(saved, state), e
+}
+
+// An exact canonical path or filesystem identity can grant ownership. Case
+// folding alone cannot: even Windows directories may be case-sensitive.
+func sameManagedPath(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ai, ae := os.Stat(a)
+	bi, be := os.Stat(b)
+	return ae == nil && be == nil && os.SameFile(ai, bi)
+}
+func validateManagedState(own ownership, state string) error {
+	if own.StateDir == "" {
+		return nil
+	} // Older installs acquire a binding after health succeeds.
+	saved, e := canonicalInstallPath(own.StateDir)
+	if e != nil {
+		return e
+	}
+	selected, e := canonicalInstallPath(state)
+	if e != nil {
+		return e
+	}
+	if !sameManagedPath(saved, selected) {
+		return errors.New("install_state_binding_mismatch")
+	}
+	return nil
+}
+
+// OwnedFile validates a current pointer against its recorded installation
+// manifest, even if a payload was removed by quarantine or interrupted cleanup.
+func OwnedFile(root string, current Current, relative string) (File, error) {
+	root, e := canonicalInstallPath(root)
+	if e != nil {
+		return File{}, e
+	}
+	if e = validateCurrent(root, current); e != nil {
+		return File{}, e
+	}
+	own, e := loadOwnership(root)
+	if e != nil {
+		return File{}, e
+	}
+	for _, v := range own.Versions {
+		recorded, err := canonicalInstallPath(filepath.Join(root, "versions", v.Dir))
+		if err != nil {
+			return File{}, err
+		}
+		if v.Hash == current.ManifestSHA256 && sameManagedPath(recorded, current.Dir) && v.Manifest.Version == current.Version {
+			for _, f := range v.Manifest.Files {
+				if f.Path == relative {
+					return f, nil
+				}
+			}
+		}
+	}
+	return File{}, errors.New("previous_program_not_owned")
 }
 func restore(root string, previous *Current) error {
 	if previous != nil {
@@ -372,6 +454,9 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	defer unlock()
 	own, e := loadOwnership(root)
 	if e != nil {
+		return result, e
+	}
+	if e = validateManagedState(own, o.StateDir); e != nil {
 		return result, e
 	}
 	if e = atomicJSON(filepath.Join(root, ownerName), own); e != nil {
@@ -572,6 +657,21 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	if e != nil {
 		return result, e
 	}
+	// Only a verified activation establishes state provenance. Staging or a
+	// failed install must not mint a retained-state reinstall authorization.
+	bound, e := canonicalInstallPath(o.StateDir)
+	if e != nil {
+		return result, e
+	}
+	if own.StateDir == "" {
+		own.StateDir = bound
+	}
+	// A prior uninstall receipt is provenance, not a one-shot token. Keep it
+	// through activation/rollback so a crash before commit cannot strand a
+	// retained configuration with no previous executable to restart.
+	if e = atomicJSON(filepath.Join(root, ownerName), own); e != nil {
+		return result, e
+	}
 	p.RecoveryNeeded = false
 	result.Current = target
 	if o.CleanupOldVersions {
@@ -716,6 +816,9 @@ func Remove(ctx context.Context, o RemoveOptions) error {
 	if e != nil {
 		return e
 	}
+	if e = validateManagedState(own, o.StateDir); e != nil {
+		return e
+	}
 	if o.BeforeRemove != nil {
 		if e = o.BeforeRemove(ctx); e != nil {
 			return e
@@ -780,5 +883,5 @@ func Remove(ctx context.Context, o RemoveOptions) error {
 	// Keep an empty ownership marker alongside the lock. User-created files can
 	// legitimately keep a version directory present after uninstall; retaining
 	// this marker makes uninstall idempotent without claiming those files.
-	return atomicJSON(filepath.Join(root, ownerName), ownership{Schema: 1})
+	return atomicJSON(filepath.Join(root, ownerName), ownership{Schema: 1, StateDir: own.StateDir, RetainedState: own.StateDir})
 }

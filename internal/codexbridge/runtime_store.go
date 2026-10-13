@@ -75,6 +75,9 @@ type runtimeJob struct {
 	cancel     context.CancelFunc
 	runContext context.Context
 	active     bool
+	// Only items that contributed text bytes or images are retained here. Thus
+	// the dedupe set is bounded by maxResultText + maxResultImages, not turn length.
+	resultItems map[[32]byte]struct{}
 }
 
 func cloneJob(j model.CodexJob) model.CodexJob {
@@ -176,12 +179,12 @@ func (b *Bridge) openRuntime(cfg Config) error {
 		return failure("storage_unavailable")
 	}
 	for _, j := range rs.jobs {
-		if retiredRuntime(j.entry) {
-			continue
-		}
 		j.entry.Job.Runtime.ResultStatus = "unavailable_after_restart"
 		if j.entry.Job.Runtime.ImageDeliveryStatus != "" && j.entry.Job.Runtime.ImageDeliveryStatus != "not_required" {
 			j.entry.Job.Runtime.ImageDeliveryStatus = "unavailable_after_restart"
+		}
+		if retiredRuntime(j.entry) {
+			continue
 		}
 		if !runtimeTerminal(j.entry.Job.State) {
 			j.entry.Job.State = "recovery_required"

@@ -192,6 +192,8 @@ type CodexRuntimeInfo struct {
 	Evidence            []CodexEvidence      `json:"evidence,omitempty"`
 	Approvals           []CodexApproval      `json:"approvals,omitempty"`
 	Experiment          *CodexExperimentInfo `json:"experiment,omitempty"`
+	TextTruncated       bool                 `json:"text_truncated,omitempty"`
+	EvidenceTruncated   bool                 `json:"evidence_truncated,omitempty"`
 }
 
 // Experiment evidence comes from an independent helper status read, never model
@@ -208,12 +210,13 @@ type CodexExperimentInfo struct {
 }
 
 type CodexEvidence struct {
-	Kind     string `json:"kind"`
-	ItemID   string `json:"item_id"`
-	Status   string `json:"status"`
-	ExitCode *int   `json:"exit_code,omitempty"`
-	Source   string `json:"source,omitempty"`
-	Output   string `json:"output,omitempty"`
+	Kind            string `json:"kind"`
+	ItemID          string `json:"item_id"`
+	Status          string `json:"status"`
+	ExitCode        *int   `json:"exit_code,omitempty"`
+	Source          string `json:"source,omitempty"`
+	Output          string `json:"output,omitempty"`
+	OutputTruncated bool   `json:"output_truncated,omitempty"`
 }
 
 // Approval summaries contain no command, file contents, secret or raw schema.

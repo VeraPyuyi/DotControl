@@ -35,6 +35,41 @@ function harness(policy=saved()){
  h.ctx=ctx;return h;
 }
 
+test('late old pagination cannot pollute new filters, selection or cursor',async()=>{
+ const h=harness();await h.refresh();
+ const late=deferred();
+ h.handler=r=>{
+  if(r.operation!=='catalog')return;
+  if(r.query.cursor==='old-2')return late.promise;
+  return {threads:[{thread_id:r.query.search==='new'?'new-1':'old-1'}],next_cursor:r.query.search==='new'?'new-2':'old-2'};
+ };
+ await h.click('history-load');h.choose('old-1',true);
+ const more=h.click('history-more');await h.untilCall('catalog',2);
+ h.el('history-search').value='new';h.el('history-search').oninput();
+ assert.equal(h.el('history-more').disabled,true);
+ await h.click('history-load');
+ late.resolve({threads:[{thread_id:'old-2'}],next_cursor:'old-3'});await more;
+ assert.deepEqual(Array.from(h.run('historyRows').keys()),['new-1']);
+ assert.equal(h.run('historyCursor'),'new-2');assert.ok(h.ids().includes('old-1'));
+ await h.click('history-more');assert.equal(h.calls.at(-1).query.cursor,'new-2');
+});
+
+test('all filter changes invalidate a pending page and old cursor',async()=>{
+ for(const [id,value,event] of [['history-search','different','oninput'],['history-cwd','other project','oninput'],['history-archived',true,'onchange']]){
+  const h=harness(),late=deferred();await h.refresh();
+  h.handler=r=>r.operation==='catalog'?{threads:[{thread_id:'old'}],next_cursor:'old-cursor'}:undefined;
+  await h.click('history-load');
+  h.handler=r=>r.operation==='catalog'?late.promise:undefined;
+  const more=h.click('history-more');await h.untilCall('catalog',2);
+  h.el(id)[id==='history-archived'?'checked':'value']=value;h.el(id)[event]();
+  late.resolve({threads:[{thread_id:'stale'}],next_cursor:'wrong'});await more;
+  assert.equal(h.run('historyCursor'),'');assert.equal(h.el('history-more').disabled,true);
+  h.handler=r=>r.operation==='catalog'?{threads:[],next_cursor:''}:undefined;
+  await h.run('historyLoad(true)');assert.equal(h.calls.at(-1).query.cursor,'');
+  assert.deepEqual(h.ids(),['old']);
+ }
+});
+
 test('unconfigured setup defaults to all, with no allowlist or permission write',async()=>{
  const h=harness({revision:0,mode:'',allowed_thread_ids:null});await h.refresh();
  assert.equal(h.el('history-mode-all').checked,true);

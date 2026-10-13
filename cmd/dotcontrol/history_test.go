@@ -5,13 +5,46 @@ import (
 	"encoding/json"
 	"github.com/dotcontrol/dotcontrol/internal/codexhistory"
 	"github.com/dotcontrol/dotcontrol/internal/config"
+	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/historyaccess"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 	"github.com/dotcontrol/dotcontrol/internal/onboard"
 	"io"
+	"os"
 	"testing"
 	"time"
 )
+
+func TestSavedCodexSourceInvalidatesHistoryWithoutChangingPolicy(t *testing.T) {
+	dir := t.TempDir()
+	policy := historyaccess.NewStore(dir)
+	p, err := policy.InitializeAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err = policy.Apply(p.Revision, "allowlist", []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := &runtimeOwner{history: codexhistory.New(policy, func(context.Context) (codexhistory.RPC, io.Closer, error) {
+		return historyRPC(func(string, any) (any, error) { return map[string]any{"data": []any{}}, nil }), historyCloser{}, nil
+	}, func() codexhistory.Access { return codexhistory.Access{Enabled: true} })}
+	if err = o.history.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	store := connections.NewStore(t.TempDir())
+	if err = o.setCodexExecutable(store, os.Args[0]); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := store.Load()
+	if err != nil || saved.CodexExecutable != os.Args[0] {
+		t.Fatal("source not saved", err)
+	}
+	cap := o.history.Capability()
+	if cap.Available || cap.State != "not_checked" || cap.Mode != p.Mode || cap.Revision != p.Revision {
+		t.Fatal(cap)
+	}
+}
 
 type historyRPC func(string, any) (any, error)
 

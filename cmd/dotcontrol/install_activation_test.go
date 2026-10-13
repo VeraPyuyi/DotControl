@@ -62,6 +62,7 @@ func activationFixture(t *testing.T) (string, string, []byte, installHooks) {
 	h.restoredHealth = h.health
 	h.waitPrograms = func(context.Context, []string) error { return nil }
 	h.guard = func(context.Context, string) error { return nil }
+	h.macComponents = func(context.Context, string) error { return nil }
 	return state, root, b, h
 }
 func TestActivationRefusalDoesNotStopOrRewriteExistingState(t *testing.T) {

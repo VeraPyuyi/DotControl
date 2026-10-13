@@ -2,6 +2,7 @@
 // Selections stay local. Titles are rendered as text, never HTML.
 let historyPolicy=null,historyPreview=null,historyCursor='',historyChosen=new Set(),historyRows=new Map(),historyCapability=null,historyStatusSerial=0,historyPollPending=null;
 let historyEditSerial=0,historyResetAt=null,historyChecks=new Map(),historyMode='all',historyDraftInitialized=false,historyPreviewSerial=0;
+let historyCatalogSerial=0,historyCatalogKey='';
 const hapi=data=>api('history',data),hmsg=text=>feedback(el('history-message'),text);
 function historyCount(){el('history-selection-count').textContent='已选 '+historyChosen.size+' 个'}
 function historySyncDraft(){
@@ -58,14 +59,27 @@ function historyRender(){
  historyCount();
 }
 async function historyLoad(more){
+ const query=historyQuery(),key=JSON.stringify(query),request=++historyCatalogSerial;
+ const append=more&&key===historyCatalogKey&&!!historyCursor,cursor=append?historyCursor:'';
  if(!historyPolicy)await historyStatus();
+ if(request!==historyCatalogSerial||key!==JSON.stringify(historyQuery()))return;
  hmsg('正在读取本机会话…');
- const v=await hapi({operation:'catalog',query:{search:el('history-search').value,cwd:el('history-cwd').value,archived:el('history-archived').checked,cursor:more?historyCursor:''}});
- if(!more)historyRows.clear();
+ let v;
+ try{v=await hapi({operation:'catalog',query:{...query,cursor}})}catch(e){
+  if(request!==historyCatalogSerial||key!==JSON.stringify(historyQuery()))return;
+  throw e;
+ }
+ if(request!==historyCatalogSerial||key!==JSON.stringify(historyQuery()))return;
+ if(!append)historyRows.clear();
  for(const t of v.threads)historyRows.set(t.thread_id,t);
+ historyCatalogKey=key;
  historyCursor=v.next_cursor||'';el('history-more').disabled=!historyCursor;historyRender();
  hmsg('已加载 '+historyRows.size+' 个候选。未出现的旧会话仍保留原清单，候选变更需预览确认后才生效。');
 }
+function historyQuery(){return {search:el('history-search').value,cwd:el('history-cwd').value,archived:el('history-archived').checked}}
+function historyFilterChanged(){historyCatalogSerial++;historyCatalogKey='';historyCursor='';el('history-more').disabled=true}
+for(const id of ['history-search','history-cwd'])el(id).oninput=historyFilterChanged;
+el('history-archived').onchange=historyFilterChanged;
 function historyShowPreview(p){historyPreview=p;el('history-preview').hidden=false;const lines=[p.mode==='all'?'将允许读取全部本地 Codex 会话，包括未来新建会话。':'将仅允许读取以下 '+p.threads.length+' 个会话（空白名单禁止全部读取）。','修订号：'+p.revision,'覆盖范围：'+p.coverage,'以下权限变更尚未生效。',...p.threads.map(t=>(t.title||'未命名')+' · '+t.cwd+' · '+t.thread_id),'新增编号：'+p.added.join(', '),'移除编号：'+p.removed.join(', '),'未确认项（不会自动加入）：',...(p.unresolved||[]).map(i=>i.code+' '+(i.id||''))];if(p.mode==='allowlist'&&historyPolicy?.mode==='all')lines.push('当前为全部共享；确认后，除此白名单外的所有会话将停止共享。');el('history-preview-text').textContent=lines.join('\n')}
 async function historyPreparePreview(importPending=false){
  historyInvalidatePreview();

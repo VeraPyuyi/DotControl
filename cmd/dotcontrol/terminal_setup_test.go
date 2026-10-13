@@ -2,9 +2,35 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
 )
+
+func TestTerminalRPCFailureIsClassifiedWithoutPrivateMessage(t *testing.T) {
+	for _, tc := range []struct{ message, want string }{
+		{"windows sandbox cannot enforce split writable root sets directly; refusing to run unsandboxed PRIVATE", "terminal_sandbox_layout_unsupported"},
+		{"sandbox cannot enforce split writable roots PRIVATE", "terminal_sandbox_layout_unsupported"},
+		{"PRIVATE unknown error", "terminal_probe_failed"},
+	} {
+		raw, _ := json.Marshal(map[string]any{"code": -32603, "message": tc.message})
+		var rpc codexbridge.RPCError
+		if err := json.Unmarshal(raw, &rpc); err != nil {
+			t.Fatal(err)
+		}
+		if got := terminalProbeErrorCode(fmt.Errorf("wrapped: %w", &rpc)); got != tc.want {
+			t.Fatal(got)
+		}
+		encoded, _ := json.Marshal(&rpc)
+		if strings.Contains(rpc.Error()+string(encoded), "PRIVATE") {
+			t.Fatal("upstream text leaked")
+		}
+	}
+}
 
 func TestTerminalProbeNeedsNonceAndZeroExit(t *testing.T) {
 	for _, tc := range []struct {

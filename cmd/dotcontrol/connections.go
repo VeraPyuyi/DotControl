@@ -94,7 +94,7 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 		if !found.Available {
 			return found, nil
 		}
-		if err = store.SetCodexExecutable(found.Executable); err != nil {
+		if err = o.setCodexExecutable(store, found.Executable); err != nil {
 			return nil, err
 		}
 		return found, nil
@@ -106,4 +106,12 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 	default:
 		return nil, errors.New("unknown_connection_operation")
 	}
+}
+
+func (o *runtimeOwner) setCodexExecutable(store *connections.Store, path string) error {
+	if o.history != nil {
+		o.history.Invalidate()
+		defer o.history.Invalidate()
+	}
+	return store.SetCodexExecutable(path)
 }
