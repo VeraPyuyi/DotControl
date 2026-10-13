@@ -67,8 +67,14 @@ activity detection available; current-process cloud poll confirmed; source Dot p
 MCP image returned; image actually visible at source Dot. Never substitute
 process existence for readiness or local image viewing for cloud delivery.
 
-The default network mode is `auto`: process proxy environment first, then the
-current user's effective static HTTP/HTTPS system proxy, honoring bypass rules.
+The default network mode is `auto`: proxy environment applicable to the HTTPS
+control service first, then the current user's applicable static system proxy,
+honoring bypass rules. Environment precedence is `DOTCONTROL_CONTROL_PROXY`,
+`CONTROL_PLANE_HTTP_PROXY`, `HTTPS_PROXY` / `https_proxy`, then `ALL_PROXY` /
+`all_proxy`. Do not fall back to `HTTP_PROXY` / `http_proxy` or HTTP-only system
+settings for this HTTPS target. Windows can use an HTTPS-specific or
+protocol-neutral static proxy; Mac uses the effective HTTPS static proxy.
+The proxy endpoint itself may use either HTTP or HTTPS.
 The local wizard offers auto, direct and manual HTTP/HTTPS modes. Manual addresses
 must not contain usernames or passwords. Only the tunnel control plane uses this
 route, through an environment reference; loopback services always connect directly.
@@ -78,11 +84,17 @@ are explicit limitations. Report the returned reason and use local proxy handlin
 or an already available static HTTP/HTTPS route. Do not promise automatic PAC or
 authentication support.
 
-Saving a route may return `queued_until_safe` and show pending reconnect while a
-long poll, queued work, active request or response delivery is in progress, or
-when idle evidence is incomplete. Saved is not connected. Keep waiting for the
-managed supervisor; never force-kill a busy tunnel, start a competing tunnel
-process, replay work, or resume a paused/revoked device to clear pending status.
+Saving a route returns `queued_until_restart`: “新的设置将在隧道下次启动时应用”.
+Auto mode also detects changes periodically and marks `network_change_pending`.
+The fixed official client 0.0.16 does not provide a lossless drain: a successful
+poll can show idle before enqueueing work, and a graceful signal can cancel
+active requests. Neither an idle snapshot nor zero counters permits a hot swap.
+DotControl never terminates a live tunnel child for a proxy change. The latest
+settings apply only after natural child exit and restart, or the next explicit
+local restart. Pending may persist until then; saved is not connected. Do not
+force a restart to clear this status, start a competing tunnel, replay work or
+resume a paused/revoked device. Before an explicit local restart, confirm work
+has finished and reconcile any uncertain results independently.
 
 Cloud readiness requires local readiness AND a successful poll from the current
 tunnel process, within `max(90 seconds, 2 * poll deadline)`, with no newer failure.
@@ -194,8 +206,8 @@ terminal task to bypass a history refusal. Group changes do not grant access.
 
 Use the wizard's redacted diagnostic export. Distinguish missing key, paused,
 locked, unavailable activity, driver error, DNS, TLS and tunnel client exit.
-Also distinguish proxy limitations/authentication, stale cloud evidence and a safe
-reconnect still pending. The network settings remain local-only; MCP still has
+Also distinguish proxy limitations/authentication, stale cloud evidence and
+settings pending the next tunnel start. The network settings remain local-only; MCP still has
 14 tools and does not expose a remote network configuration action.
 No secret values, typed content or full desktop content belong in diagnostics.
 Report verified stages, exact remaining blocker, and required local interaction.
