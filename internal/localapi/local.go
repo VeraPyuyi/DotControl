@@ -78,7 +78,9 @@ func (c Client) Post(ctx context.Context, path string, input any) (json.RawMessa
 	}
 	r.Header.Set("X-DotControl-Token", c.Token)
 	r.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 50 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect_refused") }}
+	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 50 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect_refused") }}
 	res, e := client.Do(r)
 	if e != nil {
 		return nil, errors.New("agent_not_running")

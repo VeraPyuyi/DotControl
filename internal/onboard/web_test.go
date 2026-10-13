@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestNetworkStatusAndSettingsUI(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node unavailable")
+	}
+	if out, err := exec.Command(node, "testdata/network.test.cjs", "web/app.js").CombinedOutput(); err != nil {
+		t.Fatalf("%s: %v", out, err)
+	}
+}
+
 func TestLocalReviewForm(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {

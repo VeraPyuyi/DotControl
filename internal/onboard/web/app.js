@@ -1,8 +1,30 @@
 'use strict';
-let csrf='',state=null,editing=false,sessionBlocked=false,sessionRecovery=null;
+let csrf='',state=null,editing=false,networkEditing=false,sessionBlocked=false,sessionRecovery=null;
 const el=id=>document.getElementById(id);
 const messages={driver_unavailable:'桌面驱动尚未连接。请检查权限或点击修复。',tunnel_runtime_key_missing:'请在本机输入运行密钥。',invalid_tunnel_id:'隧道编号应以 tunnel_ 开头。',paused:'已连接，桌面任务已暂停。',access_revoked:'访问已撤销；需在本机重新连接。',local_checks_not_ready:'驱动、活动检测或锁屏检查尚未通过，请先修复。',permissions_not_ready:'系统尚未确认 CuaDriver 的桌面权限；请授权后等待重新检查。',image_not_observed:'尚未收到插件的窗口图片调用，请先让 Dot 观察窗口。',signature_invalid:'驱动签名校验失败，安装已停止。请使用经过验证的发布包。'};
 Object.assign(messages,{
+ tunnel_network_error:'无法联系云端服务，请检查当前网络或代理。',
+ tunnel_network_failed:'云端轮询失败；现有信息不足以确定是 DNS、TLS 还是其他网络问题。',
+ tunnel_cloud_evidence_stale:'连接未确认：最近成功轮询已过期。',
+ tunnel_health_unavailable:'无法读取本地隧道健康状态，云端连接未确认。',
+ tunnel_health_invalid:'隧道健康信息不完整，云端连接未确认。',
+ tunnel_http_failed:'云端请求被拒绝，请下载脱敏诊断。',
+ tunnel_network_timeout:'联系云端服务超时，正在重试。',
+ tunnel_credentials_rejected:'运行密钥被拒绝，请在本机更新密钥。',
+ tunnel_permission_denied:'运行密钥没有此隧道的权限。',
+ tunnel_tls_failed:'TLS 验证失败，请检查本机网络和证书。',
+ tunnel_dns_failed:'域名解析失败，请检查本机网络。',
+ invalid_network_mode:'请选择自动、直连或手动代理。',
+ invalid_proxy_url:'请输入有效的 HTTP 或 HTTPS 代理地址。',
+ requires_local_proxy_auth:'不要在地址中输入密码。请使用无需交互认证的本机 HTTP 代理。',
+ manual_proxy_required:'请输入手动代理地址。',
+ proxy_requires_manual_mode:'自动和直连模式不保存手动代理地址。',
+ proxy_scheme_unsupported:'本版只支持 HTTP / HTTPS 静态代理。',
+ proxy_pac_unsupported:'检测到 PAC；请在本机选择可用的 HTTP 静态代理。',
+ proxy_socks_unsupported:'检测到 SOCKS；请在本机选择可用的 HTTP 静态代理。',
+ system_proxy_unavailable:'无法读取当前用户的系统代理设置。',
+ proxy_environment_missing:'指定的代理环境变量不存在。',
+ network_unavailable:'当前程序不支持网络设置，请确认已升级。',
   driver_apps_probe_failed:'驱动启动后的应用或窗口读取检查失败。请查看系统权限并重新检查；仍失败时下载脱敏诊断。',
   driver_apps_probe_timeout:'应用或窗口读取检查超时。请重新检查；仍超时时下载脱敏诊断。',
   app_discovery_failed:'驱动未能读取应用列表。请查看系统权限并重新检查；仍失败时下载脱敏诊断。',
@@ -36,23 +58,34 @@ async function api(path,data={}){
 }
 function msg(s){el('message').textContent=s}
 function rows(id,items){const box=el(id);box.replaceChildren();for(const [label,value,ok] of items){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=label==='桌面驱动'?(messages[value]||value):value;dd.className=ok?'ok':'pending';box.append(dt,dd)}}
+function cloudOnline(t){return !!(t?.ready&&['online','backpressured'].includes(t.cloud_state)&&t.last_successful_poll_at)}
+function cloudLabel(t){
+ if(cloudOnline(t))return t.cloud_state==='backpressured'?'已连接，正在处理积压请求':'已连接（已有成功轮询）';
+ if(t?.error)return messages[t.error]||'连接尚未成功：'+t.error;
+ return ({unconfirmed:'连接未确认',busy:'正在处理请求，连接状态单独核实',backpressured:'正在处理积压请求',offline:'云端未连接',stopped:'隧道未运行',unavailable:'连接未确认',degraded:'云端连接异常',proxy_blocked:'代理设置需要本机处理',connecting:'正在连接云端',starting:'正在连接云端'}[t?.cloud_state]||'等待云端连接');
+}
 function renderState(s){
- const first=!state;state=s;const terminal=!!s.terminal_only;if(first&&s.tunnel?.ready)el('account-settings').open=false;
+ const first=!state;state=s;const terminal=!!s.terminal_only,online=cloudOnline(s.tunnel);if(first&&online)el('account-settings').open=false;
  for(const button of document.querySelectorAll('[data-action^=permissions]'))button.hidden=terminal||s.device.os!=='darwin';
  for(const button of document.querySelectorAll('[data-action]')){if(button.dataset.action==='confirm_image')button.hidden=terminal;if(button.dataset.action==='resume')button.textContent=s.history_enabled?'恢复已启用功能':terminal?'恢复终端任务':'启用桌面任务'}
- el('connection').textContent=s.revoked?'访问已撤销':s.tunnel?.ready?(s.device.paused?'已连接 · 已暂停':'已连接 · 已启用'):'等待连接';
+ el('connection').textContent=s.revoked?'访问已撤销':online?(s.device.paused?'云端已连接 · 已暂停':'云端已连接 · 已启用'):'本地服务就绪 · 云端未确认';
  const desktopChecks=terminal?[['桌面组件','本模式不需要',true]]:[['桌面驱动',s.driver_connected?'已连接':(s.driver_error||'等待驱动或系统权限'),s.driver_connected],['系统权限',({granted:'已授权（仍需验证截图）',not_required:'无需额外授权',required:'需要授权',unknown:'尚未确认'}[s.permissions?.state]||'检查中'),['granted','not_required'].includes(s.permissions?.state)],['活动检测',s.device.activity.available?'可用':'等待输入监控权限',s.device.activity.available],['屏幕',s.device.activity.locked?'已锁定':'已解锁',!s.device.activity.locked]];
  rows('checks',[['设备',s.device.name,true],...desktopChecks,['随登录启动',s.autostart?'已设置':'尚未设置',s.autostart]]);
  const cap=s.codex?.capabilities?.codex_terminal;
  const terminalStatus=cap?.available?'已连接本机 Codex':({terminal_disabled:'等待点击连接 Codex',device_paused:'已暂停',runtime_acceptance_required:'此系统尚未开放',terminal_configuration_changed:'配置已变更，请重新连接'}[cap?.code]||cap?.code||'等待本机配置');
  const validation=terminal?[['本机 Codex',terminalStatus,!!cap?.available],['源端工具目录','尚未验证；请在源 Dot 核对实际工具列表',false],['任务状态',s.device.paused?'已暂停':'已启用',!s.device.paused]]:[['窗口图片',s.plugin?.image_seen?'MCP 已返回图片':'等待源 Dot 观察窗口',s.plugin?.image_seen],['图片交付',s.plugin?.image_confirmed?'你已确认源 Dot 显示图片':'尚未确认源 Dot 实际显示',s.plugin?.image_confirmed],['桌面任务',s.device.paused?'已暂停，等待本机启用':'已启用',!s.device.paused]];
- rows('validation',[['隧道',s.tunnel?.ready?'在线':(s.tunnel?.error||'尚未连接'),s.tunnel?.ready],['插件调用',s.plugin?.devices_seen?'已收到 MCP 设备查询；请核对源 Dot':'等待源 Dot 调用',s.plugin?.devices_seen],...validation]);
+ rows('validation',[['本地服务','就绪',true],['云端隧道',cloudLabel(s.tunnel),online],['源 Dot 调用',s.plugin?.devices_seen?'已收到 MCP 设备查询；请在源 Dot 核对本次结果':'等待源 Dot 调用',!!s.plugin?.devices_seen],...validation]);
+ if(!networkEditing){el('network-mode').value=s.network?.mode||'auto';el('network-proxy').value=s.network?.proxy_url||'';el('network-proxy-row').hidden=el('network-mode').value!=='manual'}
+ const source=({system:'系统代理',environment:'进程代理',manual:'手动代理',direct:'直连',none:'直连',bypass:'按绕过规则直连'}[s.tunnel?.proxy_source]||s.tunnel?.proxy_source||'尚未确认');
+ el('network-summary').textContent='当前连接方式：'+source+'；'+cloudLabel(s.tunnel)+(s.tunnel?.network_change_pending?'；新设置等待隧道下次启动':'');
  el('codex').textContent=terminal?(cap?.available?'本机 Codex 已就绪；源端工具目录尚未验证。':terminalStatus):(s.codex?.reason||'请连接本机 Codex。');
  el('permission-note').textContent=terminal?'仅终端模式不要求桌面权限。':s.device.os==='darwin'?'桌面功能需要辅助功能、屏幕录制和输入监控权限。':'';
  el('verify-note').textContent=terminal?'本机就绪不代表源端已加载终端工具。升级后，请在源端官方插件设置点击 Refresh tools，再新建会话并复制测试指令核对。SSH 等工作之后在 Windows 中处理。':'启用后再观察一个已打开的无害窗口，确认源 Dot 实际显示了图片。';
  if(!editing){el('device-name').value=s.device.name;el('tunnel-id').value=s.tunnel_id||''}
 }
 async function refresh(){renderState(await api('status'))}
+el('network-form').addEventListener('input',()=>{networkEditing=true;el('network-proxy-row').hidden=el('network-mode').value!=='manual'});
+el('network-form').addEventListener('submit',async e=>{e.preventDefault();const button=el('network-save');button.disabled=true;try{const mode=el('network-mode').value;await api('network',{mode,proxy_url:mode==='manual'?el('network-proxy').value.trim():''});networkEditing=false;msg('网络设置已保存，将在隧道下次启动时应用；当前连接继续运行，已提交任务不会重放。');await refresh()}catch(e){msg(e.message)}finally{button.disabled=false}});
 el('connect').addEventListener('input',()=>editing=true);el('connect').addEventListener('submit',async e=>{e.preventDefault();const key=el('runtime-key');try{await api('connect',{name:el('device-name').value,tunnel_id:el('tunnel-id').value,runtime_key:key.value});editing=false;msg('连接设置已保存到本机，正在检查隧道。');await refresh()}catch(e){msg(e.message)}finally{key.value=''}});
 for(const button of document.querySelectorAll('[data-action]'))button.onclick=async()=>{const action=button.dataset.action;if(action==='revoke'&&!confirm('撤销此设备的远程访问并删除本机保存的隧道运行密钥？'))return;button.disabled=true;try{await api('action',{action});msg(action==='resume'?(state?.terminal_only?'已恢复终端任务。':'已启用桌面任务。请使用新的观察继续。'):'已处理。');await refresh()}catch(e){msg(e.message)}finally{button.disabled=false}};
 el('copy-fields').onclick=async()=>{try{await navigator.clipboard.writeText('插件名称：'+el('device-name').value+'\n连接类型：Tunnel\n隧道编号：'+el('tunnel-id').value);msg('已复制。请在官方私有插件页面填写。')}catch{msg('请手动复制上方名称和隧道编号。')}};

@@ -29,6 +29,16 @@ type Connect struct {
 	RuntimeKey string `json:"runtime_key"`
 }
 
+// NetworkRequest is local-only. Proxy authentication is not accepted here.
+type NetworkRequest struct {
+	Mode     string `json:"mode"`
+	ProxyURL string `json:"proxy_url,omitempty"`
+}
+
+type NetworkBackend interface {
+	Network(context.Context, NetworkRequest) (any, error)
+}
+
 // ConnectionsRequest has no credential-value fields. It is accepted exclusively
 // by the authenticated same-origin local wizard, never the remote MCP service.
 type ConnectionsRequest struct {
@@ -178,6 +188,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	var value any
 	switch r.URL.Path {
+	case "/onboard/api/network":
+		var input NetworkRequest
+		err = decode(r, &input)
+		if err == nil {
+			if backend, ok := s.backend.(NetworkBackend); ok {
+				value, err = backend.Network(r.Context(), input)
+			} else {
+				err = errors.New("network_unavailable")
+			}
+		}
 	case "/onboard/api/history":
 		var input HistoryRequest
 		err = decode(r, &input)

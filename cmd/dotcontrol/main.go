@@ -470,7 +470,7 @@ func serveLegacy(ctx context.Context, dir string, c config.Config, v vault.Vault
 }
 func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
 	f := flags("doctor")
-	online := f.Bool("online", false, "Run official tunnel permission/readiness diagnostics")
+	online := f.Bool("online", false, "Validate tunnel configuration and report live cloud polling separately")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
@@ -529,14 +529,27 @@ func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, arg
 			}
 			probeCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 			defer cancel()
-			cmd := exec.CommandContext(probeCtx, c.TunnelPath, "doctor", "--control-plane.tunnel-id", c.TunnelID, "--control-plane.api-key", "env:DOTCONTROL_TUNNEL_KEY", "--mcp.server-url", "http://"+c.Listen+"/mcp", "--mcp.extra-headers", "X-DotControl-Token: env:DOTCONTROL_MCP_TOKEN")
-			cmd.Env = tunnel.Environment(key, mcpToken)
-			cmd.Stdout = io.Discard
-			cmd.Stderr = io.Discard
-			if cmd.Run() == nil {
-				checks["official_tunnel_doctor"] = "passed"
+			env, proxyArgs, networkErr := tunnel.ControlPlaneEnvironment(probeCtx, c.Network, key, mcpToken)
+			if networkErr != nil {
+				checks["official_tunnel_doctor"] = networkErr.Error()
 			} else {
-				checks["official_tunnel_doctor"] = "failed_check_platform_permissions_and_network"
+				args := []string{"doctor", "--control-plane.tunnel-id", c.TunnelID, "--control-plane.api-key", "env:DOTCONTROL_TUNNEL_KEY", "--mcp.server-url", "http://" + c.Listen + "/mcp", "--mcp.extra-headers", "X-DotControl-Token: env:DOTCONTROL_MCP_TOKEN"}
+				cmd := exec.CommandContext(probeCtx, c.TunnelPath, append(args, proxyArgs...)...)
+				cmd.Env = env
+				cmd.Stdout = io.Discard
+				cmd.Stderr = io.Discard
+				if cmd.Run() == nil {
+					checks["official_tunnel_doctor"] = "configuration_validated"
+				} else {
+					checks["official_tunnel_doctor"] = "configuration_check_failed"
+				}
+			}
+		}
+		checks["tunnel_cloud_connection"] = tunnel.Status{CloudState: "unavailable"}
+		if token != "" {
+			data, err := (localapi.Client{Address: c.Listen, Token: token}).Post(ctx, "/admin/status", map[string]any{})
+			if err == nil {
+				checks["tunnel_cloud_connection"] = doctorCloudStatus(data)
 			}
 		}
 	}
