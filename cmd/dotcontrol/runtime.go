@@ -167,6 +167,12 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		go func() { _ = owner.history.Check(ctx) }()
 	}
 	backend := service.Local{Engine: eng, Bridge: bridge, BaseStatus: owner.baseStatus, History: owner.history}
+	upgrade := &service.UpgradeGate{Backend: backend, Ready: func() error {
+		if err := bridge.UpgradeReady(); err != nil {
+			return err
+		}
+		return eng.UpgradeReady()
+	}}
 	guard := func(h http.Handler) http.Handler {
 		return localapi.Guard(mcpToken, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			owner.mu.Lock()
@@ -181,9 +187,9 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/onboard/", ui)
-	mux.Handle("/mcp", guard(mcpserver.HTTP(observedBackend{owner, backend})))
+	mux.Handle("/mcp", guard(mcpserver.HTTP(observedBackend{owner, upgrade})))
 	// The existing authenticated RPC remains separate from browser sessions.
-	mux.Handle("/rpc", guard(gateway.Handler(backend)))
+	mux.Handle("/rpc", guard(gateway.Handler(upgrade)))
 	mux.Handle("/admin/", localapi.Guard(adminToken, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "method_rejected", 405)
@@ -209,6 +215,14 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		case "/admin/shutdown":
 			out = map[string]bool{"stopping": true}
 			defer cancel()
+		case "/admin/upgrade/shutdown":
+			wait, done := context.WithTimeout(r.Context(), 40*time.Second)
+			e = upgrade.Drain(wait)
+			done()
+			if e == nil {
+				out = map[string]bool{"stopping": true}
+				defer cancel()
+			}
 		case "/admin/repair":
 			out, e = owner.Action(r.Context(), "repair")
 		case "/admin/pause", "/admin/resume", "/admin/revoke":
@@ -423,7 +437,14 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	if o.cfg.TerminalOnly {
 		reason = "任务由本机 Codex 执行。SSH 和服务器可在之后按实际任务配置。"
 	}
-	return map[string]any{"device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
+	executable, _ := os.Executable()
+	upgradeReason := ""
+	if err := o.bridge.UpgradeReady(); err != nil {
+		upgradeReason = err.Error()
+	} else if err := o.eng.UpgradeReady(); err != nil {
+		upgradeReason = err.Error()
+	}
+	return map[string]any{"runtime": map[string]any{"pid": os.Getpid(), "executable": executable}, "upgrade": map[string]any{"ready": upgradeReason == "", "reason": upgradeReason}, "device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	historyCap := model.HistoryCapability{State: "disabled", Code: "history_disabled"}

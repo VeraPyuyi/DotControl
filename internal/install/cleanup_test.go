@@ -18,6 +18,33 @@ func enableCleanup(t *testing.T, o *Options, guard func(context.Context, Current
 	t.Helper()
 	o.CleanupOldVersions = true
 	o.BeforeCleanup = guard
+	if o.Health == nil {
+		o.Health = func(context.Context, Current) error { return nil }
+	}
+}
+
+func TestCleanupRequiresHealthBeforeNewActivation(t *testing.T) {
+	for _, apply := range []func(context.Context, Options) (Result, error){Apply, Repair} {
+		o := opts(t, bundle(t, "0.2.0", "old"))
+		old, err := Apply(context.Background(), o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		o.BundleDir = bundle(t, "0.2.1", "new")
+		o.CleanupOldVersions = true
+		o.BeforeActivate = func(context.Context, Current) error { t.Fatal("activated without health"); return nil }
+		o.BeforeCleanup = func(context.Context, Current) error { t.Fatal("cleaned without health"); return nil }
+		if _, err = apply(context.Background(), o); err == nil {
+			t.Fatal("missing health accepted")
+		}
+		got, err := ReadCurrent(o.Root)
+		if err != nil || got != old.Current {
+			t.Fatal("old pointer changed", err)
+		}
+		if _, err = Verify(context.Background(), old.Current.Dir); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func TestCleanupOnlyAfterHealthPreservesUnknownFiles(t *testing.T) {
@@ -134,6 +161,7 @@ func TestCleanupGuardRefusesReferencedGenerationAndRetries(t *testing.T) {
 				t.Fatal(e)
 			}
 			o.BundleDir = ""
+			o.Health = nil // committed cleanup does not re-run activation health
 			o.BeforeActivate = func(context.Context, Current) error { t.Fatal("recovery should only clean"); return nil }
 			o.BeforeCleanup = func(context.Context, Current) error { return nil }
 			var next Result
@@ -159,6 +187,7 @@ func TestCleanupRequiresGuardAndRetainsCurrentGeneration(t *testing.T) {
 	}
 	o.BundleDir = bundle(t, "0.2.1", "new")
 	o.CleanupOldVersions = true
+	o.Health = func(context.Context, Current) error { return nil }
 	r, e := Apply(context.Background(), o)
 	assertCleanupPending(t, o, r, e)
 	o.BeforeCleanup = func(_ context.Context, candidate Current) error {
@@ -316,6 +345,7 @@ func TestCleanupRejectsUnsafeOwnedPaths(t *testing.T) {
 func TestCleanupRecoversAfterProcessExit(t *testing.T) {
 	if root := os.Getenv("DOTCONTROL_CLEANUP_TEST_ROOT"); root != "" {
 		o := Options{Root: root, StateDir: root + "-state", BundleDir: os.Getenv("DOTCONTROL_CLEANUP_TEST_BUNDLE"), CleanupOldVersions: true}
+		o.Health = func(context.Context, Current) error { return nil }
 		o.BeforeCleanup = func(_ context.Context, candidate Current) error {
 			if candidate.Version == "0.2.0" {
 				os.Exit(29)

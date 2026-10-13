@@ -443,6 +443,9 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 		}
 		p, result, committed = Progress{}, Result{}, false
 	}
+	if o.CleanupOldVersions && o.Health == nil {
+		return result, errors.New("cleanup requires a health check")
+	}
 	if err = report("download"); err != nil {
 		return result, err
 	}

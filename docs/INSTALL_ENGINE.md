@@ -157,7 +157,9 @@ unverified content. Repair can reinstall alongside an old directory retained
 because it contains user files.
 
 Upgrade cleanup uses the existing schema-1 ownership record without changing its
-format. Before removing an old listed file, it verifies its regular-file type,
+format. A new cleanup-enabled activation requires an explicit successful Health
+callback; an already committed cleanup-only retry does not run Health again.
+Before removing an old listed file, it verifies its regular-file type,
 hash, Unix mode where applicable, and absence of links/reparse points/hardlinks.
 A changed or unsafe listed path is preserved and produces `cleanup_pending`;
 other files may already have been removed. The user can restore its expected
