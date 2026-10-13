@@ -75,21 +75,23 @@ func payloadExecutable(bundle string) string {
 	}
 	return exe
 }
-func extractVerifiedPayload(ctx context.Context, dir string) (install.Manifest, error) {
-	if entries, e := os.ReadDir(dir); e == nil && len(entries) > 0 {
-		return install.Manifest{}, errors.New("payload_destination_not_empty")
-	} else if e != nil && !os.IsNotExist(e) {
-		return install.Manifest{}, e
+func preparePayloadDestination(dir string) (string, error) {
+	canonical, e := install.CanonicalPath(dir)
+	if e != nil {
+		return "", errors.New("unsafe_payload_destination")
 	}
-	for p := filepath.Clean(dir); ; p = filepath.Dir(p) {
-		if info, e := os.Lstat(p); e == nil && info.Mode()&os.ModeSymlink != 0 {
-			return install.Manifest{}, errors.New("unsafe_payload_destination")
-		} else if e != nil && !os.IsNotExist(e) {
-			return install.Manifest{}, e
-		}
-		if filepath.Dir(p) == p {
-			break
-		}
+	dir = canonical
+	if entries, e := os.ReadDir(dir); e == nil && len(entries) > 0 {
+		return "", errors.New("payload_destination_not_empty")
+	} else if e != nil && !os.IsNotExist(e) {
+		return "", e
+	}
+	return dir, nil
+}
+func extractVerifiedPayload(ctx context.Context, dir string) (install.Manifest, error) {
+	dir, e := preparePayloadDestination(dir)
+	if e != nil {
+		return install.Manifest{}, e
 	}
 	data, e := embedded.ReadFile("assets/payload.zip")
 	if e != nil {

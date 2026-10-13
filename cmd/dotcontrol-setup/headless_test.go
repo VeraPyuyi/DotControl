@@ -1,10 +1,27 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 )
+
+func TestPayloadDestinationStaysEmptyAndRejectsExistingContents(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "payload")
+	got, e := preparePayloadDestination(dest)
+	if e != nil || !filepath.IsAbs(got) {
+		t.Fatalf("destination=%s %v", got, e)
+	}
+	if _, e := os.Stat(dest); !os.IsNotExist(e) {
+		t.Fatal("preflight created payload")
+	}
+	os.MkdirAll(dest, 0700)
+	os.WriteFile(filepath.Join(dest, "retain"), []byte("retain"), 0600)
+	if _, e := preparePayloadDestination(dest); e == nil {
+		t.Fatal("nonempty destination accepted")
+	}
+}
 
 func TestHeadlessArgumentsAreBoundedAndIsolated(t *testing.T) {
 	base := t.TempDir()

@@ -57,6 +57,15 @@ func TestWindowsNamespaceAliasCannotHideStateInsideRoot(t *testing.T) {
 	}
 }
 
+func TestCanonicalPathRetainsWindowsNamespaceRejection(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{`\\?\` + root, `\\.\` + root, `\??\` + root, strings.ReplaceAll(`\\?\`+root, `\`, "/")} {
+		if _, e := CanonicalPath(p); e == nil {
+			t.Fatalf("namespace accepted: %q", p)
+		}
+	}
+}
+
 func shortDirectory(t *testing.T, p string) string {
 	t.Helper()
 	ptr, e := syscall.UTF16PtrFromString(p)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/dotcontrol/dotcontrol/internal/config"
 	"github.com/dotcontrol/dotcontrol/internal/desktop"
+	"github.com/dotcontrol/dotcontrol/internal/install"
 	"github.com/gofrs/flock"
 	"html"
 	"os"
@@ -16,6 +17,13 @@ import (
 )
 
 func installationLock(ctx context.Context, path string) (func(), error) {
+	// Normalize only the filesystem lock; rewriting the runtime --state value
+	// would change the existing operating-system credential namespace.
+	canonical, e := install.CanonicalPath(path)
+	if e != nil {
+		return nil, e
+	}
+	path = canonical
 	for p := filepath.Clean(path); ; p = filepath.Dir(p) {
 		info, e := os.Lstat(p)
 		if e != nil && !os.IsNotExist(e) {

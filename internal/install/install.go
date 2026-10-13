@@ -97,6 +97,11 @@ func DefaultRoot() (string, error) {
 // checks used by Apply before callers create their state-level coordination lock.
 func ValidatePaths(root, state string) error { _, err := preparePaths(root, state); return err }
 
+// CanonicalPath reuses the installer's strict namespace/link checks, including
+// only Darwin's verified system aliases. It does not create files. Callers must
+// retain the original state spelling for existing runtime/vault namespaces.
+func CanonicalPath(path string) (string, error) { return canonicalInstallPath(path) }
+
 func preparePaths(root, state string) (string, error) {
 	if root == "" || state == "" {
 		return "", errors.New("install root and separate state directory are required")
