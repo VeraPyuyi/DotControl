@@ -19,7 +19,7 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 	case "save_server", "check_ssh", "authorize_prepare", "authorize_start", "authorize_status", "pick_public_key", "pick_identity":
 		return nil, errors.New("feature_retired")
 	}
-	if r.Server != nil || r.ServerProfileID != "" || r.PublicKeyPath != "" || r.AuthorizationID != "" {
+	if r.RetiredFieldsPresent || r.Server != nil || r.ServerProfileID != "" || r.PublicKeyPath != "" || r.AuthorizationID != "" {
 		return nil, errors.New("feature_retired")
 	}
 	o.connectionsMu.Lock()

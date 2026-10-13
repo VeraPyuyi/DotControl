@@ -90,6 +90,45 @@ func TestConnectionConfigurationRequiresLocalSessionAndRejectsSecrets(t *testing
 	}
 }
 
+func TestConnectionConfigurationRejectsPresentRetiredFieldsBeforeBackend(t *testing.T) {
+	f := &connectionFake{}
+	s := New("127.0.0.1:9317", f)
+	origin := "http://127.0.0.1:9317"
+	ticket := strings.Split(s.LaunchURL(), "#")[1]
+	w := req(s, "/onboard/api/session", `{"ticket":"`+ticket+`"}`, origin, "", nil)
+	var session map[string]string
+	_ = json.Unmarshal(w.Body.Bytes(), &session)
+	cookie := w.Result().Cookies()[0]
+	for _, operation := range []string{"enable_terminal", "save_execution", "save_codex", "list"} {
+		for _, field := range []string{"server", "Server", "server_profile_id", "SERVER_PROFILE_ID", "public_key_path", "Public_Key_Path", "authorization_id", "AUTHORIZATION_ID"} {
+			values := []string{`null`, `""`}
+			if strings.EqualFold(field, "server") {
+				values = []string{`null`, `{}`}
+			}
+			for _, value := range values {
+				body := `{"operation":"` + operation + `","` + field + `":` + value + `}`
+				w = req(s, "/onboard/api/connections", body, origin, session["csrf"], cookie)
+				var response map[string]string
+				_ = json.Unmarshal(w.Body.Bytes(), &response)
+				if w.Code != 400 || response["error"] != "feature_retired" || f.calls != 0 {
+					t.Fatalf("retired request %s: %d %s calls=%d", body, w.Code, w.Body.String(), f.calls)
+				}
+			}
+		}
+	}
+	for _, body := range []string{
+		`{"operation":"save_execution","unknown":null}`,
+		`{"operation":"save_execution","experiment_id":null}`,
+		`{"operation":"save_execution","execution":{"unknown":null}}`,
+		`{"operation":"list"} {}`,
+	} {
+		w = req(s, "/onboard/api/connections", body, origin, session["csrf"], cookie)
+		if w.Code != 400 || !strings.Contains(w.Body.String(), "invalid_input") || f.calls != 0 {
+			t.Fatalf("strict request decode lost: %s %d %s", body, w.Code, w.Body.String())
+		}
+	}
+}
+
 func (f *fake) Status(context.Context) (any, error)         { return map[string]bool{"paused": true}, nil }
 func (f *fake) Connect(context.Context, Connect) error      { f.connected++; return nil }
 func (f *fake) Action(context.Context, string) (any, error) { return nil, nil }

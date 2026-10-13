@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/dotcontrol/dotcontrol/internal/onboard"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -27,6 +30,37 @@ func TestRetiredConnectionOperationsNeverTouchRuntime(t *testing.T) {
 		_, err := owner.Connections(context.Background(), onboard.ConnectionsRequest{Operation: op})
 		if err == nil || err.Error() != "feature_retired" {
 			t.Fatalf("%s: %v", op, err)
+		}
+	}
+}
+
+func TestRetiredConnectionFieldPresenceRejectsBeforeStoredConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "connections", "connections.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []byte(`{"legacy_configuration":"must remain byte-for-byte untouched"}`)
+	if err := os.WriteFile(path, legacy, 0600); err != nil {
+		t.Fatal(err)
+	}
+	owner := &runtimeOwner{dir: dir}
+	for _, body := range []string{
+		`{"operation":"list","server":null}`,
+		`{"operation":"save_execution","Server_Profile_Id":""}`,
+		`{"operation":"enable_terminal","PUBLIC_KEY_PATH":null}`,
+		`{"operation":"save_codex","Authorization_Id":""}`,
+	} {
+		var request onboard.ConnectionsRequest
+		if err := json.Unmarshal([]byte(body), &request); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := owner.Connections(context.Background(), request); err == nil || err.Error() != "feature_retired" {
+			t.Fatalf("retired field %s reached local configuration: %v", body, err)
+		}
+		stored, err := os.ReadFile(path)
+		if err != nil || string(stored) != string(legacy) {
+			t.Fatalf("retired request modified legacy configuration: %v", err)
 		}
 	}
 }

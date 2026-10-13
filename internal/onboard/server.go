@@ -42,14 +42,15 @@ type NetworkBackend interface {
 // ConnectionsRequest has no credential-value fields. It is accepted exclusively
 // by the authenticated same-origin local wizard, never the remote MCP service.
 type ConnectionsRequest struct {
-	Operation       string                        `json:"operation"`
-	Executable      string                        `json:"executable,omitempty"`
-	Execution       *connections.ExecutionProfile `json:"execution,omitempty"`
-	Server          *connections.ServerProfile    `json:"server,omitempty"`
-	ProfileID       string                        `json:"profile_id,omitempty"`
-	ServerProfileID string                        `json:"server_profile_id,omitempty"`
-	PublicKeyPath   string                        `json:"public_key_path,omitempty"`
-	AuthorizationID string                        `json:"authorization_id,omitempty"`
+	RetiredFieldsPresent bool                          `json:"-"`
+	Operation            string                        `json:"operation"`
+	Executable           string                        `json:"executable,omitempty"`
+	Execution            *connections.ExecutionProfile `json:"execution,omitempty"`
+	Server               *connections.ServerProfile    `json:"server,omitempty"`
+	ProfileID            string                        `json:"profile_id,omitempty"`
+	ServerProfileID      string                        `json:"server_profile_id,omitempty"`
+	PublicKeyPath        string                        `json:"public_key_path,omitempty"`
+	AuthorizationID      string                        `json:"authorization_id,omitempty"`
 }
 
 type ConnectionsBackend interface {
@@ -211,6 +212,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/onboard/api/connections":
 		var input ConnectionsRequest
 		err = decode(r, &input)
+		if err == nil && input.RetiredFieldsPresent {
+			err = errors.New("feature_retired")
+		}
 		if err == nil {
 			if backend, ok := s.backend.(ConnectionsBackend); ok {
 				value, err = backend.Connections(r.Context(), input)
