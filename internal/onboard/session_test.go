@@ -1,6 +1,7 @@
 package onboard
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,53 @@ import (
 	"testing"
 	"time"
 )
+
+type delayedStatusBackend struct {
+	fake
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (b *delayedStatusBackend) Status(context.Context) (any, error) {
+	close(b.entered)
+	<-b.release
+	return map[string]bool{"ready": true}, nil
+}
+
+func TestLateResponseCannotReplaceFreshBrowserSession(t *testing.T) {
+	base := time.Now()
+	now := base
+	b := &delayedStatusBackend{entered: make(chan struct{}), release: make(chan struct{})}
+	s := New("127.0.0.1:9317", b)
+	s.now = func() time.Time { return now }
+	c, csrf := wizardSession(t, s, nil)
+	if c.MaxAge != int(sessionMaxLifetime/time.Second) {
+		t.Fatal("browser credential must cover the absolute lifetime")
+	}
+	for _, elapsed := range []time.Duration{11 * time.Hour, 22 * time.Hour} {
+		now = base.Add(elapsed)
+		if w := req(s, "/onboard/api/action", `{"action":"check"}`, s.origin, csrf, c); w.Code != 200 {
+			t.Fatal("keep session active", w.Code)
+		}
+	}
+	now = base.Add(sessionMaxLifetime - time.Second)
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- req(s, "/onboard/api/status", `{}`, s.origin, csrf, c) }()
+	<-b.entered
+	now = base.Add(sessionMaxLifetime)
+	fresh, freshCSRF := wizardSession(t, s, c)
+	close(b.release)
+	late := <-done
+	if fresh.Value == c.Value {
+		t.Fatal("expired session reused")
+	}
+	if len(late.Result().Cookies()) != 0 {
+		t.Fatal("late response would overwrite the fresh browser session")
+	}
+	if w := req(s, "/onboard/api/action", `{"action":"check"}`, s.origin, freshCSRF, fresh); w.Code != 200 {
+		t.Fatal("fresh session rejected", w.Code)
+	}
+}
 
 func wizardSession(t *testing.T, s *Server, cookie *http.Cookie) (*http.Cookie, string) {
 	t.Helper()

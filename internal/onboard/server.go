@@ -174,7 +174,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		write(w, 403, map[string]string{"error": "session_rejected"})
 		return
 	}
-	s.touchSession(w, c.Value, sess)
+	s.touchSession(c.Value, sess)
 	s.mu.Unlock()
 	var value any
 	switch r.URL.Path {
@@ -313,18 +313,21 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 }
 
 // Caller holds mu. Renewal never extends the original absolute lifetime.
-func (s *Server) touchSession(w http.ResponseWriter, id string, sess session) session {
+func (s *Server) touchSession(id string, sess session) session {
 	now := s.now()
 	sess.Expires = now.Add(sessionIdleLifetime)
 	if sess.Expires.After(sess.HardExpires) {
 		sess.Expires = sess.HardExpires
 	}
 	s.sessions[id] = sess
-	maxAge := int((sess.Expires.Sub(now) + time.Second - 1) / time.Second)
-	http.SetCookie(w, &http.Cookie{Name: s.cookieName, Value: id, Path: "/onboard/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
 	return sess
 }
 func (s *Server) sessionReply(w http.ResponseWriter, id string, sess session) {
-	sess = s.touchSession(w, id, sess)
+	sess = s.touchSession(id, sess)
+	// Keep the browser credential until the absolute limit; idle expiry is
+	// enforced server-side. Business responses must not set cookies: a slow
+	// response can arrive after a new launch and overwrite its fresh credential.
+	maxAge := int((sess.HardExpires.Sub(s.now()) + time.Second - 1) / time.Second)
+	http.SetCookie(w, &http.Cookie{Name: s.cookieName, Value: id, Path: "/onboard/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
 	write(w, 200, map[string]any{"csrf": sess.CSRF, "expires_at": sess.Expires, "max_expires_at": sess.HardExpires})
 }

@@ -17,12 +17,13 @@
     "loopback_host_origin_json_and_csrf_guards_retained",
     "httponly_same_site_cookie_scoped_by_agent_origin",
     "same_browser_reuses_session_and_csrf_across_tabs",
-    "capacity_evicts_only_one_least_recently_active_session",
+    "capacity_evicts_only_one_earliest_expiring_session",
     "rejected_origin_or_csrf_does_not_renew_session",
     "idle_and_absolute_expiry_fail_closed",
     "agent_restart_requires_fresh_local_launch",
     "recovery_retries_only_explicit_pre_dispatch_authentication_rejections",
     "network_failures_and_business_errors_never_replay_mutations",
+    "server_side_idle_renewal_without_late_business_response_cookie_overwrite",
     "approval_deadlines_and_history_cursor_expiry_unchanged"
   ],
   "verification": {
@@ -41,6 +42,7 @@
   },
   "running_candidate": {
     "updated": true,
+    "review_cookie_race_fix_deployed": false,
     "config_and_history_policy_sha256_unchanged": true,
     "local_tunnel_health_ready": true,
     "cloud_plugin_recheck": "failed_tunnel_client_not_seen",
@@ -49,6 +51,18 @@
     "history_mode": "all",
     "history_revision": 1
   },
+  "code_review": {
+    "date": "2026-10-13",
+    "important_findings_fixed": ["late_api_response_overwrote_fresh_session_cookie"],
+    "minor_findings_fixed": ["eviction_description_corrected_to_earliest_expiring"],
+    "late_response_regression_red_then_green": true,
+    "independent_recheck": "passed_no_remaining_blockers_in_reviewed_diff",
+    "post_fix_go_test_all": "passed_with_node_tests_enabled",
+    "post_fix_go_vet_all": "passed",
+    "post_fix_onboard_and_command_race_tests": "passed",
+    "post_fix_javascript_syntax_and_diff_checks": "passed"
+  },
   "published_installers_updated": false,
-  "code_sync": "local_commits_pending_github_connection_reset_and_connect_failure"
+  "initial_code_sync_attempt": "failed_github_connection_reset_and_connect_failure",
+  "github_read_access_recheck": "restored_2026-10-13"
 }

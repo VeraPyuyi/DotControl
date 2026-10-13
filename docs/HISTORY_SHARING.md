@@ -52,7 +52,9 @@ launch. Sessions remain local, HttpOnly, same-origin and CSRF-protected; differe
 agent ports use distinct cookie names. Losing a page session does not change
 saved sharing permissions or terminal jobs. Only explicit authentication
 rejections can be retried after session recovery; uncertain operations are not
-replayed. Official Codex approval deadlines and history cursors are unchanged.
+replayed. Idle renewal is enforced server-side; delayed operation responses
+cannot overwrite a newly opened browser session. Official Codex approval
+deadlines and history cursors are unchanged.
 
 ## Policy and read contract
 
