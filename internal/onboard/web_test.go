@@ -15,14 +15,15 @@ func TestNetworkStatusAndSettingsUI(t *testing.T) {
 	}
 }
 
-func TestLocalReviewForm(t *testing.T) {
+func TestConsoleNavigation(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("Node.js is required for browser form regression checks")
+		t.Skip("Node.js required")
 	}
-	out, err := exec.Command(node, "testdata/reviews.test.cjs", "web/reviews.js").CombinedOutput()
-	if err != nil {
-		t.Fatalf("local review form: %v\n%s", err, out)
+	for _, name := range []string{"console", "history"} {
+		if out, err := exec.Command(node, "testdata/"+name+".test.cjs", "web/"+name+".js").CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v\n%s", name, err, out)
+		}
 	}
 }
 

@@ -54,7 +54,7 @@ confirmation. `history disable` stops history independently of terminal tasks.
 ## Verify through Dot
 
 Refresh the existing private plugin using official **Refresh tools**. Check the
-actual source session exposes all 14 tools, including `codex_projects`,
+actual source session exposes all 13 tools, including `codex_projects`,
 `codex_threads`, `codex_read_thread`. If absent, stop and reload in a new session.
 Call `devices` and inspect `capabilities.codex_history`. Read a selected permitted
 chat (default 5, max 20 turns) and confirm a known excluded ID is refused after a

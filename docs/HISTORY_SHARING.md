@@ -4,7 +4,7 @@ DotControl adds three read-only tools to the existing eleven: `codex_projects`,
 `codex_threads`, `codex_read_thread`. Upgrade the agent, then use **Refresh tools**
 on the existing official plugin and check the actual source session's inventory.
 Agent readiness, official plugin metadata and source-session discovery are
-separate checks. `codex_review` availability does not prove remote approvals.
+separate checks. Alpha.5 removes review forwarding and exposes 13 tools.
 
 ## Local setup
 

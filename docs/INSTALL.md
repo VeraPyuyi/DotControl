@@ -4,15 +4,15 @@
 
 ## 1. 安装
 
-- Windows 11 x64：打开 DotControl-0.2.0-alpha.4-windows-amd64-setup.exe。
-- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.4-macos-arm64.dmg 内的 DotControl Setup.app。
-- Mac Intel：使用 DotControl-0.2.0-alpha.4-macos-amd64.dmg。
+- Windows 11 x64：打开 DotControl-0.2.0-alpha.5-windows-amd64-setup.exe。
+- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.5-macos-arm64.dmg 内的 DotControl Setup.app。
+- Mac Intel：使用 DotControl-0.2.0-alpha.5-macos-amd64.dmg。
 
-alpha.4 已[预发布](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.4)，三个安装包及安装助手均附校验和；已完成公开下载与原生包内复验。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
+alpha.5 [发布入口](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.5)，三个安装包及安装助手均附校验和；实际公开下载与包内验证结果见支持矩阵。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
 
 安装器自动校验随包组件、识别旧设备、安装到当前用户目录并启动本地向导。发现多个已有设备时选择要升级的设备，不删除状态目录重新安装。正常安装无需终端、Go、Python、Homebrew 或 Xcode。首次发布未配置发布者签名或公证，系统可能显示来源提示；上游 CuaDriver 签名校验失败则停止。
 
-Mac 的 CuaDriver 固定放在 /Applications/CuaDriver.app。活动检测和菜单程序位于当前用户的 Applications。按向导打开辅助功能、屏幕录制和输入监控设置，由你完成系统授权。授权后点击“重新检查并修复连接”。若系统要求退出重开，应完成该步骤。
+Mac 的 CuaDriver 固定放在 /Applications/CuaDriver.app。活动检测和菜单程序位于当前用户的 Applications。按向导打开辅助功能、屏幕录制和输入监控设置，由你完成系统授权。授权后点击“检查并修复连接”。若系统要求退出重开，应完成该步骤。
 
 ## 2. 连接账号
 
@@ -22,25 +22,29 @@ Mac 的 CuaDriver 固定放在 /Applications/CuaDriver.app。活动检测和菜�
 2. [创建运行密钥](https://platform.openai.com/settings/organization/api-keys)：仅授予 Tunnels 的 Read + Use 权限。把密钥填入本地向导的隐藏输入框，不要发到聊天、命令行、截图或日志中。
 3. [添加私有插件](https://chatgpt.com/plugins)：选择自定义 MCP 服务器和 Tunnel，填写该设备名称与相同隧道编号，并完成官方确认。
 
-点击“保存到本机并连接”。密钥保存在 Windows 凭据管理器或 Mac 钥匙串。已有配置时留空不会清除密钥。官方账号权限不足时保留当前进度，不需要组织管理员密钥。
+在“连接设置”点击“保存并连接”。密钥保存在 Windows 凭据管理器或 Mac 钥匙串。已有配置时留空不会清除密钥。官方账号权限不足时保留当前进度，不需要组织管理员密钥。
 
 安装 Codex 引导插件后，可以说“帮我安装并连接 DotControl”。它使用相同安装器和正常浏览器工具协助填写；登录、密钥录入和系统权限仍由你完成。插件源码位于 plugins/dotcontrol-onboarding，仓库同时提供 Codex marketplace 描述。
 
 ### 网络连接
 
-向导的“网络连接（通常无需修改）”默认选择 **自动使用已有代理**：先使用当前进程中适用于 HTTPS 控制连接的代理环境变量，再读取当前用户系统中适用于该连接的静态代理；没有代理则直连，匹配绕过规则时也直连。仅有 `HTTP_PROXY` 或系统中仅用于 HTTP 目标的设置不会用于 HTTPS 控制连接。可在本机改为 **直连** 或填写无用户名、密码的 **手动 HTTP / HTTPS 代理**。仅影响官方隧道的云端控制连接，本地向导、MCP 和健康检查始终直连，不修改系统代理、DNS 或 TLS 设置。
+向导的“连接设置 → 网络连接”默认选择 **自动使用已有代理**：先使用当前进程中适用于 HTTPS 控制连接的代理环境变量，再读取当前用户系统中适用于该连接的静态代理；没有代理则直连，匹配绕过规则时也直连。仅有 `HTTP_PROXY` 或系统中仅用于 HTTP 目标的设置不会用于 HTTPS 控制连接。可在本机改为 **直连** 或填写无用户名、密码的 **手动 HTTP / HTTPS 代理**。仅影响官方隧道的云端控制连接，本地向导、MCP 和健康检查始终直连，不修改系统代理、DNS 或 TLS 设置。
 
 PAC、仅 SOCKS 和交互认证未实现自动支持。请按返回的具体原因，在本机代理程序处理或选择已可用的静态 HTTP / HTTPS 连接，不把认证信息发到聊天。保存后显示“新的设置将在隧道下次启动时应用”：当前官方客户端不能保证无损热切换，DotControl 不因网络设置变化结束运行中的客户端。最新设置在子进程自然退出后的重启或下一次明确的本机重启时应用；即使暂时空闲也可能一直待处理。不要为消除该状态强制结束进程或重发任务。详见[网络模式、状态与诊断](NETWORK.md)。
 
 ## 3. 验证并启用
 
-点击“复制连接测试指令”，发给源电脑上的官方 Dot。保持官方连接在源电脑，让 Dot 通过目标设备的插件调用 devices，核对名称、设备 ID、随机值。
+在“概览”点击“复制测试指令”，发给源电脑上的官方 Dot。保持官方连接在源电脑，让 Dot 通过目标设备的插件调用 devices，核对名称、设备 ID、随机值。
 
-向导分别显示本地服务、云端隧道和源 Dot 调用。本地就绪只证明本机入口可用；云端在线还要求当前隧道进程的健康详情包含近期成功轮询；源 Dot 必须另外核对本次插件返回。进程存在、本地 `/readyz` 为 200 或 `doctor --online` 的配置检查成功均不能单独证明云端在线。插件工具仍为 14 个，升级后在官方设置刷新工具并核对实际会话目录。
+向导分别显示本地服务、云端隧道和源 Dot 调用。本地就绪只证明本机入口可用；云端在线还要求当前隧道进程的健康详情包含近期成功轮询；源 Dot 必须另外核对本次插件返回。进程存在、本地 `/readyz` 为 200 或 `doctor --online` 的配置检查成功均不能单独证明云端在线。插件工具改为 13 个，升级后在官方设置刷新工具并核对实际会话目录。
 
 Windows 的终端任务可在本机独立启用，不要求 Cua Driver 或 SSH。按向导完成本机 Codex 终端配置和当前目录授权后，再启用该能力；SSH 与服务器访问按实际任务另行配置。历史共享独立且可选，由本机明确选择共享范围。
 
-桌面能力须单独验收：本机检查通过后点击“启用桌面任务”，让 Dot 观察无害窗口，再做一个有明确新状态的动作。动作使用新的观察与唯一动作编号；结果为 unknown 时先重新观察，不能重发。只有实际在源 Dot 中看到原始图片后，才点击“我已在源 Dot 看到图片”。“隧道在线”“插件已调用”“MCP 返回图片”“源 Dot 显示图片”分别记录，不能相互替代。官方 Codex Computer Use 与远程审批尚未开放；检测到 App Server 或工具不等于完成相关验收。
+桌面能力须单独验收：本机检查通过后点击“恢复访问”，让 Dot 观察无害窗口，再做一个有明确新状态的动作。动作使用新的观察与唯一动作编号；结果为 unknown 时先重新观察，不能重发。只有实际在源 Dot 中看到原始图片后，才点击“确认已在源 Dot 看到图片”。“隧道在线”“插件已调用”“MCP 返回图片”“源 Dot 显示图片”分别记录，不能相互替代。官方 Codex Computer Use 尚未开放；旧审批转发已下线；检测到 App Server 或工具不等于完成相关验收。
+
+## 控制台布局
+
+已配置设备默认显示概览。连接设置管理隧道、密钥、代理与诊断；Codex 管理终端和高级项目权限；会话共享管理只读范围。状态定时刷新不会覆盖表单或候选，权限变更需本机明确操作。旧 SSH／实验助手及审批入口已下线，原文件和记录保留。
 
 ## 日常管理与恢复
 
@@ -72,7 +76,7 @@ uninstall 只移除本项目管理的程序文件和登录启动设置，保留�
 Windows 非托管开发版本迁入托管目录时，先等待任务结束并从原入口正常退出旧代理，再指定原程序的绝对路径：
 
 ```text
-DotControl-0.2.0-alpha.4-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
+DotControl-0.2.0-alpha.5-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
 ```
 
 安装器确认候选为普通无链接的 DotControl 程序，并记录 SHA-256；失败时可重新启动原程序。它不会自动删除非托管程序或其目录。非托管迁移仅支持 Windows；Mac 托管升级继续使用原设备目录。不能通过删除原设备目录绕过迁移选择。

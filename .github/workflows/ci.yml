@@ -30,14 +30,3 @@ jobs:
         run: xcrun swiftc -O -framework AppKit -framework CoreGraphics native/macos/Activity.swift -o /tmp/DotControlActivity
       # No interactive desktop permissions or cloud account credentials in CI.
       # CI passing is not official Dot / Mac GUI acceptance.
-  linux-experiment:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.27.2'
-          cache: true
-      # Executes only the fixed local CPU fixture with /proc identity checks.
-      # No SSH endpoints, GPU devices, credentials, or external jobs are used.
-      - run: go test -race -timeout 3m -count=1 ./internal/experiment ./internal/connections

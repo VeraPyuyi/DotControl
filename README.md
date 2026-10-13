@@ -2,7 +2,7 @@
 
 让官方 Dot 通过每台设备自己的私有 MCP 插件与安全隧道，操作另一台 Windows 或 Mac。无需自建云服务器，不复制官方账号凭据、私有记忆或会话。
 
-**[0.2.0-alpha.4 已预发布](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.4)：自动网络连接与真实云端状态。** 默认读取已有进程或系统静态代理，向导提供自动、直连和手动 HTTP / HTTPS 代理设置。本地服务就绪、云端成功轮询、源 Dot 实际调用分别显示。三平台发布包已下载复验；本机 Windows 已保留配置升级，正常重启后真实插件调用通过。Mac 本轮交付安装包，未修改用户 Mac。代理变化在隧道下次启动时应用。验收范围及限制见[发布支持矩阵](docs/RELEASE_SUPPORT.md)。
+**alpha.5：简洁控制台与旧功能下线。** 页面分为概览、连接设置、Codex 和会话共享。保留跨电脑终端任务与只读历史共享，移除内置 SSH／实验助手和旧审批转发；用户原有配置、密钥及记录保留。安装包和实测结果见[发布支持矩阵](docs/RELEASE_SUPPORT.md)。
 
 ## 快速开始
 
@@ -22,7 +22,7 @@
 
 ## 使用
 
-还可启用 [Codex 会话只读共享](docs/HISTORY_SHARING.md)：首次启用默认共享目标电脑全部本地会话；本机页面或 `share-codex-history` 技能可按聊天、项目或 Sidebar Organizer 分组选出清单，预览确认后才生效。分组变化不会自动授权。升级后在官方插件设置刷新工具，核对新增的三个历史接口，共 14 个工具。
+还可启用 [Codex 会话只读共享](docs/HISTORY_SHARING.md)：首次启用默认共享目标电脑全部本地会话；本机页面或 `share-codex-history` 技能可按聊天、项目或 Sidebar Organizer 分组选出清单，预览确认后才生效。分组变化不会自动授权。升级后在官方插件设置刷新工具，核对新增的三个历史接口，共 13 个工具。
 
 保持 Dot 连接源电脑，对它说：
 
@@ -36,7 +36,7 @@
 
 实现路线：源 Dot → 目标 DotControl → 目标 Codex → 官方 Computer Use／本机 SSH。
 
-本版支持[简化的 Windows 终端安装](docs/TERMINAL_INSTALL.md)：本机点击“连接并启用 Codex”，无需先配置 SSH、服务器或桌面权限。已用真实官方任务验证工作区权限下的文件写入、独立摘要核验、续聊和去重；旧安装不会自动启用。SSH 实验、Mac 源端完整闭环、原生 Computer Use 与远程审批仍分别待验收。详见[委派协议与限制](docs/CODEX_DELEGATION.md)及[最新证据](docs/validation/terminal-install-2026-10-13.json)。
+本版支持[Windows 终端安装](docs/TERMINAL_INSTALL.md)：本机点击“连接并启用 Codex”，无需先配置 SSH、服务器或桌面权限。源 Dot 通过四个 Codex 接口提交、查询、续聊和取消任务。已配置设备不会因升级扩大权限；旧审批依赖配置需要在本机明确重新配置。官方 Computer Use 继续关闭。Windows Codex 可以按用户要求自行使用本机网络和 SSH。详见[协议与限制](docs/CODEX_DELEGATION.md)。
 
 ## 已有跨电脑证据
 

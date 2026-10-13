@@ -1,284 +1,76 @@
-# Target Codex delegation (candidate implementation)
+# Codex 终端任务委派
 
-DotControl can now run an owned official Codex task through the public App Server
-stdio protocol, continue it, collect events and native MCP images, and request
-interruption. **The candidate accepts Windows terminal-only delegation after local
-opt-in; native desktop and remote human-review gates remain closed.** Installation
-does not require SSH or server setup; see [the simple installation flow](TERMINAL_INSTALL.md).
-The existing Cua route is separate.
+路径为源 Dot → 目标 DotControl → 目标官方 Codex。官方连接保持在源电脑，
+目标 Codex 使用本机登录、模型、网络与用户选择的权限，消耗目标账号额度。
+alpha.5 只开放经本机启用的 Windows 终端委派。原生 Computer Use 继续关闭，
+不以 Cua 操作替代。平台与版本实测见 [支持矩阵](RELEASE_SUPPORT.md)。
 
-See [the earlier evidence](validation/target-codex-progress-2026-10-12.json) and
-[the native/SSH follow-up](validation/native-ssh-progress-2026-10-12.json) for real
-tests versus automated tests. Windows has passed persistent official thread
-visibility, background continuation, a real terminal CPU check, request deduplication
-and a cancelled turn. Native app discovery and a real official application approval
-request were observed. A delegated GUI action, screenshot, Mac human review over
-the tunnel, and authenticated server experiment have not passed.
-The [terminal installation test](validation/terminal-install-2026-10-13.json)
-also exercised real `:workspace` / `never` model turns, independent file readback,
-and same-thread continuation without a human approval request. It did not test SSH
-or the source Mac Dot result loop.
+## 本机配置
 
-## Local configuration
+在控制台 **Codex** 中点击“连接并启用 Codex”，自动发现官方桌面程序，使用
+独立任务目录、官方 `:workspace` 权限和 `approvalPolicy: never`。不授予完全访问，
+不要求 SSH、服务器、桌面驱动、活动检测或空闲时间。预检只证明基本目录访问
+和官方命令执行；模型登录、额度和任务所需网络仍由真实任务验证。
 
-Open the installed agent's **onboard** page and choose “连接本机 Codex”:
+高级配置可选择项目目录、已有权限配置及任务呈现方式。权限 ID 的前导冒号
+有意义。DotControl 不改变全局权限；旧 on-request 配置不自动转为 never，
+需要用户在目标电脑明确保存基础终端配置并重新验证。
 
-The primary **连接并启用 Codex** button performs basic setup without server fields:
-it chooses an independent task directory, the official `:workspace` permission
-profile and `approvalPolicy: never`. The selected profile remains the permission
-boundary; unsupported actions fail instead of granting full access or waiting on
-repeated approval pages. It does not test model login, account quota or arbitrary
-network access. Existing installations must opt in locally. Advanced settings
-retain the following per-project configuration:
+`visible` 默认在轮次结束和连接清理完成后请求打开官方线程；`background`
+不主动打开。取消任务不弹出窗口。`open_requested` 仅表示系统接受打开请求，
+不是已观察到任务界面的证据。
 
-1. Discover the program bundled with the running official desktop application.
-   Save its reference. The execution adapter accepts the explicitly tested version
-   `0.162.0-alpha.17.2`; other versions report `codex_version_not_accepted`.
-2. Select a project directory, read its official permission profiles, and choose
-   an existing profile. Built-in IDs include `:read-only` and `:workspace`;
-   their leading colon is significant. DotControl does not alter global permissions.
-3. Choose terminal or Computer Use and visible or background presentation.
-   Visible requests the public `codex://threads/<id>` link after the turn ends and
-   the official connection and device lease have been cleaned up. Cancellation
-   does not open a task window.
-   `open_requested` means the OS accepted the link, not that a window was observed.
-   Background sends no open request. Computer Use on Windows still uses a foreground,
-   unlocked desktop, even with background presentation.
-4. Optionally save one or more named server profiles: SSH alias or user@host, port,
-   remote directory, optional private-key **file reference**, and optional deployment
-   command. Selecting a file does not read its contents. Save does not deploy.
+## 远程接口
 
-The target's official Codex process reads its own login and model settings.
-DotControl does not copy credentials. Delegated turns consume that account's quota.
-Terminal profiles disable Computer Use in the spawned official process. Selected
-application names and project/deployment instructions are task scope; they are not
-an OS sandbox or a guarantee against every command that the selected official
-permission profile permits. Choose the least permissions appropriate to the task.
+先在源端官方设置刷新现有插件，在新会话核对 **13 个工具**，再读取 devices 的
+`capabilities.codex_terminal` 和 `codex_profiles.execution`。本机就绪或历史设备
+查询记录不能证明源端已加载新版工具。不要把 apps/observe 当成终端前置检查。
 
-The protected loopback wizard owns configuration. Local directories, server
-endpoints, deployment commands and key paths are not included in diagnostics or
-the remote profile catalog. `devices.codex_profiles` exposes only chosen profile
-names, IDs, execution kind and presentation so source Dot can select a saved profile.
-Do not put secrets in profile names.
+| 工具 | 用途 |
+| --- | --- |
+| codex_submit | 使用设备、稳定 request_id、prompt、profile_id 创建持久官方任务；可选 presentation |
+| codex_job | 返回所属任务的阶段、真实线程/轮次、结果和命令回执 |
+| codex_continue | 在同一所属线程追加指令，使用新的稳定 request_id |
+| codex_cancel | 记录取消意图并请求中断，实际停止需官方终止证据 |
 
-SSH preflight uses the target's normal SSH configuration and agent with strict
-host verification and batch authentication. It checks connectivity and optionally
-directory access, without running a deployment command. Unknown or changed host
-keys require the local user's verification. Authentication failure requires local
-SSH setup or unlocking the agent. Passwords, passphrases, key bodies and tunnel
-keys must never be pasted into chat, configuration JSON, command arguments or logs.
-The local wizard contains no SSH password field and does not automate password login.
-
-To authorize a selected public key, save the server profile, select its public-key
-file, inspect the server and key fingerprint, then choose **打开 SSH 窗口**. Normal
-OpenSSH owns the local hidden password/passphrase prompt and host-key confirmation.
-The remote authorization command appends only a missing key, preserves existing
-restrictions, and refuses unexpected links, ownership or permissions. It does not
-modify sshd. A fresh operation receipt and a second strict connection using the
-selected key must both pass. Exit code zero alone is insufficient. The wizard
-distinguishes connection-only success from verified remote-directory access.
-
-An interrupted authorization remains unconfirmed. Its bounded diagnostic records
-only a failure category; raw SSH diagnostics are shown exclusively in the local
-terminal. A connection closing near a password prompt does not establish whether
-the password was correct. No deployment follows a failed authentication check.
-
-## Remote tools
-
-The original six desktop tools remain available. These five manage only tasks
-created by this DotControl device:
-
-| Tool | Required inputs | Behavior |
-| --- | --- | --- |
-| `codex_submit` | device_id, request_id, prompt, profile_id | Records a job and returns immediately. Optional server_profile_id, experiment_id and presentation. An experiment requires an existing local server profile. |
-| `codex_job` | device_id, job_id | Returns current phase, owned official thread/turn IDs, pending review, bounded results and MCP images. |
-| `codex_continue` | device_id, job_id, request_id, prompt | Appends a new turn to that owned thread, when no other turn is active. |
-| `codex_cancel` | device_id, job_id | Persists cancellation and requests interruption; waits for official terminal evidence before confirming stop. |
-| `codex_review` | device_id, job_id, approval_id | Opens the host's human form, without any model-supplied approval argument. |
-
-Example submission (fictional configuration IDs):
+示例仅使用虚构配置：
 
 ```json
-{
-  "device_id": "<device returned by devices>",
-  "request_id": "experiment-cpu-001",
-  "profile_id": "configured-terminal-profile",
-  "server_profile_id": "configured-test-server",
-  "presentation": "background",
-  "prompt": "Check the selected server and report readiness. Do not start the experiment yet."
-}
+{"device_id":"<devices 返回的编号>","request_id":"system-check-001","profile_id":"my-terminal","presentation":"background","prompt":"只报告本机操作系统和架构，不修改文件。"}
 ```
 
-Profile-based requests cannot override local app/directory scopes. Reusing the
-same request ID and identical decoded body returns the existing job. Different
-content under the same ID is a conflict. Continue IDs use the same per-device
-namespace. A profile change blocks continuation until the user chooses a new task.
-Legacy requests without a profile retain the old blocked contract and journal.
+同编号相同内容返回原任务，异参冲突。未知派发不重试，不换编号创建替代任务。
+只管理本设备创建的官方任务，不允许传入任意历史线程以恢复或修改。目标电脑
+用户接管时停止远程派发；官方活动写入者没有释放前不强制提交。
 
-An interrupted terminal task may receive a new explicit continuation only after
-the bound official turn has a durable `interrupted` receipt and its connection
-has finished closing. It retains the same thread and experiment binding, appends
-a new request intent and obtains fresh approvals. Unknown outcomes, native desktop
-cancellations, pre-dispatch cancellation and historical blocked records cannot
-use this path. A failed intent write cannot clear the cancellation state.
+## 下线兼容
 
-Only the official thread recorded for an owned job is used. No arbitrary thread
-resume or RPC is exposed. A desktop active-writer response becomes `local_takeover`;
-DotControl does not force takeover or submit concurrently. The user can continue
-locally. Remote continuation requires that the official writer is released.
+alpha.5 删除内置 SSH 检查、公钥授权、实验助手及审批转发实现：
+- `codex_review`、本机审批接口与页面已移除。
+- 新请求只要携带 `server_profile_id` 或 `experiment_id`（包括空值）就拒绝，
+  不忽略后执行别的任务。旧稳定请求仍先查原记录，不重复执行。
+- 旧 SSH 文件、密钥引用、服务器配置和实验记录保留；旧 CLI 返回无副作用的下线提示。
+- 旧实验或审批依赖任务只可查询、取消，不允许远程续跑。
+- Windows Codex 仍可根据用户任务自行使用正常 SSH；DotControl 不再注入服务器命令。
 
-## Human review
+新任务遇到审批或人工输入请求时，标记需要目标电脑处理并请求中断，不替用户回答。
+中断 RPC 成功不等于停止已确认；未取得官方终止证据时保持 outcome_unknown
+及执行保护。不能以删除记录、重启或新编号绕过。
 
-For supported command/file/permission/MCP approval events, the job exposes a
-bounded review record bound to device, job, official thread, turn and server request.
-`codex_review` requests a native host form through negotiated MCP input requests.
-There is no `accept` or decision argument in its tool schema. The returned human
-response carries a random, expiring, single-use challenge bound to that exact review.
+## 记录与权限
 
-A host without form support keeps the job waiting. Secret-entry forms, persistent
-grants and unsupported official requests remain target-local interactions.
-The gateway does not forward an approval callback. Cancellation, expiry, resolved
-requests, new turns, local pause and revoked desktop leases invalidate review.
-A write failure is uncertain and is not retried automatically.
+暂停和撤销仍阻止终端及历史访问。终端任务不占用桌面输入锁；现有 Cua 与原生
+桌面限制不变。终端启用绑定本机配置摘要，更改后需重新验证，不扩大权限。
+历史共享单独启用，读取不授予续聊、取消其他会话的权限。
 
-The protected local wizard lists only DotControl-owned tasks. Terminal approvals
-can be answered there. A desktop approval instead offers **停止远程执行并在 Codex
-接手**: DotControl interrupts, waits for official stop evidence, cleans up, and
-opens that owned thread. It consumes the old approval, including in-flight human
-answers, rather than transferring it into a new turn. Unconfirmed stopping retains
-the desktop guard and does not open a competing executor. This local handoff is
-reported separately and does not count as Mac remote approval acceptance.
+旧账本原始字节保留，不把 blocked/unknown 改成成功。新意图在派发前写入
+`codex-runtime-v1.jsonl`；恢复只读取已记录的所属线程和准确轮次，不猜测丢失 ID。
+日志不保存提示词、输出正文、图片或审批正文。结果在内存中有界保存，重启后
+无实际证据时返回 unavailable_after_restart。
 
-The local page shows each approval's deadline and a receipt beside its controls.
-After the list is opened, read-only refreshes are serialized and preserve entered
-fields. Expired, consumed, missing or terminal requests disable the expanded form
-as well as its list button. A failed answer response remains uncertain and is not
-automatically resent. None of these UI refreshes extends an approval's lifetime.
-Full request details remain available in a keyboard-accessible scroll area so a
-long command cannot push the decision controls many screens below the request.
-Opening a request positions that review in view without submitting an answer.
+分别核对官方轮次完成、实际命令退出码与输出、任务目标的独立验证。模型文字
+“完成”不是产出验证。终端图片为 not_required，取消控制任务不会停止已在其他
+系统提交的独立作业。
 
-Use the target computer's current **onboard** page for local review. An old
-loopback address may belong to a stopped process, and opening a Windows loopback
-address on a Mac targets the Mac instead. Reopen from the target's DotControl
-when the local session expires; do not share launch credentials or expose the
-local listener on the network. Page availability, a submitted human answer, and
-successful official execution are three separate checks.
-
-The release gate for remote review remains closed until the actual source Mac Dot
-and Secure MCP Tunnel display accept, reject and cancel correctly. Automated HTTP
-MCP tests do not establish this host compatibility. DotControl never treats the
-model's words or a remote task prompt as the human's approval.
-
-## Coordination, durability and results
-
-Cua and native desktop jobs share one device lease. Native dispatch requires
-available activity detection, an unlocked desktop and 60 seconds of idle time.
-An active user puts the job in cancellable `waiting_for_idle`; no desktop input
-or exclusive reservation is made during that wait. Pause, lock and monitor loss
-stop dispatch. The complete safety check runs again when acquiring the lease.
-Human input or local pause revokes the lease and requests official interruption.
-A successful interrupt RPC is not stop confirmation. If stop is uncertain, a
-durable guard prevents another desktop executor from acquiring the device, even
-after restart. Fresh observation is required after delegated input.
-
-Windows native input has an additional unresolved acceptance constraint. Its
-conservative monitor treats every changed `GetLastInputInfo` timestamp as
-activity, including injected input, and the native lease revokes on any activity
-generation change. Thus an official action using `SendInput` is expected to
-interrupt its own task. This is a code-level finding, not a completed physical
-desktop test; UI Automation actions may behave differently. Removing that
-fallback or ignoring all injected input would weaken touch, pen and accessibility
-takeover detection, so this implementation does neither. Native delegation stays
-closed pending a supported way to distinguish executor input or an equivalently
-verified official takeover mechanism, plus real multi-action/interruption tests.
-See Microsoft's [input timestamp contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getlastinputinfo).
-
-Terminal tasks do not acquire the desktop lease; they still respect local pause.
-Terminal-only mode does not start, repair or probe the Cua driver or activity
-monitor. A locked screen, active user or absent monitor is irrelevant to terminal
-admission. Global pause and revocation remain authoritative. `codex_terminal`
-reports readiness independently of the desktop capabilities and an active App
-Server connection. Stored local enablement is bound to the exact execution/server
-pair (including no server), and the normalized connection configuration digest.
-Changing configuration requires rechecking and local enablement; restart cannot
-silently bless changed references. Upstream profile definitions may still change;
-the official executor enforces the effective permissions on every run.
-
-Legacy profiles with an absent approval policy remain `on-request`; saving or
-upgrading does not silently convert them. Unexpected human requests in a new
-`never` task become `needs_local_setup` and trigger an interrupt, never an approval.
-Missing stop confirmation retains `outcome_unknown`, including after cancellation
-or restart. Images for terminal-only tasks are explicitly `not_required`.
-Cancelling a Codex control task does **not** mean an independently submitted server
-experiment was killed. A server stop is a separate explicit operation.
-
-New runtime records use `codex-runtime-v1.jsonl`, chained and authenticated with the
-device's existing private journal key. The old journal remains intact. Intent is
-persisted before thread/turn dispatch. Uncertain thread creation or turn dispatch
-is never replayed. Recovery reads only the recorded owned thread and exact turn.
-A lost turn ID cannot be reconstructed by guessing from message order.
-
-The journal excludes prompts, text outputs, screenshots and approval contents.
-Official Codex may keep its own task history. Runtime results are bounded in memory;
-after restart their status is `unavailable_after_restart` unless restored from actual
-evidence. Native image content is returned separately from structured JSON; no
-legacy Python Library upload script is used.
-
-These are independent facts:
-
-- A Codex turn reached a terminal state.
-- Command/tool output or another independent artifact verifies the requested result.
-- MCP image content was returned.
-- The source Mac actually displayed the image.
-
-`review_location` identifies a host form or required target-local handling.
-`image_delivery_status=received_in_band` means official image bytes were acquired;
-it does not establish that source Dot rendered them. Restart reports lost in-memory
-image data as `unavailable_after_restart`.
-
-Model text alone leaves task verification `unverified`. The fixed fixture can
-become `verified_fixture` only through the independent SSH readback described
-below. Native image return does not prove source rendering.
-
-## SSH experiment acceptance procedure
-
-Choose a server profile locally and get its read-only preflight to pass first.
-For the first acceptance, submit `experiment_id` with that saved profile. The
-bundled helper supports only the fixed sum `1...1,000,000 = 500000500000`, using
-one AWK process on a Linux server, no GPU and no dependency installation. It does
-not execute a configured arbitrary deployment command. General deployments need
-their own reviewed job adapter; a prompt alone does not provide deduplication.
-
-The target Codex receives exact helper argument arrays for `experiment status`,
-`submit` and explicit `stop`, then invokes them through its official terminal tool.
-The controller freezes the accepted server/fixture binding before dispatch. The
-helper checks that record even if an invocation omits its expected-binding flag;
-editing the profile mid-task cannot redirect the experiment or verify another
-server's output. A separate durable intent permits only one launch attempt.
-
-Remote atomic directory creation claims `<remote_dir>/dotcontrol-<experiment_id>`.
-The detached worker records its process identity, log, exit code and result hash.
-An independent SSH query checks the actual output bytes, exit code and SHA-256.
-`runtime.experiment` and `verification=verified_fixture` describe that evidence,
-separately from completion of the Codex turn. An ambiguous attempt becomes
-query-only and must not be replayed with a fresh ID. Existing legacy unknown
-records retain that meaning after upgrade.
-
-`experiment stop` writes a cooperative request only for an owned running fixture
-whose recorded identity still matches. It never signals arbitrary processes;
-`stop_requested` still needs a later terminal-state check. Cancelling the Codex
-control task does not call stop. See the [helper contract](../internal/experiment/README.md).
-
-## Validation and limits
-
-Automated tests exercise durable deduplication, ownership, transport uncertainty,
-profile privacy, permission IDs, host-form review, cancellation races, restart
-guards, image separation and the shared desktop lease. Platform compilation and
-mock web rendering are recorded separately from installed device tests.
-
-Unverified gates are compiled closed, with no environment/configuration bypass.
-The adapter uses public [App Server](https://learn.chatgpt.com/docs/app-server)
-stdio only, the documented [thread deep link](https://learn.chatgpt.com/docs/reference/commands),
-and the target's own official components. It exposes no App Server network port,
-uses no private helper protocol and redistributes no proprietary Computer Use binary.
+实现仅使用官方 App Server 本机 stdio，不开放其网络端口，不分发私有 Computer
+Use 组件。历史原生/SSH 测试属于旧版证据，不代表 alpha.5 仍提供已下线功能。

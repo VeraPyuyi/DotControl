@@ -1,6 +1,15 @@
 # 0.2 支持与验收
 
-[预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.4 说明](RELEASE_NOTES_0_2_ALPHA_4.md)
+[预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.5 说明](RELEASE_NOTES_0_2_ALPHA_5.md)
+
+## alpha.5 当前发布验证
+
+alpha.5 将控制台拆成四个区域，并删除内置 SSH／实验及审批转发。MCP 为 13 个工具；
+旧用户文件和历史记录保留，旧审批依赖配置需要本机明确重新配置。原生 Computer Use
+保持关闭。以下早期版本的相关能力与证据是历史记录，不代表 alpha.5 仍提供这些入口。
+
+当前源代码与浏览器预览验证进行中。安装包发布、公开下载、本机迁移和真实 Dot
+结果将在完成对应检查后分别更新；不以代码或 Mac runner 构建代替真机验收。
 
 ## alpha.4 发布与升级实测（2026-10-13）
 

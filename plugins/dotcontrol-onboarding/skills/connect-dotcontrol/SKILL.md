@@ -26,10 +26,10 @@ system settings.
    `current.json` identifies the installed version directory. Verify the selected
    path stays beneath this root before executing.
 4. Otherwise download the appropriate asset and `.sha256` file from the fixed
-   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.4`.
-   Asset names: `DotControl-0.2.0-alpha.4-windows-amd64-setup.exe`,
-   `DotControl-0.2.0-alpha.4-macos-arm64.dmg`, or
-   `DotControl-0.2.0-alpha.4-macos-amd64.dmg`.
+   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.5`.
+   Asset names: `DotControl-0.2.0-alpha.5-windows-amd64-setup.exe`,
+   `DotControl-0.2.0-alpha.5-macos-arm64.dmg`, or
+   `DotControl-0.2.0-alpha.5-macos-amd64.dmg`.
    Verify SHA-256 using built-in OS facilities before launching. Do not substitute
    another tag or ignore mismatched/missing assets. A checksum protects download
    integrity; these alpha installers are not publisher-signed/notarized.
@@ -105,7 +105,7 @@ configuration was validated; `tunnel_cloud_connection` separately reads the
 running supervisor's evidence. Missing or stale evidence stays unconfirmed.
 The source must still check its current devices response and nonce; historical
 `devices_seen` does not prove a new call succeeded. Keep the local service, cloud
-poll and source invocation outcomes separate. No alpha.4 release, native-platform
+poll and source invocation outcomes separate. No alpha.5 release, native-platform
 or real-cloud acceptance should be claimed without matching current evidence.
 
 The device starts paused. Only the local user may enable it in the wizard.
@@ -141,8 +141,8 @@ source conversation for the target plugin. Require `codex_submit`, `codex_job`,
 **Refresh tools** in the source host's official plugin settings, then start a new
 conversation and check again. Prompt for this refresh after upgrades. Local Codex
 readiness, `devices_seen`, a successful devices call and capability `available`
-do not verify the source tool catalog. The presence of `codex_review` in that
-catalog does not establish remote approval acceptance.
+do not verify the source tool catalog. Alpha.5 exposes 13 tools; the old review
+interface has been removed.
 
 Only after all four tools are present, call the same plugin's `devices`, verify
 the target device ID, inspect `capabilities.codex_terminal` and select a saved
@@ -153,37 +153,30 @@ No driver, activity monitoring, idle time or desktop system permissions are need
 Pause, revocation and locally selected permissions still apply. Unexpected human
 requirements mean target-local handling; do not ask for repeated remote approvals.
 
-Use the target's protected local wizard section “连接本机 Codex” to discover and
-save the official desktop executable, choose a local project folder, read its
-existing permission profiles, and save a named execution profile. Preserve the
-exact official permission ID, including a leading colon. Terminal and Computer
-Use are separate execution choices; visible/background controls opening the task
-UI and does not make Windows native Computer Use a background input facility.
+Use the target's protected local **Codex** view to discover and save its official
+program, choose a project directory, read existing permission profiles, and save a
+basic terminal profile with the user-selected permissions and never-ask policy.
+Preserve exact permission IDs, including leading colons. Do not silently convert
+old on-request profiles: explain that they need explicit target-local configuration.
+Visible/background only controls opening the official task after cleanup.
 
-For SSH, let the user save a named alias or user@host, port, remote directory and
-optional private-key file reference in the same local wizard. Use its read-only
-connection check. Never ask for a password, passphrase or private-key body in chat.
-If authentication fails, guide normal target-local SSH setup or ssh-agent unlock;
-do not pass a chat secret as a command argument or change host-key checking.
-An optional saved deployment command is not authorization to execute it during setup.
+Select a saved profile from devices.codex_profiles.execution. Use profile_id and
+optionally presentation with codex_submit. codex_continue uses a new stable
+request_id for the same owned thread. Repeat identical requests with their original
+IDs; uncertain dispatch must be reconciled, never replaced with a fresh task.
 
-Read devices.codex_profiles to select saved profile IDs without reading private
-paths or server details. codex_submit uses profile_id and optionally server_profile_id;
-codex_continue uses a new stable request_id for the same owned job. A repeated
-request keeps its original ID and body. Unknown dispatch must be reconciled by
-querying the original job, never by creating a replacement task or training run.
+The SSH/experiment helper and local/remote approval forwarding are retired. Do not
+call retired endpoints or pass server_profile_id / experiment_id, including empty
+values. Legacy records remain queryable and cancellable but cannot be resumed
+through retired workflows. Do not delete user SSH files or experiment records.
+Normal SSH work may be performed by target Codex when the user requests it, using
+its own network and permissions. Secrets stay in the target's normal secure UI.
 
-If an approval is pending, codex_review takes only device_id, job_id and approval_id
-and opens the host's human confirmation. Never supply an approval decision through
-another tool or invent a response if the host cannot display the form. Wait and
-explain the specific target-local interaction. Cancelling a control task does not
-stop an already submitted server experiment. Treat that as a separate user action.
-
-Report official turn completion, independently checked output, MCP image return
-and source display separately. Do not claim model text is verified experiment output.
-The current candidate accepts Windows terminal delegation only after local opt-in;
-native desktop and remote review remain gated. Configuring a profile cannot
-enable an unaccepted platform. The alpha.4 installer retains this configuration UI; local opt-in remains required.
+Unexpected approval or input requirements trigger interruption and target-local
+handling. Never approve on the user's behalf or change the permission profile to
+bypass a denial. Unconfirmed stop remains uncertain; do not dispatch a replacement.
+Report official turn completion and actual command output separately. Terminal
+tasks do not require images. The native Computer Use gate remains closed.
 
 After checking the source tool catalog, read `devices.capabilities` before choosing
 an execution mode. Basic Cua desktop control, Codex connection,
@@ -197,10 +190,10 @@ Delegated tasks consume the target Codex account's quota.
 ## Recovery and report
 
 For reading existing Codex conversations, use the sibling `share-codex-history`
-skill and the local **共享 Codex 会话（只读）** page. This has independent opt-in
+skill and the local **会话共享** view. This has independent opt-in
 and does not require terminal execution or desktop permissions. First enable
 defaults to all local conversations; restrictions require a reviewed exact-ID
-allowlist. Refresh the existing official plugin and check for 14 actual tools,
+allowlist. Refresh the existing official plugin and check for 13 actual tools,
 including `codex_projects`, `codex_threads`, `codex_read_thread`. Do not run a
 terminal task to bypass a history refusal. Group changes do not grant access.
 
@@ -208,7 +201,17 @@ Use the wizard's redacted diagnostic export. Distinguish missing key, paused,
 locked, unavailable activity, driver error, DNS, TLS and tunnel client exit.
 Also distinguish proxy limitations/authentication, stale cloud evidence and
 settings pending the next tunnel start. The network settings remain local-only; MCP still has
-14 tools and does not expose a remote network configuration action.
+13 tools and does not expose a remote network configuration action.
 No secret values, typed content or full desktop content belong in diagnostics.
 Report verified stages, exact remaining blocker, and required local interaction.
 Do not call an incomplete setup “ready”.
+
+## Console navigation
+
+The local page has four views: 概览, 连接设置, Codex, 会话共享. Installed devices
+start on the overview; missing configuration offers 继续设置 without granting access.
+Account/tunnel/key/proxy and redacted diagnostics are in 连接设置. Project permissions
+are collapsed in Codex. History selection/preview/apply are in 会话共享.
+Status polling must not erase unsaved form edits or candidate selections. Reopen
+the page once after an agent restart; ordinary refresh and multiple tabs reuse the
+authenticated browser session. Never share a launch credential with source Dot.

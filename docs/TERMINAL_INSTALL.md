@@ -19,7 +19,7 @@ Computer Use 尚未开放。已有安装不会仅因升级自动启用委派。
 按钮不连接 SSH、不运行实验、不改变 Codex 的登录或全局权限。任务使用
 目标电脑已有的登录、模型和额度。工作区配置不能保证任意目录、SSH 私钥
 或网络访问都可用；范围外操作明确停止，随后由目标电脑用户处理。
-配置页中的 SSH、实验助手和旧审批功能均为可选高级设置。
+SSH／实验助手及旧审批页面和接口已下线。原有文件与记录保留。
 
 ## 如何使用
 
@@ -27,7 +27,7 @@ Computer Use 尚未开放。已有安装不会仅因升级自动启用委派。
 `codex_submit`、`codex_job`、`codex_continue`、`codex_cancel`。缺少任一项就
 停止测试，在源端官方插件设置点击 **Refresh tools**，再新建会话重新检查。
 `devices` 查询成功或 `codex_terminal.available=true` 都不能证明这些工具
-已经加载。即使目录中存在 `codex_review`，也不表示远程审批已验收。
+已经加载。本版共 13 个工具，旧审批接口已下线。
 
 刷新使用[官方 metadata refresh 流程](https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata)，
 保留原插件、隧道和设备。官方详情页与任务目录可能暂时不同步；以新会话的

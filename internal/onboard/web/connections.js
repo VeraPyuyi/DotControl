@@ -1,37 +1,71 @@
 'use strict';
-Object.assign(messages,{invalid_project_dir:'请选择这台电脑上的完整项目目录。',invalid_permission_profile:'请先读取并选择已有的 Codex 权限配置。',invalid_allowed_apps:'Computer Use 任务需要至少选择一个应用，每行填写一个。',invalid_ssh_alias:'请填写 SSH 别名或 用户名@主机，端口填在下方端口栏。',invalid_remote_dir:'远程目录应是以 / 开头的完整目录。',invalid_identity_file:'这里只接受本机私钥文件路径，请通过选择文件填写。'});
-let connectionConfig={execution_profiles:[],server_profiles:[]};
-const connectionMessages={ssh_ready:'SSH 和远程目录检查通过。',ssh_connected:'SSH 已连接，请继续选择实验目录。',ssh_auth_failed:'SSH 认证失败。请在这台电脑配置现有 SSH 密钥或解锁 ssh-agent；不要把密码或私钥发给 Dot。',ssh_identity_unavailable:'选定的私钥文件不可用，请核对本机文件位置和访问权限。',ssh_unknown_host:'尚未信任这台服务器。请通过本机 SSH 核对管理员提供的主机指纹后，再检查。',ssh_host_key_changed:'服务器主机身份发生变化，请先由你核实。',ssh_network_error:'无法连接服务器，请检查这台电脑的 VPN 和服务器地址。',ssh_timeout:'连接超时，请检查 VPN、地址和端口。',ssh_remote_dir_unavailable:'已连接，但远程目录不存在或无法访问。',codex_ready:'已找到本机 Codex。'};
+Object.assign(messages,{
+ invalid_project_dir:'请选择这台电脑上的完整项目目录。',
+ invalid_permission_profile:'请先读取并选择已有的 Codex 权限配置。',
+ feature_retired:'此功能已下线。请重新打开控制台，使用基础终端任务配置。',
+ terminal_mode_pause_required:'请先在概览暂停访问，再更改执行模式。',
+ terminal_runtime_busy:'还有未停止或状态未确认的任务，请先查询并取消控制任务。',
+ terminal_not_enabled:'请先保存任务配置，再验证并启用。',
+ terminal_needs_local_setup:'旧配置需要在目标电脑重新设置。请保存基础终端配置并验证权限。',
+ permission_profile_unavailable:'所选权限配置不可用，请重新读取并选择。',
+ terminal_configuration_changed:'配置已变更，请重新检查。',
+ terminal_profile_requires_manual_selection:'已有自定义配置。请展开高级配置，选中原配置并检查启用，避免覆盖。'
+});
+let connectionConfig={execution_profiles:[]};
+const connectionMessages={
+ terminal_ready:'所选权限下的本机执行检查通过。',
+ terminal_enabled:'可以接收任务。请在源 Dot 核对新版插件工具。',
+ terminal_enabled_not_ready:'启用选择已保存，但当前能力不可用，请检查概览中的状态。',
+ terminal_mode_selected:'已选择仅终端模式，仍保持暂停。请配置并验证本机 Codex。',
+ terminal_permission_denied:'所选权限无法访问任务所需目录，请在本机调整配置。',
+ terminal_sandbox_layout_unsupported:'当前 Codex 不支持所选目录的权限规则，请调整本机配置。',
+ terminal_probe_failed:'本机执行检查未通过，没有扩大权限。',
+ terminal_probe_unconfirmed:'未收到完整检查回执，请检查本机配置后重试。'
+};
 async function connectionsCall(operation,data={}){return api('connections',{operation,...data})}
 function selection(id,profiles){const select=el(id),previous=select.value;select.replaceChildren(new Option('新建配置',''));for(const p of profiles)select.add(new Option(p.name,p.id));select.value=profiles.some(p=>p.id===previous)?previous:''}
-async function loadConnections(){connectionConfig=await connectionsCall('list');selection('execution-id',connectionConfig.execution_profiles||[]);selection('server-id',connectionConfig.server_profiles||[]);el('codex-executable').value=connectionConfig.codex_executable||''}
-function fillExecution(){const p=(connectionConfig.execution_profiles||[]).find(p=>p.id===el('execution-id').value)||{};el('execution-name').value=p.name||'';el('project-dir').value=p.project_dir||'';el('allowed-apps').value=(p.allowed_apps||[]).join('\n');el('presentation').value=p.presentation||'visible';el('execution-mode').value=p.execution||'terminal';el('approval-policy').value=p.id?(p.approval_policy||'on-request'):'never';const select=el('permission-profile');select.replaceChildren(new Option('请读取此项目的权限配置',''));if(p.permission_profile)select.add(new Option(p.permission_profile+' · 已保存，执行前会重新核对',p.permission_profile));select.value=p.permission_profile||''}
-function fillServer(){const p=(connectionConfig.server_profiles||[]).find(p=>p.id===el('server-id').value)||{};for(const [id,key] of [['server-name','name'],['ssh-alias','ssh_alias'],['ssh-port','ssh_port'],['remote-dir','remote_dir'],['identity-file','identity_file'],['deploy-command','deploy_command']])el(id).value=p[key]||''}
-function bindConnectionButton(id,fn){el(id).onclick=async()=>{el(id).disabled=true;try{await fn()}catch(e){msg(e.message)}finally{el(id).disabled=false}}}
-el('execution-id').onchange=fillExecution;el('server-id').onchange=fillServer;
-bindConnectionButton('load-connections',async()=>{await loadConnections();fillExecution();fillServer();msg('已读取这台电脑的配置。')});
-bindConnectionButton('discover-codex',async()=>{const r=await connectionsCall('discover');el('codex-executable').value=r.executable||'';msg('发现 Codex '+(r.status.version||'')+'；保存后生效。发现程序不等于已通过桌面能力验收。')});
-bindConnectionButton('save-codex',async()=>{await connectionsCall('save_codex',{executable:el('codex-executable').value.trim()});msg('Codex 程序引用已保存到本机。')});
-el('execution-form').onsubmit=async e=>{e.preventDefault();try{const p=await connectionsCall('save_execution',{execution:{id:el('execution-id').value,name:el('execution-name').value.trim(),project_dir:el('project-dir').value.trim(),allowed_apps:el('allowed-apps').value.split('\n').map(s=>s.trim()).filter(Boolean),presentation:el('presentation').value,execution:el('execution-mode').value,permission_profile:el('permission-profile').value.trim(),approval_policy:el('execution-mode').value==='terminal'?el('approval-policy').value:'on-request'}});await loadConnections();el('execution-id').value=p.id;msg('任务配置已保存。能力验收未通过时仍保持关闭。')}catch(e){msg(e.message)}};
-el('server-form').onsubmit=async e=>{e.preventDefault();try{const p=await connectionsCall('save_server',{server:{id:el('server-id').value,name:el('server-name').value.trim(),ssh_alias:el('ssh-alias').value.trim(),ssh_port:Number(el('ssh-port').value||0),remote_dir:el('remote-dir').value.trim(),identity_file:el('identity-file').value.trim(),deploy_command:el('deploy-command').value}});await loadConnections();el('server-id').value=p.id;msg('服务器配置已保存，未执行部署命令。')}catch(e){msg(e.message)}};
-bindConnectionButton('check-ssh',async()=>{if(!el('server-id').value)throw Error('请先保存并选中一个服务器配置。');msg('正在通过这台电脑的 SSH 检查连接…');const r=await connectionsCall('check_ssh',{profile_id:el('server-id').value});msg(connectionMessages[r.code]||r.code)});
-bindConnectionButton('load-permissions',async()=>{if(!el('project-dir').value.trim())throw Error('请先填写本机项目目录。');const profiles=await connectionsCall('permissions',{execution:{project_dir:el('project-dir').value.trim()}});const select=el('permission-profile'),previous=select.value;select.replaceChildren(new Option('请选择已存在的权限配置',''));for(const p of profiles){const option=new Option(p.description?`${p.id} · ${p.description}`:p.id,p.id);option.disabled=!p.allowed;select.add(option)}select.value=previous;msg('已读取官方 Codex 的权限配置；没有修改权限。')});
-
-for(const [button,operation,field] of [["pick-project","pick_project","project-dir"],["pick-identity","pick_identity","identity-file"],["pick-codex","pick_codex","codex-executable"]])bindConnectionButton(button,async()=>{el(field).value=await connectionsCall(operation)});
-
-let authorizationPreview=null;
-Object.assign(connectionMessages,{ssh_closed_before_authentication:'SSH 在确认登录成功前被服务器关闭。请核对普通 SSH 登录结果；没有继续部署。',ssh_closed_after_authentication:'SSH 记录显示登录后连接关闭。公钥授权尚未确认，请检查本机 SSH 窗口。',ssh_authorization_remote_safety_check_failed:'服务器授权文件的安全检查未通过，未自动修改权限或 SSH 配置。',ssh_authorization_already_in_progress:'服务器上已有一次公钥授权操作，请先确认它的状态。',ssh_authorization_remote_command_failed:'登录后的公钥授权命令未完成，请查看本机 SSH 窗口。',ssh_authorization_failed_check_local_terminal:'SSH 授权未完成，请查看本机 SSH 窗口。',ssh_authorization_unconfirmed:'未收到本次公钥授权的确认，不能据此启动实验。',ssh_selected_key_unconfirmed:'登录成功，但尚未确认使用的是选定公钥。'});
-bindConnectionButton('pick-public-key',async()=>{el('public-key-file').value=await connectionsCall('pick_public_key')});
-bindConnectionButton('preview-authorization',async()=>{if(!el('server-id').value)throw Error('请先保存并选中服务器配置。');authorizationPreview=await connectionsCall('authorize_prepare',{profile_id:el('server-id').value,public_key_path:el('public-key-file').value.trim()});el('authorization-preview').textContent='服务器：'+authorizationPreview.server+'\n端口：'+(authorizationPreview.port||'SSH 配置')+'\n公钥指纹：'+authorizationPreview.fingerprint+'\n服务器的主机指纹仍需在 SSH 窗口核实。';el('start-authorization').disabled=false;el('authorization-status').disabled=false;msg('核对后点击打开 SSH 窗口。不会覆盖已有授权。')});
-async function authorizationCall(operation){if(!authorizationPreview)throw Error('请先核对服务器与公钥。');return connectionsCall(operation,{profile_id:el('server-id').value,authorization_id:authorizationPreview.authorization_id})}
-bindConnectionButton('start-authorization',async()=>{const r=await authorizationCall('authorize_start');msg(r.state==='awaiting_local_ssh'?'SSH 窗口已打开。仅在该窗口输入密码或口令；完成后点击重新检查授权。':r.state)});
-bindConnectionButton('authorization-status',async()=>{const r=await authorizationCall('authorize_status');msg(r.state==='ssh_ready'?'密钥认证和目录检查通过，可以继续实验验收。':r.state==='ssh_connected'?'密钥认证通过；尚未配置或检查实验目录。':r.state==='awaiting_local_ssh'?'仍在等待本机 SSH 窗口的结果。加密私钥可能需要在本机解锁 ssh-agent。':connectionMessages[r.state]||r.state)});
-
-Object.assign(messages,{terminal_server_required:'请先选择已保存的 SSH 服务器配置。',terminal_mode_pause_required:'请先暂停远程任务，再更改或启用模式。',terminal_runtime_busy:'还有未停止或状态未确认的任务，请先查询并取消控制任务。',terminal_not_enabled:'请先保存任务和服务器配置，再点击验证并启用终端委派。',terminal_needs_local_setup:'请选择终端任务，并将审批方式设为使用本机预先选择的权限。',permission_profile_unavailable:'所选官方权限配置不可用，请重新读取并选择。',terminal_configuration_changed:'检查期间配置已变化，请重新检查。'});
-Object.assign(connectionMessages,{terminal_ready:'所选 Codex 权限下的本机执行检查通过。',terminal_enabled:'终端委派已启用；让 Mac Dot 通过此插件提交任务。',terminal_enabled_not_ready:'本机配置检查通过并已保存启用选择；当前能力仍不可用，请查看上方终端委派状态。',terminal_mode_selected:'已选择仅终端模式，仍保持暂停。请配置并验证本机 Codex。',terminal_permission_denied:'所选权限不能访问必要的任务或助手目录。请在本机调整权限配置后重试。',terminal_sandbox_layout_unsupported:'当前 Codex 无法执行所选目录的沙箱规则；请调整本机配置后重试。',terminal_probe_failed:'官方 Codex 权限内的检查未通过；没有扩大权限或提交实验。',terminal_probe_unconfirmed:'未收到完整检查回执；请检查本机权限配置后重试。'});
-bindConnectionButton('select-terminal-mode',async()=>{const r=await connectionsCall('terminal_mode');msg(connectionMessages[r.code]||r.code);await refresh()});
-async function terminalSetup(operation){if(!el('execution-id').value)throw Error('请先保存并选中任务配置。');msg('正在检查本机 Codex，请稍候…');const r=await connectionsCall(operation,{profile_id:el('execution-id').value,server_profile_id:el('server-id').value});msg(connectionMessages[r.code]||r.code);await refresh()}
+async function loadConnections(){
+ connectionConfig=await connectionsCall('list');
+ selection('execution-id',connectionConfig.execution_profiles||[]);
+ el('codex-executable').value=connectionConfig.codex_executable||'';
+}
+function fillExecution(){
+ const p=(connectionConfig.execution_profiles||[]).find(p=>p.id===el('execution-id').value)||{};
+ el('execution-name').value=p.name||'';el('project-dir').value=p.project_dir||'';el('presentation').value=p.presentation||'visible';
+ const select=el('permission-profile');select.replaceChildren(new Option('请读取此项目的权限配置',''));
+ if(p.permission_profile)select.add(new Option(p.permission_profile+' · 已保存，执行前会核对',p.permission_profile));
+ select.value=p.permission_profile||'';
+ const unsupported=!!p.id&&(p.execution!=='terminal'||p.approval_policy!=='never');
+ el('execution-warning').hidden=!unsupported;
+ el('execution-warning').textContent=unsupported?'此旧配置不能远程继续执行。选择项目与权限后，点击“保存终端配置”才会切换为基础终端任务；不会自动转换。':'';
+}
+function bindConnectionButton(id,fn){el(id).onclick=async()=>{const button=el(id);button.disabled=true;button.setAttribute('aria-busy','true');try{await fn()}catch(e){msg(e.message)}finally{button.disabled=false;button.setAttribute('aria-busy','false')}}}
+el('execution-id').onchange=fillExecution;
+bindConnectionButton('load-connections',async()=>{await loadConnections();fillExecution();msg('已重新读取配置。')});
+bindConnectionButton('discover-codex',async()=>{msg('正在查找本机 Codex…');const r=await connectionsCall('discover');el('codex-executable').value=r.executable||'';msg('已找到 Codex '+(r.status?.version||'')+'，保存后生效。')});
+bindConnectionButton('save-codex',async()=>{await connectionsCall('save_codex',{executable:el('codex-executable').value.trim()});msg('程序位置已保存。')});
+el('execution-form').onsubmit=async e=>{
+ e.preventDefault();const button=e.submitter;if(button)button.disabled=true;
+ try{
+  const p=await connectionsCall('save_execution',{execution:{id:el('execution-id').value,name:el('execution-name').value.trim(),project_dir:el('project-dir').value.trim(),allowed_apps:[],presentation:el('presentation').value,execution:'terminal',permission_profile:el('permission-profile').value.trim(),approval_policy:'never'}});
+  await loadConnections();el('execution-id').value=p.id;fillExecution();msg('终端配置已保存。请检查并启用此配置。');
+ }catch(e){msg(e.message)}finally{if(button)button.disabled=false}
+};
+bindConnectionButton('load-permissions',async()=>{
+ if(!el('project-dir').value.trim())throw Error('请先填写本机项目目录。');
+ const profiles=await connectionsCall('permissions',{execution:{project_dir:el('project-dir').value.trim()}});
+ const select=el('permission-profile'),previous=select.value;select.replaceChildren(new Option('请选择已有权限配置',''));
+ for(const p of profiles){const option=new Option(p.description?p.id+' · '+p.description:p.id,p.id);option.disabled=!p.allowed;select.add(option)}
+ select.value=previous;msg('已读取官方权限配置，没有修改权限。');
+});
+for(const [button,operation,field] of [['pick-project','pick_project','project-dir'],['pick-codex','pick_codex','codex-executable']])bindConnectionButton(button,async()=>{el(field).value=await connectionsCall(operation)});
+bindConnectionButton('select-terminal-mode',async()=>{const r=await connectionsCall('terminal_mode');msg(connectionMessages[r.code]||messages[r.code]||r.code);await refresh()});
+async function terminalSetup(operation){
+ if(!el('execution-id').value)throw Error('请先保存并选中任务配置。');
+ msg('正在检查本机 Codex，请稍候…');
+ const r=await connectionsCall(operation,{profile_id:el('execution-id').value});
+ msg(connectionMessages[r.code]||messages[r.code]||r.code);await refresh();
+}
 bindConnectionButton('check-terminal',()=>terminalSetup('check_terminal'));
 bindConnectionButton('enable-terminal',()=>terminalSetup('enable_terminal'));
-
-bindConnectionButton('connect-basic',async()=>{msg('正在连接本机 Codex…');const r=await connectionsCall('connect_basic');msg(connectionMessages[r.code]||r.code);await refresh()});
+bindConnectionButton('connect-basic',async()=>{msg('正在连接本机 Codex…');const r=await connectionsCall('connect_basic');msg(connectionMessages[r.code]||messages[r.code]||r.code);await refresh()});
