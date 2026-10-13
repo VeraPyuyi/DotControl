@@ -6,6 +6,7 @@ import (
 	"html"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -168,25 +169,78 @@ func (t *ProcessTree) remaining(ctx context.Context) (bool, error) {
 
 // Watch records descendants throughout draining, including children created by
 // a previously accepted task while the shutdown HTTP call is still pending.
-func (t *ProcessTree) Watch(ctx context.Context) {
+func (t *ProcessTree) PIDs() []int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	ids := make([]int, 0, len(t.ids))
+	for id := range t.ids {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+func (t *ProcessTree) Watch(ctx context.Context, record func([]int) error) error {
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
+	count := len(t.PIDs())
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-ticker.C:
-			_, _ = t.remaining(ctx)
+			if _, e := t.remaining(ctx); e != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
+				return e
+			}
+			ids := t.PIDs()
+			if len(ids) != count && record != nil {
+				if e := record(ids); e != nil {
+					return e
+				}
+				count = len(ids)
+			}
 		}
 	}
 }
+
+// Persisted PID evidence is conservative under reuse: an occupied recorded PID
+// blocks recovery instead of authorizing a duplicate runtime or cleanup.
+func WaitProcessIDs(ctx context.Context, ids []int, record func([]int) error) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	tree := &ProcessTree{ids: map[int]bool{}}
+	for _, id := range ids {
+		if id <= 0 {
+			return errors.New("process_evidence_invalid")
+		}
+		tree.ids[id] = true
+	}
+	wait, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return tree.wait(wait, record)
+}
 func (t *ProcessTree) Wait(ctx context.Context) error {
+	return t.wait(ctx, nil)
+}
+func (t *ProcessTree) wait(ctx context.Context, record func([]int) error) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	count := len(t.PIDs())
 	for {
 		active, err := t.remaining(ctx)
 		if err != nil {
 			return err
+		}
+		ids := t.PIDs()
+		if record != nil && len(ids) != count {
+			if e := record(ids); e != nil {
+				return e
+			}
+			count = len(ids)
 		}
 		if !active {
 			return nil

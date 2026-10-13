@@ -20,6 +20,10 @@ import (
 var errUpgradeExitUncertain = errors.New("agent_exit_recovery_pending")
 
 func stopForUpgrade(ctx context.Context, dir string) error {
+	return stopForUpgradeWithEvidence(ctx, dir, nil)
+}
+
+func stopForUpgradeWithEvidence(ctx context.Context, dir string, record func([]int) error) (resultErr error) {
 	c, e := config.Load(dir)
 	if os.IsNotExist(e) {
 		return nil
@@ -62,9 +66,26 @@ func stopForUpgrade(ctx context.Context, dir string) error {
 		if e != nil {
 			return e
 		}
+		if record != nil {
+			if e = record(tree.PIDs()); e != nil {
+				return e
+			}
+		}
 		watch, cancelWatch := context.WithCancel(ctx)
-		defer cancelWatch()
-		go tree.Watch(watch)
+		watchDone := make(chan error, 1)
+		go func() { watchDone <- tree.Watch(watch, record) }()
+		defer func() {
+			cancelWatch()
+			watchErr := <-watchDone
+			if watchErr != nil {
+				resultErr = errors.Join(errUpgradeExitUncertain, resultErr, watchErr)
+			}
+			if record != nil {
+				if e := record(tree.PIDs()); e != nil {
+					resultErr = errors.Join(errUpgradeExitUncertain, resultErr, e)
+				}
+			}
+		}()
 	}
 	stop, done := context.WithTimeout(ctx, 45*time.Second)
 	_, e = client.Post(stop, "/admin/upgrade/shutdown", map[string]any{})

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,31 +37,35 @@ type legacyReference struct {
 	Version    string `json:"version"`
 }
 type activationSnapshot struct {
-	Schema   int                     `json:"schema"`
-	State    string                  `json:"state"`
-	Phase    string                  `json:"phase"`
-	Config   []byte                  `json:"config,omitempty"`
-	Startup  desktop.StartupSnapshot `json:"startup"`
-	Previous *legacyReference        `json:"previous,omitempty"`
-	Target   string                  `json:"target"`
-	NoStart  bool                    `json:"no_start"`
+	Schema    int                     `json:"schema"`
+	State     string                  `json:"state"`
+	Phase     string                  `json:"phase"`
+	Config    []byte                  `json:"config,omitempty"`
+	Startup   desktop.StartupSnapshot `json:"startup"`
+	Previous  *legacyReference        `json:"previous,omitempty"`
+	Target    string                  `json:"target"`
+	NoStart   bool                    `json:"no_start"`
+	Processes []int                   `json:"processes,omitempty"`
 }
 type installHooks struct {
-	stopUpgrade, stop func(context.Context, string) error
-	checkBinary       func(context.Context, string, string) error
-	legacy            func(context.Context, string) (legacyReference, error)
-	start             func(string, ...string) error
-	autostart         func(string, string, bool) error
-	snapshot          func() (desktop.StartupSnapshot, error)
-	restore           func(desktop.StartupSnapshot) error
-	health            func(context.Context, string, config.Config, string, string) error
-	restoredHealth    func(context.Context, string, config.Config, string, string) error
-	waitPrograms      func(context.Context, []string) error
-	guard             func(context.Context, string) error
+	stopUpgrade    func(context.Context, string, func([]int) error) error
+	stop           func(context.Context, string, func([]int) error) error
+	globalLock     func(context.Context) (func(), error)
+	waitProcesses  func(context.Context, []int, func([]int) error) error
+	checkBinary    func(context.Context, string, string) error
+	legacy         func(context.Context, string) (legacyReference, error)
+	start          func(string, ...string) error
+	autostart      func(string, string, bool) error
+	snapshot       func() (desktop.StartupSnapshot, error)
+	restore        func(desktop.StartupSnapshot) error
+	health         func(context.Context, string, config.Config, string, string) error
+	restoredHealth func(context.Context, string, config.Config, string, string) error
+	waitPrograms   func(context.Context, []string) error
+	guard          func(context.Context, string) error
 }
 
 func defaultInstallHooks() installHooks {
-	return installHooks{stopUpgrade: stopForUpgrade, stop: stopForUpgrade, checkBinary: checkInstalledBinary, legacy: verifyLegacyExecutable, start: desktop.StartDetached, autostart: desktop.Autostart, snapshot: desktop.SnapshotStartup, restore: desktop.RestoreStartup, health: waitInstalledLocal, restoredHealth: waitRestoredLocal, waitPrograms: desktop.WaitExecutableExit, guard: desktop.CheckProgramReferences}
+	return installHooks{stopUpgrade: stopForUpgradeWithEvidence, stop: stopForUpgradeWithEvidence, globalLock: lockInstallationSettings, waitProcesses: desktop.WaitProcessIDs, checkBinary: checkInstalledBinary, legacy: verifyLegacyExecutable, start: desktop.StartDetached, autostart: desktop.Autostart, snapshot: desktop.SnapshotStartup, restore: desktop.RestoreStartup, health: waitInstalledLocal, restoredHealth: waitRestoredLocal, waitPrograms: desktop.WaitExecutableExit, guard: desktop.CheckProgramReferences}
 }
 
 func checkInstalledBinary(ctx context.Context, exe, version string) error {
@@ -142,6 +147,9 @@ func writeActivation(p string, s activationSnapshot) error {
 	if e != nil {
 		return e
 	}
+	return writePrivateAtomic(p, b)
+}
+func writePrivateAtomic(p string, b []byte) error {
 	f, e := os.CreateTemp(filepath.Dir(p), ".activation-")
 	if e != nil {
 		return e
@@ -179,6 +187,14 @@ func loadActivation(p, state string) (*activationSnapshot, error) {
 	if json.Unmarshal(b, &s) != nil || s.Schema != 1 || !sameProgramPath(s.State, state) || (s.Phase != "waiting" && s.Phase != "activating") {
 		return nil, errors.New("activation_recovery_invalid")
 	}
+	if len(s.Processes) > 65536 {
+		return nil, errors.New("activation_recovery_invalid")
+	}
+	for _, pid := range s.Processes {
+		if pid <= 0 || pid > 1<<31-1 {
+			return nil, errors.New("activation_recovery_invalid")
+		}
+	}
 	return &s, nil
 }
 func removeActivation(p string) error {
@@ -189,14 +205,89 @@ func removeActivation(p string) error {
 	return e
 }
 
+func recordActivationProcesses(journal string, s *activationSnapshot, ids []int) error {
+	union := map[int]bool{}
+	for _, pid := range s.Processes {
+		union[pid] = true
+	}
+	for _, pid := range ids {
+		if pid <= 0 || pid > 1<<31-1 {
+			return errors.New("process_evidence_invalid")
+		}
+		union[pid] = true
+	}
+	if len(union) > 65536 {
+		return errors.New("process_evidence_invalid")
+	}
+	s.Processes = s.Processes[:0]
+	for pid := range union {
+		s.Processes = append(s.Processes, pid)
+	}
+	sort.Ints(s.Processes)
+	return writeActivation(journal, *s)
+}
+
 func applyInstallation(ctx context.Context, r installationRequest, h installHooks) (install.Result, error) {
+	if e := install.ValidatePaths(r.Root, r.State); e != nil {
+		return install.Result{}, e
+	}
+	if r.NoStart {
+		if e := checkNoStartBusy(r.State); e != nil {
+			return install.Result{}, e
+		}
+	}
+	unlock, e := lockInstallationState(ctx, r.State)
+	if e != nil {
+		return install.Result{}, e
+	}
+	defer unlock()
+	if r.NoStart {
+		engineLock := flock.New(filepath.Join(r.State, "engine.lock"))
+		defer engineLock.Close()
+		ok, e := engineLock.TryLock()
+		if e != nil {
+			return install.Result{}, e
+		}
+		if !ok {
+			return install.Result{}, errors.New("no_start_state_busy")
+		}
+	} else {
+		release, e := h.globalLock(ctx)
+		if e != nil {
+			return install.Result{}, e
+		}
+		defer release()
+	}
+	releaseRoot, e := installationLock(ctx, filepath.Join(r.Root, ".activation.lock"))
+	if e != nil {
+		return install.Result{}, e
+	}
+	defer releaseRoot()
 	journal := filepath.Join(r.Root, "activation-recovery.json")
+	if r.NoStart {
+		pending, e := loadActivation(journal, r.State)
+		if e != nil {
+			return install.Result{}, e
+		}
+		if pending != nil && !pending.NoStart {
+			return install.Result{}, errors.New("no_start_recovery_requires_runtime")
+		}
+	}
 	rollback := func(ctx context.Context, previous *install.Current) error {
 		s, e := loadActivation(journal, r.State)
 		if e != nil || s == nil {
 			return e
 		}
+		if r.NoStart && !s.NoStart {
+			return errors.New("no_start_recovery_requires_runtime")
+		}
 		if s.Phase == "waiting" {
+			if e = h.waitProcesses(ctx, s.Processes, func(ids []int) error { return recordActivationProcesses(journal, s, ids) }); e != nil {
+				return e
+			}
+			if e = h.waitPrograms(ctx, snapshotProgramPaths(s)); e != nil {
+				return e
+			}
 			lock := flock.New(filepath.Join(r.State, "engine.lock"))
 			defer lock.Close()
 			ok, e := lock.TryLock()
@@ -208,11 +299,16 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			}
 			_ = lock.Unlock()
 		} else {
-			if e = h.stop(ctx, r.State); e != nil {
-				return e
+			if !s.NoStart {
+				if e = h.stop(ctx, r.State, func(ids []int) error { return recordActivationProcesses(journal, s, ids) }); e != nil {
+					return e
+				}
+				if e = h.waitProcesses(ctx, s.Processes, func(ids []int) error { return recordActivationProcesses(journal, s, ids) }); e != nil {
+					return e
+				}
 			}
 			if len(s.Config) > 0 {
-				if e = os.WriteFile(filepath.Join(r.State, "config.json"), s.Config, 0600); e != nil {
+				if e = writePrivateAtomic(filepath.Join(r.State, "config.json"), s.Config); e != nil {
 					return e
 				}
 			} else {
@@ -260,6 +356,9 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			if s.Startup, e = h.snapshot(); e != nil {
 				return e
 			}
+			if s.Startup.Exists && !startupBelongsToState(s.Startup, r.State) {
+				return errors.New("startup_instance_selection_required")
+			}
 		}
 		previous, e := install.ReadCurrent(r.Root)
 		if e == nil {
@@ -288,26 +387,22 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 		if len(s.Config) > 0 && s.Previous == nil && !r.NoStart {
 			return errors.New("legacy_executable_required")
 		}
+		if r.NoStart {
+			s.Phase = "activating"
+		}
 		if e = writeActivation(journal, s); e != nil {
 			return e
 		}
-		if e = h.stopUpgrade(ctx, r.State); e != nil {
+		if r.NoStart {
+			return nil
+		}
+		if e = h.stopUpgrade(ctx, r.State, func(ids []int) error { return recordActivationProcesses(journal, &s, ids) }); e != nil {
 			if errors.Is(e, errUpgradeExitUncertain) {
 				return e
 			}
 			return errors.Join(e, removeActivation(journal))
 		}
-		paths := []string{}
-		if s.Previous != nil {
-			paths = append(paths, s.Previous.Executable)
-		}
-		if runtime.GOOS == "windows" && len(s.Config) > 0 {
-			var old config.Config
-			if json.Unmarshal(s.Config, &old) == nil {
-				paths = append(paths, old.DriverPath, old.TunnelPath)
-			}
-		}
-		if e = h.waitPrograms(ctx, paths); e != nil {
+		if e = h.waitPrograms(ctx, snapshotProgramPaths(&s)); e != nil {
 			return e
 		}
 		s.Phase = "activating"

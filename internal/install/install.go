@@ -92,6 +92,11 @@ func DefaultRoot() (string, error) {
 	}
 	return filepath.Join(home, "Library", "Application Support", "DotControl", "program"), nil
 }
+
+// ValidatePaths performs the same read-only namespace, ancestry, and containment
+// checks used by Apply before callers create their state-level coordination lock.
+func ValidatePaths(root, state string) error { _, err := preparePaths(root, state); return err }
+
 func preparePaths(root, state string) (string, error) {
 	if root == "" || state == "" {
 		return "", errors.New("install root and separate state directory are required")

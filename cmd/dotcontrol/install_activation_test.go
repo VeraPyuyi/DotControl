@@ -47,13 +47,15 @@ func activationFixture(t *testing.T) (string, string, []byte, installHooks) {
 	b = append(b, '\n')
 	os.WriteFile(filepath.Join(state, "config.json"), b, 0600)
 	h := defaultInstallHooks()
-	h.stopUpgrade = func(context.Context, string) error { return nil }
-	h.stop = func(context.Context, string) error { return nil }
+	h.stopUpgrade = func(context.Context, string, func([]int) error) error { return nil }
+	h.globalLock = func(context.Context) (func(), error) { return func() {}, nil }
+	h.waitProcesses = func(context.Context, []int, func([]int) error) error { return nil }
+	h.stop = func(context.Context, string, func([]int) error) error { return nil }
 	h.checkBinary = func(context.Context, string, string) error { return nil }
 	h.start = func(string, ...string) error { return nil }
 	h.autostart = func(string, string, bool) error { return nil }
 	h.snapshot = func() (desktop.StartupSnapshot, error) {
-		return desktop.StartupSnapshot{Exists: true, Value: "original startup"}, nil
+		return desktop.StartupSnapshot{Exists: true, Value: `"original startup" --state ` + desktop.QuotedWindows(state) + ` serve`}, nil
 	}
 	h.restore = func(desktop.StartupSnapshot) error { return nil }
 	h.health = func(context.Context, string, config.Config, string, string) error { return nil }
@@ -64,12 +66,16 @@ func activationFixture(t *testing.T) (string, string, []byte, installHooks) {
 }
 func TestActivationRefusalDoesNotStopOrRewriteExistingState(t *testing.T) {
 	state, root, original, h := activationFixture(t)
+	if _, e := applyInstallation(context.Background(), installationRequest{State: state, Root: root, Bundle: activationBundle(t, "0.9"), NoStart: true}, h); e != nil {
+		t.Fatal(e)
+	}
+	original, _ = os.ReadFile(filepath.Join(state, "config.json"))
 	stops := 0
 	restores := 0
-	h.stopUpgrade = func(context.Context, string) error { return errors.New("agent_shutdown_refused") }
-	h.stop = func(context.Context, string) error { stops++; return nil }
+	h.stopUpgrade = func(context.Context, string, func([]int) error) error { return errors.New("agent_shutdown_refused") }
+	h.stop = func(context.Context, string, func([]int) error) error { stops++; return nil }
 	h.restore = func(desktop.StartupSnapshot) error { restores++; return nil }
-	_, err := applyInstallation(context.Background(), installationRequest{State: state, Root: root, Bundle: activationBundle(t, "1.0"), NoStart: true}, h)
+	_, err := applyInstallation(context.Background(), installationRequest{State: state, Root: root, Bundle: activationBundle(t, "1.0")}, h)
 	if err == nil {
 		t.Fatal("shutdown refusal accepted")
 	}
@@ -91,7 +97,10 @@ func TestUnmanagedActivationFailureRestoresExactConfigStartupAndLegacy(t *testin
 	starts := []string{}
 	h.start = func(p string, _ ...string) error { starts = append(starts, p); return nil }
 	restored := false
-	h.restore = func(s desktop.StartupSnapshot) error { restored = s.Value == "original startup"; return nil }
+	h.restore = func(s desktop.StartupSnapshot) error {
+		restored = s.Value == `"original startup" --state `+desktop.QuotedWindows(state)+` serve`
+		return nil
+	}
 	h.health = func(_ context.Context, _ string, _ config.Config, p, _ string) error {
 		if p != legacy {
 			return errors.New("health rejected")
@@ -123,7 +132,7 @@ func TestCommittedCleanupFailureDoesNotRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	stops := 0
-	h.stop = func(context.Context, string) error { stops++; return nil }
+	h.stop = func(context.Context, string, func([]int) error) error { stops++; return nil }
 	h.guard = func(context.Context, string) error { return errors.New("old program referenced") }
 	req.Bundle = activationBundle(t, "2.0")
 	r, err := applyInstallation(context.Background(), req, h)
@@ -210,8 +219,21 @@ func TestNoStartPreservesUnknownConfigAndAvoidsStartupCredentials(t *testing.T) 
 	}
 	h.autostart = func(string, string, bool) error { t.Fatal("no-start changed startup"); return nil }
 	h.start = func(string, ...string) error { t.Fatal("no-start launched runtime"); return nil }
+	h.stopUpgrade = func(context.Context, string, func([]int) error) error {
+		t.Fatal("no-start invoked shutdown")
+		return nil
+	}
+	h.stop = func(context.Context, string, func([]int) error) error {
+		t.Fatal("no-start rollback invoked shutdown")
+		return nil
+	}
+	h.waitPrograms = func(context.Context, []string) error { t.Fatal("no-start waited lifecycle"); return nil }
 	if _, err := applyInstallation(context.Background(), installationRequest{State: state, Root: root, Bundle: activationBundle(t, "1.0"), NoStart: true}, h); err != nil {
 		t.Fatal(err)
+	}
+	h.checkBinary = func(context.Context, string, string) error { return errors.New("fixture_health_failure") }
+	if _, err := applyInstallation(context.Background(), installationRequest{State: state, Root: root, Bundle: activationBundle(t, "2.0"), NoStart: true}, h); err == nil {
+		t.Fatal("failed no-start health accepted")
 	}
 	got, _ := os.ReadFile(filepath.Join(state, "config.json"))
 	var after map[string]any
