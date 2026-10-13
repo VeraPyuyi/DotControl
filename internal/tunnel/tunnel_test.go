@@ -95,6 +95,8 @@ func TestPendingRouteErrorCannotContaminateActiveCloudHealth(t *testing.T) {
 
 func TestControlPlaneEnvironmentConfinesAuthenticatedEnvironmentProxy(t *testing.T) {
 	t.Setenv("DOTCONTROL_CONTROL_PROXY", "http://user:TEST_SECRET@proxy:8080")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
 	env, args, err := ControlPlaneEnvironment(context.Background(), config.Network{Mode: "auto"}, "key", "token")
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +131,7 @@ func (v *recoveringSecrets) Get(string) (string, error) {
 func TestTransientVaultFailureIsRetried(t *testing.T) {
 	v := &recoveringSecrets{}
 	dir := t.TempDir()
-	s, err := Start(context.Background(), dir, config.Config{TunnelID: "tunnel_test", TunnelPath: filepath.Join(dir, "missing")}, v)
+	s, err := Start(context.Background(), dir, config.Config{Network: config.Network{Mode: "direct"}, TunnelID: "tunnel_test", TunnelPath: filepath.Join(dir, "missing")}, v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,11 +149,16 @@ type testSecrets struct{}
 
 func (testSecrets) Get(string) (string, error) { return "dummy-not-a-real-key", nil }
 func TestMissingBinaryRetriesWithoutLosingSupervisorAndStopsPromptly(t *testing.T) {
+	// Host proxy policy must not change what a missing-binary fixture tests.
+	t.Setenv("DOTCONTROL_CONTROL_PROXY", "socks5://127.0.0.1:1080")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
 	dir := t.TempDir()
-	s, e := Start(context.Background(), dir, config.Config{TunnelID: "tunnel_test", TunnelPath: filepath.Join(dir, "missing-executable"), Listen: "127.0.0.1:12345"}, testSecrets{})
+	s, e := Start(context.Background(), dir, config.Config{Network: config.Network{Mode: "direct"}, TunnelID: "tunnel_test", TunnelPath: filepath.Join(dir, "missing-executable"), Listen: "127.0.0.1:12345"}, testSecrets{})
 	if e != nil {
 		t.Fatal(e)
 	}
+	defer s.Stop()
 	deadline := time.Now().Add(time.Second)
 	for s.Status().Error == "" && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
