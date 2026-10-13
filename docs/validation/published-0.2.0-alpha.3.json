@@ -1,0 +1,176 @@
+{
+  "version": "0.2.0-alpha.3",
+  "date": "2026-10-13",
+  "source_commit": "9faaf28322bf123d4b97769faa537206e3b2f564",
+  "release_url": "https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.3",
+  "pr_merged": false,
+  "previous_release_assets_replaced": false,
+  "native_test_race_vet_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38353479661",
+  "native_build_and_candidate_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38353480505",
+  "build_attempt": 2,
+  "build_retry_note": "Unchanged source; retried macOS image mount resource-busy and Windows test process startup timeout failures. Only final actual payload reports count.",
+  "public_native_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38354688776",
+  "all_three_native_published_verifications": "passed",
+  "candidate_native_reports": {
+    "windows-amd64": {
+      "sha256": "c5203ce0ee50f54217b87d8d3d82f3f268c7eba514232f19dafbdc8130a52f56",
+      "bytes": 51160064,
+      "payload": {
+        "arch": "amd64",
+        "files": 44,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.3",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    "darwin-arm64": {
+      "sha256": "b30f1a472d4a95048db0ec7865a420b8bf28244184253723f788f3b23c8cc39a",
+      "bytes": 93436911,
+      "payload": {
+        "arch": "arm64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.3",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    "darwin-amd64": {
+      "sha256": "c4fca49265f0e5fbe7f2f88c7239ce69ce266ed8296dfd1ed266e9175f4cc95d",
+      "bytes": 94141721,
+      "payload": {
+        "arch": "amd64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.3",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  },
+  "assets": [
+    {
+      "name": "DotControl-0.2.0-alpha.3-macos-amd64.dmg.sha256",
+      "sha256": "5c16d5c7a59fb6b20b3605bf1ee61c74f273b06122884cb82171f861be992e8f",
+      "bytes": 107,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.3-macos-arm64.dmg.sha256",
+      "sha256": "610da12b2c95b14fdd79e893c26e6d847af1d749627d43ae5ceb672c5c414f6d",
+      "bytes": 107,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.3-macos-arm64.dmg",
+      "sha256": "b30f1a472d4a95048db0ec7865a420b8bf28244184253723f788f3b23c8cc39a",
+      "bytes": 93436911,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.3-windows-amd64-setup.exe.sha256",
+      "sha256": "95dd247689a9f4b6cabb85da5343e554c6bf7b9fe71ca71af69786423fc45810",
+      "bytes": 116,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.3.zip",
+      "sha256": "e5e358446c02f134d02c12c462dd91c542ae63f22c6cd62c8fc388f6fbe15649",
+      "bytes": 49322,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.3.zip.sha256",
+      "sha256": "22f4826211369e61fd804deaaaaa46a711e8821d84e7567ee47bbc3a7f719c83",
+      "bytes": 107,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "LICENSE.txt",
+      "sha256": "2091f2991c6b41bad7c26d434ec331816b9aba8ac7d53b5a8b84d7aed69006db",
+      "bytes": 1080,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "sha256": "b9d59284fd8b82790f0f5aacb5688a9d740244d4af8202dc465925e8edf18e4b",
+      "bytes": 608,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.3-windows-amd64-setup.exe",
+      "sha256": "c5203ce0ee50f54217b87d8d3d82f3f268c7eba514232f19dafbdc8130a52f56",
+      "bytes": 51160064,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "THIRD_PARTY_NOTICES.md",
+      "sha256": "c025a0374c0102d92fb71a9e22f6d3105d7e64fd6b5c06444a7c288ec6a901cd",
+      "bytes": 1839,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.3-macos-amd64.dmg",
+      "sha256": "c4fca49265f0e5fbe7f2f88c7239ce69ce266ed8296dfd1ed266e9175f4cc95d",
+      "bytes": 94141721,
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    }
+  ],
+  "first_party_publisher_signature": "not_configured",
+  "first_party_notarization": "not_configured",
+  "upstream_cua_macos_signature": "verified_on_both_native_runners_without_resigning",
+  "user_mac_modified": false,
+  "cross_computer_desktop_acceptance": "not_in_scope",
+  "cloud_connection": "blocked_network_error_tunnel_client_not_seen"
+}
