@@ -24,10 +24,10 @@ edit credential stores directly, or alter DNS/proxy/TLS settings.
    `current.json` identifies the installed version directory. Verify the selected
    path stays beneath this root before executing.
 4. Otherwise download the appropriate asset and `.sha256` file from the fixed
-   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.2`.
-   Asset names: `DotControl-0.2.0-alpha.2-windows-amd64-setup.exe`,
-   `DotControl-0.2.0-alpha.2-macos-arm64.dmg`, or
-   `DotControl-0.2.0-alpha.2-macos-amd64.dmg`.
+   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.3`.
+   Asset names: `DotControl-0.2.0-alpha.3-windows-amd64-setup.exe`,
+   `DotControl-0.2.0-alpha.3-macos-arm64.dmg`, or
+   `DotControl-0.2.0-alpha.3-macos-amd64.dmg`.
    Verify SHA-256 using built-in OS facilities before launching. Do not substitute
    another tag or ignore mismatched/missing assets. A checksum protects download
    integrity; these alpha installers are not publisher-signed/notarized.
@@ -140,8 +140,7 @@ Report official turn completion, independently checked output, MCP image return
 and source display separately. Do not claim model text is verified experiment output.
 The current candidate accepts Windows terminal delegation only after local opt-in;
 native desktop and remote review remain gated. Configuring a profile cannot
-enable an unaccepted platform. The released alpha.2 installer above does not yet
-contain the new configuration UI; do not claim it does or fabricate a newer asset.
+enable an unaccepted platform. The alpha.3 installer includes this configuration UI; local opt-in remains required.
 
 After checking the source tool catalog, read `devices.capabilities` before choosing
 an execution mode. Basic Cua desktop control, Codex connection,

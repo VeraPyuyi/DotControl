@@ -1,8 +1,8 @@
 # 0.2 支持与验收
 
-[预发布下载](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.2) · [安装指南](INSTALL.md)
+[预发布下载](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.3) · [安装指南](INSTALL.md)
 
-## 目标 Codex 委派开发版（尚未发布）
+## alpha.3 委派与共享能力
 
 [PR #1](https://github.com/VeraPyuyi/DotControl/pull/1) 增加官方 App Server 任务、
 本机公钥授权及人工审批页面、可取消的空闲等待、确认停止后的任务交接，以及固定 CPU
@@ -11,7 +11,7 @@ Windows 图形程序经 PowerShell 调用的输出与退出码已覆盖真实子
 本机审批页会自动显示到期状态、禁用失效表单，并在按钮旁保留提交回执；网络响应不确定时不重发回答。
 终端任务收到官方停止回执且连接清理完成后，可用新的追加请求继续原会话；任务和实验编号不变，旧审批不复用。
 
-这批源码没有替换 alpha.2 安装包，也没有开放尚未验收的能力。
+alpha.3 从 PR 分支独立发布，保留 alpha.2 文件。Windows 终端委派须本机启用；历史读取另行启用。未验收的平台和官方桌面委派继续关闭。
 官方桌面动作、物理接管、Mac 源端审批和图片显示仍需真实闭环验证。
 Windows 当前保守的活动检测会将注入输入计入活动，可能中断原生委派自身；保持保护机制，
 不通过屏蔽人工输入检测强行启用。详细状态见[最新验收记录](validation/native-ssh-progress-2026-10-12.json)。

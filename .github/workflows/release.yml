@@ -29,6 +29,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - run: go test -timeout 3m -count=1 ./...
       - run: go vet ./...
       - name: Build self-contained installer
@@ -49,7 +52,7 @@ jobs:
         run: |
           for artifact in downloaded/*.exe downloaded/*.dmg; do
             [ -f "$artifact" ] || continue
-            python scripts/verify_release_payload.py "$artifact"
+            python scripts/verify_release_payload.py "$artifact" --install-smoke
           done
       # Publishing is separate: download and verify the actual artifacts first.
       # CI success is not native desktop / cross-computer acceptance.
