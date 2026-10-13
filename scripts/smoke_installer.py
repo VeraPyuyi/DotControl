@@ -57,6 +57,9 @@ def run(setup):
         checks.append('repeat_install')
         command(setup, '--extract-payload', bundle)
         m = read(bundle / 'manifest.json')
+        # Go canonicalizes manifest inventory by case-sensitive relative path;
+        # pathlib's Windows sorting uses case-folding instead.
+        m['files'].sort(key=lambda spec: spec['path'])
         agent = bundle / ('dotcontrol.exe' if m['os'] == 'windows' else 'dotcontrol')
 
         # Real installer rejects a manifest claiming a different binary version.
@@ -98,7 +101,7 @@ def run(setup):
         changed.write_bytes(expected)
         command(setup, *install_args)
         assert read(root / 'current.json') == new_current
-        assert not (old / 'manifest.json').exists()
+        assert not (old / 'manifest.json').exists(), read(root / 'transaction.json')
         assert note.read_text(encoding='utf-8') == 'retain user file'
         for spec in old_m['files']:
             assert not (old / spec['path']).exists(), spec['path']
