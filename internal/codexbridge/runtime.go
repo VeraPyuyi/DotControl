@@ -671,7 +671,14 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	stopped = false
 	err = runtimeCallContext(ctx, c, "turn/start", map[string]any{"threadId": result.Thread.ID, "clientUserMessageId": requestID, "input": []any{map[string]any{"type": "text", "text": prompt, "text_elements": []any{}}}}, &turn)
 	if err != nil {
+		b.interruptPendingRequests(id, c)
 		b.operationError(id, err, true)
+		if b.bindPendingStartupTurn(id, c) {
+			// The start response may be lost while its owned turn is awaiting
+			// input. Use the same single interrupt sender and stop-receipt wait
+			// as the normal response path, even though startup was cancelled.
+			stopped = b.consume(ctx, id, c)
+		}
 		return
 	}
 	if turn.Turn.ID == "" {

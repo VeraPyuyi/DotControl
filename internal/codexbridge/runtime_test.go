@@ -62,6 +62,7 @@ type runtimePeer struct {
 	readMessageID                     string
 	blockMethod                       string
 	blockEntered, blockRelease        chan struct{}
+	deferredTurnResponse              chan any
 }
 
 func (p *runtimePeer) send(v any) {
@@ -171,6 +172,10 @@ func runtimeFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSubmit) {
 						return
 					}
 					result = map[string]any{"turn": map[string]any{"id": turn, "status": "inProgress"}}
+					if p.deferredTurnResponse != nil {
+						p.deferredTurnResponse <- map[string]any{"id": r.ID, "result": result}
+						continue
+					}
 				case "thread/read":
 					items := []any{}
 					if p.readMessageID != "" {

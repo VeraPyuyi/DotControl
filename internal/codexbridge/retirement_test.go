@@ -96,6 +96,84 @@ func TestStartupPendingRequestStopsWithoutApproval(t *testing.T) {
 			if method != "turn/start" && peer.count("turn/start") != 0 {
 				t.Fatal("turn dispatched after pending setup request")
 			}
+			if method == "turn/start" && (got.State != "outcome_unknown" || got.TurnID != "" || peer.count("turn/interrupt") != 0) {
+				t.Fatalf("unbound request guessed a turn or lost uncertainty: %+v", got)
+			}
+		})
+	}
+}
+
+func TestBoundStartupPendingRequestInterruptsOnceWithoutStartResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name, startResponse string
+		receipt             bool
+	}{
+		{name: "missing_response_unconfirmed"},
+		{name: "delayed_response_confirmed", startResponse: "after_interrupt", receipt: true},
+		{name: "response_wins_confirmed", startResponse: "before_interrupt", receipt: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			peer := &runtimePeer{deferredTurnResponse: make(chan any, 1)}
+			cfg, r := runtimeFixture(t, peer)
+			b, err := New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer b.Close()
+			j, err := b.Submit(context.Background(), r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var startResponse any
+			select {
+			case startResponse = <-peer.deferredTurnResponse:
+			case <-time.After(time.Second):
+				t.Fatal("turn start was not dispatched")
+			}
+			peer.send(map[string]any{"id": "setup-input", "method": "item/tool/requestUserInput", "params": map[string]any{"threadId": "owned-thread", "turnId": "turn-1"}})
+			if tc.startResponse == "before_interrupt" {
+				peer.send(startResponse)
+			}
+			deadline := time.Now().Add(time.Second)
+			for peer.count("turn/interrupt") == 0 && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if peer.count("turn/interrupt") != 1 {
+				t.Fatal("bound pending startup request did not send one official interrupt")
+			}
+			peer.mu.Lock()
+			var params struct{ ThreadID, TurnID string }
+			_ = json.Unmarshal(peer.params["turn/interrupt"][0], &params)
+			peer.mu.Unlock()
+			if params.ThreadID != "owned-thread" || params.TurnID != "turn-1" {
+				t.Fatalf("interrupt was not bound to the owned turn: %+v", params)
+			}
+			if err = b.ConfigureTerminal(true, false, "", "", ""); err == nil || err.Error() != "terminal_runtime_busy" {
+				t.Fatalf("interrupt acknowledgement released guard: %v", err)
+			}
+			if tc.startResponse == "after_interrupt" {
+				peer.send(startResponse)
+			}
+			if tc.receipt {
+				peer.notification("turn/completed", map[string]any{"threadId": "owned-thread", "turn": map[string]any{"id": "turn-1", "status": "interrupted"}})
+			}
+			waitRuntimeInactive(t, b, j.JobID)
+			got, _ := b.Job(r.DeviceID, j.JobID)
+			if got.Code != "needs_local_setup" || !got.CancelRequested || peer.count("") != 0 || peer.count("turn/interrupt") != 1 || peer.count("turn/start") != 1 {
+				t.Fatalf("startup request answered, replayed, or lost: %+v", got)
+			}
+			if tc.receipt {
+				if got.State != "blocked" || got.Runtime.TurnState != "interrupted" {
+					t.Fatalf("stop receipt was not recorded: %+v", got)
+				}
+			} else {
+				if got.State != "outcome_unknown" {
+					t.Fatalf("unconfirmed stop was treated as settled: %+v", got)
+				}
+				if err = b.ConfigureTerminal(true, false, "", "", ""); err == nil || err.Error() != "terminal_runtime_busy" {
+					t.Fatalf("unconfirmed stop released guard: %v", err)
+				}
+			}
 		})
 	}
 }
