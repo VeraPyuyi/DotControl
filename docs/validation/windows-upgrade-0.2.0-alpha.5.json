@@ -1,0 +1,114 @@
+{
+  "version": "0.2.0-alpha.5",
+  "date": "2026-10-13",
+  "source_commit": "14586337ce70b092bbe83fadcbee8a86a13afee1",
+  "installer_source": "fresh_unauthenticated_public_release_download",
+  "installer_sha256": "503b4251b4b9895fe494f4a900038a19a0b01fb3912faf665f44b3d6f6e733b7",
+  "installed": true,
+  "runtime_health_verified_before_cleanup": true,
+  "old_agent_and_tunnel_exit_confirmed": true,
+  "force_termination": false,
+  "locks_deleted": false,
+  "preservation_checks": {
+    "file_hashes_preserved_before_new_acceptance": {
+      "history_access.json": true,
+      "config.json": false,
+      "connections/connections.json": true,
+      "codex-runtime-v1.jsonl": true,
+      "ledger.jsonl": true,
+      "history_access.initialized": true,
+      "ledger.key": true,
+      "codex-jobs.jsonl": true,
+      "codex-jobs.key": true
+    },
+    "changed_config_fields": [
+      "driver_path",
+      "tunnel_path"
+    ],
+    "device_preserved": true,
+    "state_path_and_port_preserved": true,
+    "pause_preserved": true,
+    "revoke_preserved": true,
+    "history_mode": "allowlist",
+    "history_revision": 3,
+    "history_count": 2
+  },
+  "agent_count": 1,
+  "tunnel_count": 1,
+  "autostart_points_to_new_exe": true,
+  "credential_store": "original_namespace_retained_no_secret_export",
+  "runtime_key_in_os_vault": true,
+  "cleanup": {
+    "managed_alpha4_directory_removed": true,
+    "pending": false
+  },
+  "current_process_cloud": {
+    "configured": true,
+    "running": true,
+    "ready": true,
+    "local_ready": true,
+    "cloud_state": "online",
+    "last_successful_poll_at": "2026-10-13T10:48:15.0211938Z",
+    "proxy_source": "system",
+    "network_change_pending": false
+  },
+  "mcp": {
+    "count": 13,
+    "http_status": 200,
+    "retired_submit_fields_exposed": false,
+    "tools": [
+      "apps",
+      "cancel",
+      "codex_cancel",
+      "codex_continue",
+      "codex_job",
+      "codex_projects",
+      "codex_read_thread",
+      "codex_submit",
+      "codex_threads",
+      "devices",
+      "execute",
+      "observe",
+      "task"
+    ]
+  },
+  "wizard_http_contract": {
+    "scope": "live server HTTP contract; browser rendering not asserted",
+    "checks": [
+      {
+        "terminal_ready": true,
+        "version": "0.2.0-alpha.5",
+        "autostart": true,
+        "authenticated": true,
+        "scenario": "first_load"
+      },
+      {
+        "terminal_ready": true,
+        "version": "0.2.0-alpha.5",
+        "autostart": true,
+        "authenticated": true,
+        "scenario": "reload"
+      },
+      {
+        "terminal_ready": true,
+        "version": "0.2.0-alpha.5",
+        "autostart": true,
+        "authenticated": true,
+        "scenario": "second_tab"
+      },
+      {
+        "terminal_ready": true,
+        "version": "0.2.0-alpha.5",
+        "autostart": true,
+        "authenticated": true,
+        "scenario": "first_tab_after_second"
+      }
+    ],
+    "launch_ticket_hidden": true,
+    "sharing_unmodified": true
+  },
+  "wizard_browser": "Authenticated refreshed page and new tab both rendered alpha.5 without another launch ticket.",
+  "user_mac_modified": false,
+  "historical_jobs_replayed": false,
+  "scope": "Installed public Windows package; source Dot task execution is recorded separately."
+}

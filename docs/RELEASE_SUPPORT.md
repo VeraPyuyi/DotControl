@@ -8,8 +8,35 @@ alpha.5 将控制台拆成四个区域，并删除内置 SSH／实验及审批�
 旧用户文件和历史记录保留，旧审批依赖配置需要本机明确重新配置。原生 Computer Use
 保持关闭。以下早期版本的相关能力与证据是历史记录，不代表 alpha.5 仍提供这些入口。
 
-当前源代码与浏览器预览验证进行中。安装包发布、公开下载、本机迁移和真实 Dot
-结果将在完成对应检查后分别更新；不以代码或 Mac runner 构建代替真机验收。
+`v0.2.0-alpha.5` 已从 `14586337ce70b092bbe83fadcbee8a86a13afee1` 构建并发布，
+包含 Windows x64、Mac ARM／Intel 安装包和安装助手，共 11 个发布文件。公开下载的
+逐文件摘要与候选包一致，三个原生 runner 的测试、竞态检查、包内校验及各 6 项隔离
+安装／重复安装／失败回滚／清理重试／状态保留检查通过。PR #1 保持草稿，旧发布文件未覆盖。
+
+控制台在 1280、640、360px 宽度完成浏览器检查，无横向溢出；覆盖首次设置、连接正常、
+暂停、撤销、网络错误和会话过期。导航、状态刷新、编辑内容、焦点、共享候选及分页分别
+验证，旧审批和 SSH 页面脚本不再加载。见[界面验证记录](validation/console-0.2.0-alpha.5.json)。
+
+本机 Windows 已使用公开 EXE 升级。旧 alpha.4 代理和隧道正常退出，旧托管程序目录清理
+完成，新代理与隧道各一个，登录启动项指向新版。设备、端口、凭据命名空间、暂停／撤销
+及终端绑定保留；共享清单为实际升级时的 allowlist、修订号 3、2 个会话。共享、连接配置
+和任务记录原始字节未变，主配置只更新驱动与隧道的程序路径。认证控制台刷新和新标签页
+通过；真实云端成功轮询、托管插件 devices 原设备和新 nonce 已确认。
+
+本机 `/mcp`、官方插件目录、源 Dot 本轮实际目录均为 13 个工具，codex_review 已移除。
+最后的新任务验收停止在前置检查：源 Dot 确认 Mac attached=true 但 offline，Windows
+connected 且未 attached，未提交任务。因此本版新的官方线程编号、命令退出码与结果
+回传尚未验收，不以 alpha.4 的旧结果代替。见[源 Dot 记录](validation/windows-public-dot-0.2.0-alpha.5.json)。
+
+用户 Mac 本轮未修改；Mac 包及原生 runner 检查不代表用户 Mac 权限或云端实测。
+原生 Computer Use 继续关闭；旧任务原始记录保留，按原有隐私设计未持久化的运行输出
+在重启后仍可能返回 `unavailable_after_restart`，不会自动重放任务。
+
+证据：[推送测试](https://github.com/VeraPyuyi/DotControl/actions/runs/38383741624)、
+[PR 测试](https://github.com/VeraPyuyi/DotControl/actions/runs/38383751685)、
+[原生候选包](https://github.com/VeraPyuyi/DotControl/actions/runs/38383766777)、
+[公开安装包复验](https://github.com/VeraPyuyi/DotControl/actions/runs/38385399772)、
+[发布摘要](validation/published-0.2.0-alpha.5.json)、[Windows 升级](validation/windows-upgrade-0.2.0-alpha.5.json)。
 
 ## alpha.4 发布与升级实测（2026-10-13）
 

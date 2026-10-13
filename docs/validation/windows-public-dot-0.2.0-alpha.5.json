@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.5",
+  "source_commit": "14586337ce70b092bbe83fadcbee8a86a13afee1",
+  "date": "2026-10-13",
+  "runtime": "installed_from_public_windows_release",
+  "source": "official Dot conversation with Mac attached, sent via existing browser",
+  "physical_sender_device_not_claimed": "Mac",
+  "official_plugin_refresh": "13 tools: Write 5 and Read 8; codex_review absent",
+  "actual_source_dot_tool_count": 13,
+  "actual_source_dot_codex_review_present": false,
+  "local_authenticated_mcp_tool_count": 13,
+  "request_id_reserved_not_submitted": "alpha5-public-systeminfo-20261013-01",
+  "source_dot_precondition": {
+    "mac_attached": true,
+    "mac_connected": false,
+    "mac_status": "offline",
+    "windows_attached": false,
+    "windows_connected": true,
+    "observed_at": "2026-10-13T18:50:00+08:00"
+  },
+  "task_dispatched": false,
+  "cross_computer_task_acceptance": "blocked_source_mac_offline",
+  "job_or_thread_id_returned": false,
+  "command_evidence": null,
+  "independent_hosted_devices_check": {
+    "succeeded": true,
+    "original_device_and_fresh_nonce_returned": true,
+    "version": "0.2.0-alpha.5",
+    "codex_terminal": "ready",
+    "codex_history_mode": "allowlist",
+    "codex_history_revision": 3
+  },
+  "historical_jobs_replayed": false,
+  "ssh_desktop_history_images_or_approvals_used": false,
+  "scope": "Official source Dot tool discovery and real Windows hosted-device call verified. New task/exit/output acceptance requires Mac connected; no prior release result substituted."
+}
