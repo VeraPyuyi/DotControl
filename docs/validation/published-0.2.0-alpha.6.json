@@ -1,0 +1,104 @@
+{
+  "version": "0.2.0-alpha.6",
+  "date": "2026-10-13",
+  "source_commit": "e160c36912763c78cdfd84860a4b99f0ed4c6d6b",
+  "release_url": "https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.6",
+  "pr_merged": false,
+  "previous_release_assets_replaced": false,
+  "native_test_race_vet_runs": [
+    "https://github.com/VeraPyuyi/DotControl/actions/runs/38396876638",
+    "https://github.com/VeraPyuyi/DotControl/actions/runs/38396882703"
+  ],
+  "native_build_and_candidate_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38396878955",
+  "public_native_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38398142383",
+  "native_platforms": {
+    "windows-amd64": {
+      "sha256": "34bd78fee821832ec080a8be5b63518ade63e45d05ff0fa5d417f8e27d9ed4a0",
+      "bytes": 51108864,
+      "payload_files": 44,
+      "version": "0.2.0-alpha.6",
+      "isolated_checks_passed": 6
+    },
+    "macos-arm64": {
+      "sha256": "5bd1eed16a2f158819f1a07d49690fadf7d59d2ed005b5f6915d52645b975fcb",
+      "bytes": 93399577,
+      "payload_files": 47,
+      "version": "0.2.0-alpha.6",
+      "isolated_checks_passed": 6
+    },
+    "macos-amd64": {
+      "sha256": "9419d40685647ff0cbdf549fa485bac6f384b1e3d2cb1d9903229fecbb9c9309",
+      "bytes": 94067257,
+      "payload_files": 47,
+      "version": "0.2.0-alpha.6",
+      "isolated_checks_passed": 6
+    }
+  },
+  "all_public_bytes_match_verified_candidates": true,
+  "download_authentication": "none",
+  "assets": [
+    {
+      "name": "DotControl-0.2.0-alpha.6-macos-amd64.dmg",
+      "sha256": "9419d40685647ff0cbdf549fa485bac6f384b1e3d2cb1d9903229fecbb9c9309",
+      "bytes": 94067257
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.6-macos-amd64.dmg.sha256",
+      "sha256": "ff5d1f5400ce925278c331159daee71e4d27bc48321c1a09f3fa03fc62ee4033",
+      "bytes": 107
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.6-macos-arm64.dmg",
+      "sha256": "5bd1eed16a2f158819f1a07d49690fadf7d59d2ed005b5f6915d52645b975fcb",
+      "bytes": 93399577
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.6-macos-arm64.dmg.sha256",
+      "sha256": "d33c2e11706cc208f13d42d5964b6b9cad6b80b42927bdccb765daa8d0190e3a",
+      "bytes": 107
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.6-windows-amd64-setup.exe",
+      "sha256": "34bd78fee821832ec080a8be5b63518ade63e45d05ff0fa5d417f8e27d9ed4a0",
+      "bytes": 51108864
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.6-windows-amd64-setup.exe.sha256",
+      "sha256": "325bc278466fba291d6d11d3a75cb824eda26936c256fcb4834fef81b92f1ea9",
+      "bytes": 116
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.6.zip",
+      "sha256": "03ae872e2d6df0b38c0a8d12b9068b3bd8e569b6e4bea065ac3bcff7d939210d",
+      "bytes": 51590
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.6.zip.sha256",
+      "sha256": "e416122c826ffc74ee1b3b8e674b571059c80cdc0cdeeda91003a08100fad797",
+      "bytes": 107
+    },
+    {
+      "name": "LICENSE.txt",
+      "sha256": "2091f2991c6b41bad7c26d434ec331816b9aba8ac7d53b5a8b84d7aed69006db",
+      "bytes": 1080
+    },
+    {
+      "name": "SHA256SUMS",
+      "sha256": "01f339ca8094a66f83380523a6a3fadafd5abf74619753b9124692db58c3e6a0",
+      "bytes": 1075
+    },
+    {
+      "name": "THIRD_PARTY_NOTICES.md",
+      "sha256": "c025a0374c0102d92fb71a9e22f6d3105d7e64fd6b5c06444a7c288ec6a901cd",
+      "bytes": 1839
+    }
+  ],
+  "isolated_check_scope": "No-start install, repeated install, failed-health rollback, changed-file preservation, cleanup retry, identity/configuration/history preservation.",
+  "user_mac_modified": false,
+  "mac_user_runtime_acceptance": "not_tested",
+  "publisher_signing_and_notarization": "not_configured",
+  "limitations": [
+    "Native runner packaging checks do not establish user Mac permissions or cloud connectivity.",
+    "Native Computer Use remains disabled; SSH experiments and approval forwarding are retired."
+  ]
+}
