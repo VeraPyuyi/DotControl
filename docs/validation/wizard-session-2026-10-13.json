@@ -42,10 +42,13 @@
   "running_candidate": {
     "updated": true,
     "config_and_history_policy_sha256_unchanged": true,
-    "tunnel_ready": true,
+    "local_tunnel_health_ready": true,
+    "cloud_plugin_recheck": "failed_tunnel_client_not_seen",
+    "normal_tunnel_repair_requested": true,
     "terminal_enabled": true,
     "history_mode": "all",
     "history_revision": 1
   },
-  "published_installers_updated": false
+  "published_installers_updated": false,
+  "code_sync": "local_commits_pending_github_connection_reset_and_connect_failure"
 }
