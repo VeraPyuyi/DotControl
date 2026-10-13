@@ -113,7 +113,7 @@ func TestUnmanagedActivationFailureRestoresExactConfigStartupAndLegacy(t *testin
 	}
 	got, _ := os.ReadFile(filepath.Join(state, "config.json"))
 	if string(got) != string(original) || !restored || len(starts) != 2 || starts[1] != legacy {
-		t.Fatalf("legacy recovery incomplete: restored=%v starts=%v", restored, starts)
+		t.Fatalf("legacy recovery incomplete: restored=%v starts=%v err=%v", restored, starts, err)
 	}
 }
 func fileDigestForTest(t *testing.T, p string) string {
@@ -197,7 +197,7 @@ func TestInterruptedUnmanagedActivationRecoversFromDurableSnapshot(t *testing.T)
 	}
 	got, _ := os.ReadFile(filepath.Join(state, "config.json"))
 	if string(got) != string(original) || len(starts) != 1 || starts[0] != legacy {
-		t.Fatalf("durable legacy recovery failed: starts=%v", starts)
+		t.Fatalf("durable legacy recovery failed: starts=%v err=%v", starts, err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "activation-recovery.json")); !os.IsNotExist(err) {
 		t.Fatalf("recovery record not retired: %v", err)

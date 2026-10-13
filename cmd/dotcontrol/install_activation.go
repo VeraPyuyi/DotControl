@@ -79,25 +79,26 @@ func checkInstalledBinary(ctx context.Context, exe, version string) error {
 	}
 	return nil
 }
-func regularExecutableDigest(p string) (string, error) {
+func regularExecutablePath(p string) (string, error) {
 	if !filepath.IsAbs(p) {
 		return "", errors.New("legacy_executable_absolute_path_required")
 	}
-	for q := filepath.Clean(p); ; q = filepath.Dir(q) {
-		s, e := os.Lstat(q)
-		if e != nil || s.Mode()&os.ModeSymlink != 0 {
-			return "", errors.New("legacy_executable_unsafe")
-		}
-		if q == filepath.Clean(p) && !s.Mode().IsRegular() {
-			return "", errors.New("legacy_executable_unsafe")
-		}
-		if filepath.Dir(q) == q {
-			break
-		}
-	}
-	resolved, e := filepath.EvalSymlinks(p)
-	if e != nil || !sameProgramPath(resolved, p) {
+	// Validate the original ancestors before expanding ordinary Windows 8.3
+	// names. The executable may be canonicalized; the state/vault path may not.
+	p, e := install.CanonicalPath(p)
+	if e != nil {
 		return "", errors.New("legacy_executable_unsafe")
+	}
+	s, e := os.Lstat(p)
+	if e != nil || !s.Mode().IsRegular() {
+		return "", errors.New("legacy_executable_unsafe")
+	}
+	return p, nil
+}
+func regularExecutableDigest(p string) (string, error) {
+	p, e := regularExecutablePath(p)
+	if e != nil {
+		return "", e
 	}
 	f, e := os.Open(p)
 	if e != nil {
@@ -111,6 +112,10 @@ func regularExecutableDigest(p string) (string, error) {
 	return hex.EncodeToString(sum.Sum(nil)), nil
 }
 func verifyLegacyExecutable(ctx context.Context, p string) (legacyReference, error) {
+	p, e := regularExecutablePath(p)
+	if e != nil {
+		return legacyReference{}, e
+	}
 	digest, e := regularExecutableDigest(p)
 	if e != nil {
 		return legacyReference{}, e
