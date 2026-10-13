@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-13",
+  "feature": "durable_local_wizard_sessions",
+  "identified_in_code_and_regression_tests": [
+    "two_minute_launch_expiry_too_short_for_queued_opening",
+    "fixed_two_hour_session_without_activity_renewal",
+    "fresh_launch_replaced_same_browser_session",
+    "ninth_browser_session_cleared_all_previous_sessions"
+  ],
+  "new_lifetimes": {
+    "single_use_launch_minutes": 30,
+    "session_idle_hours": 12,
+    "session_absolute_hours": 24,
+    "history_scope_preview_minutes": 60
+  },
+  "protections": [
+    "loopback_host_origin_json_and_csrf_guards_retained",
+    "httponly_same_site_cookie_scoped_by_agent_origin",
+    "same_browser_reuses_session_and_csrf_across_tabs",
+    "capacity_evicts_only_one_least_recently_active_session",
+    "rejected_origin_or_csrf_does_not_renew_session",
+    "idle_and_absolute_expiry_fail_closed",
+    "agent_restart_requires_fresh_local_launch",
+    "recovery_retries_only_explicit_pre_dispatch_authentication_rejections",
+    "network_failures_and_business_errors_never_replay_mutations",
+    "approval_deadlines_and_history_cursor_expiry_unchanged"
+  ],
+  "verification": {
+    "red_tests_observed_before_fix": true,
+    "windows_go_test_all": "passed",
+    "go_vet_all": "passed",
+    "onboard_and_command_race_tests": "passed",
+    "javascript_session_recovery_and_syntax": "passed",
+    "windows_gui_build": "passed",
+    "macos_arm64_and_intel_builds": "passed_compile_only",
+    "long_duration_expiry": "simulated_clock_tests_not_wall_clock_wait",
+    "actual_in_app_browser_authenticated_open": "passed",
+    "actual_reload_without_launch_ticket": "passed",
+    "actual_second_tab_without_launch_ticket": "passed",
+    "actual_pending_scope_preview": "displayed_not_applied"
+  },
+  "running_candidate": {
+    "updated": true,
+    "config_and_history_policy_sha256_unchanged": true,
+    "tunnel_ready": true,
+    "terminal_enabled": true,
+    "history_mode": "all",
+    "history_revision": 1
+  },
+  "published_installers_updated": false
+}

@@ -1,5 +1,5 @@
 'use strict';
-let csrf='',state=null,editing=false;
+let csrf='',state=null,editing=false,sessionBlocked=false,sessionRecovery=null;
 const el=id=>document.getElementById(id);
 const messages={driver_unavailable:'桌面驱动尚未连接。请检查权限或点击修复。',tunnel_runtime_key_missing:'请在本机输入运行密钥。',invalid_tunnel_id:'隧道编号应以 tunnel_ 开头。',paused:'已连接，桌面任务已暂停。',access_revoked:'访问已撤销；需在本机重新连接。',local_checks_not_ready:'驱动、活动检测或锁屏检查尚未通过，请先修复。',permissions_not_ready:'系统尚未确认 CuaDriver 的桌面权限；请授权后等待重新检查。',image_not_observed:'尚未收到插件的窗口图片调用，请先让 Dot 观察窗口。',signature_invalid:'驱动签名校验失败，安装已停止。请使用经过验证的发布包。'};
 Object.assign(messages,{
@@ -10,7 +10,30 @@ Object.assign(messages,{
   driver_transport_failed:'驱动通信中断，正在尝试重新连接。',
   driver_empty_response:'驱动返回空响应。请重新检查；仍失败时下载脱敏诊断。'
 });
-async function api(path,data={}){const r=await fetch('/onboard/api/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-DotControl-CSRF':csrf},body:JSON.stringify(data)});let v;try{v=await r.json()}catch{v={error:r.status===401?'请从 DotControl 重新打开向导。':'本地会话失效，请重新打开向导。'}}if(!r.ok)throw Error(messages[v.error]||v.error||'操作失败');return v}
+Object.assign(messages,{
+ open_from_dotcontrol:'当前浏览器尚未连接向导。请从 DotControl 在此浏览器重新打开一次；已保存配置不受影响。',
+ session_rejected:'向导访问已过期或代理已重启。请从 DotControl 重新打开一次；已保存配置不受影响。',
+ launch_expired_open_dotcontrol:'打开链接已过期或当前浏览器没有有效会话。请从 DotControl 重新打开一次。',
+ history_preview_expired:'清单预览已过期，请重新生成并核对；当前共享范围未改变。'
+});
+async function requestAPI(path,data){
+ const r=await fetch('/onboard/api/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-DotControl-CSRF':csrf},body:JSON.stringify(data)});
+ let v;try{v=await r.json()}catch{v={error:'request_rejected'}}
+ if(!r.ok){const e=Error(messages[v.error]||v.error||'操作失败');e.auth=(r.status===401&&v.error==='open_from_dotcontrol')||(r.status===403&&v.error==='session_rejected');throw e}return v
+}
+async function recoverSession(){
+ if(!sessionRecovery)sessionRecovery=requestAPI('session',{}).then(v=>{if(!v.csrf)throw Error('无效的向导会话');csrf=v.csrf;sessionBlocked=false}).catch(e=>{sessionBlocked=true;throw e}).finally(()=>{sessionRecovery=null});
+ return sessionRecovery
+}
+async function api(path,data={}){
+ try{return await requestAPI(path,data)}catch(e){
+  // Only explicit authentication rejections happen before backend dispatch.
+  // Never replay a request after a network failure or a business error.
+  if(path==='session'||!e.auth)throw e;
+  await recoverSession();
+  try{return await requestAPI(path,data)}catch(retryError){if(retryError.auth)sessionBlocked=true;throw retryError}
+ }
+}
 function msg(s){el('message').textContent=s}
 function rows(id,items){const box=el(id);box.replaceChildren();for(const [label,value,ok] of items){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=label==='桌面驱动'?(messages[value]||value):value;dd.className=ok?'ok':'pending';box.append(dt,dd)}}
 function renderState(s){
@@ -35,6 +58,6 @@ for(const button of document.querySelectorAll('[data-action]'))button.onclick=as
 el('copy-fields').onclick=async()=>{try{await navigator.clipboard.writeText('插件名称：'+el('device-name').value+'\n连接类型：Tunnel\n隧道编号：'+el('tunnel-id').value);msg('已复制。请在官方私有插件页面填写。')}catch{msg('请手动复制上方名称和隧道编号。')}};
 el('copy-test').onclick=async()=>{if(!state)return;const text=state.terminal_only?'先检查当前源端会话实际可用的 '+state.device.name+' 插件工具列表，确认包含 codex_submit、codex_job、codex_continue、codex_cancel；缺少任一工具就停止测试，在源端官方插件设置点击 Refresh tools，再新建会话并重新检查。不要根据 devices 查询成功或 codex_terminal.available 推断工具已加载。若列出 codex_review，也仅表示工具存在，不表示远程审批已验收。工具齐全后，保持官方 Dot 连接 Mac，不切换到 Windows。通过同一插件调用 devices，核对 device_id 为 '+state.device.device_id+'，检查 capabilities.codex_terminal 和 codex_profiles.execution；仅在终端能力可用且配置存在时，选择已配置的终端任务，使用新的 request_id 调用 codex_submit，要求只报告本机系统信息，以 codex_job 查询实际结果。不连接 SSH 或部署实验；不要把 apps、observe 或桌面工具作为前置条件，也不要把终端命令放入 execute。':'保持官方 Dot 连接当前源电脑，不切换到目标电脑。通过 '+state.device.name+' 的 DotControl 插件调用 devices，核对 device_id 为 '+state.device.device_id+'，返回本次 nonce 和暂停状态。只验证连接，不执行桌面动作。启用后通过同一插件观察一个已打开的无害窗口，以 MCP 原始图片回传并确认我能看到；不能用文字报告代替截图。';try{await navigator.clipboard.writeText(text);msg('已复制连接测试指令。')}catch{msg(text)}};
 el('diagnostics').onclick=async()=>{try{const v=await api('diagnostics'),url=URL.createObjectURL(new Blob([JSON.stringify(v,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='DotControl-diagnostics.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){msg(e.message)}};
-(async()=>{const fragment=location.hash.slice(1),ticket=/^[a-f0-9]{64}$/.test(fragment)?fragment:'';history.replaceState(null,'',location.pathname);try{csrf=(await api('session',{ticket})).csrf;await refresh();setInterval(()=>refresh().catch(e=>msg(e.message)),4000)}catch(e){msg(e.message)}})();
+(async()=>{const fragment=location.hash.slice(1),ticket=/^[a-f0-9]{64}$/.test(fragment)?fragment:'';history.replaceState(null,'',location.pathname);try{csrf=(await api('session',{ticket})).csrf;await refresh();setInterval(()=>{if(!sessionBlocked)refresh().catch(e=>msg(e.message))},4000)}catch(e){sessionBlocked=true;msg(e.message)}})();
 
 el('check-update').onclick=async()=>{try{const v=await api('action',{action:'check_update'});msg('当前版本：'+v.current+'；发布版本：'+v.published+'。请通过下载安装包链接查看说明，更新不会自动安装。')}catch{msg('发布查询失败。可使用旁边的下载安装包链接手动查看。')}};

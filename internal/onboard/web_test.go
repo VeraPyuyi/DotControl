@@ -25,3 +25,13 @@ func TestTerminalOnboarding(t *testing.T) {
 		t.Fatalf("terminal UI: %v\n%s", err, out)
 	}
 }
+
+func TestWizardSessionRecovery(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("Node.js required")
+	}
+	if out, err := exec.Command(node, "testdata/session.test.cjs", "web/app.js").CombinedOutput(); err != nil {
+		t.Fatalf("session recovery: %v\n%s", err, out)
+	}
+}

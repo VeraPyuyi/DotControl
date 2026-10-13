@@ -135,7 +135,7 @@ func (o *runtimeOwner) History(ctx context.Context, r onboard.HistoryRequest) (a
 		if r.Mode != "all" && r.Mode != "allowlist" {
 			return nil, errors.New("history_invalid_mode")
 		}
-		preview := historyPreview{ID: config.Random(), Revision: p.Revision, Mode: r.Mode, Threads: []codexhistory.Thread{}, Added: []string{}, Removed: []string{}, Issues: []historyaccess.Issue{}, Coverage: "explicit_selection_only", Expires: time.Now().Add(15 * time.Minute), BaseFingerprint: historyaccess.Fingerprint(p)}
+		preview := historyPreview{ID: config.Random(), Revision: p.Revision, Mode: r.Mode, Threads: []codexhistory.Thread{}, Added: []string{}, Removed: []string{}, Issues: []historyaccess.Issue{}, Coverage: "explicit_selection_only", Expires: time.Now().Add(time.Hour), BaseFingerprint: historyaccess.Fingerprint(p)}
 		ids := r.ThreadIDs
 		if len(r.Snapshot) > 0 {
 			candidates, e := historyaccess.ResolveSidebar(r.Snapshot, r.Selection)

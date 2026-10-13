@@ -49,6 +49,9 @@ func TestLocalPreviewRequiresApplyAndRevision(t *testing.T) {
 		t.Fatal(e)
 	}
 	pr := raw.(historyPreview)
+	if time.Until(pr.Expires) < 55*time.Minute {
+		t.Fatal("scope preview expires during normal setup")
+	}
 	p, _ := store.Load()
 	if p.Mode != "all" {
 		t.Fatal("preview mutated permissions")

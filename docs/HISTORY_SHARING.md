@@ -42,7 +42,17 @@ installation. `all` prepares a preview; it does not immediately broaden access.
 Preview files contain the revision, mode and exact thread IDs, or a native
 sidebar snapshot plus exact selection IDs. See the skill for the snapshot shape.
 Preserve saved IDs when editing only a subset. Selection/preview limit is 500
-verified IDs; policy format supports 10,000 IDs. Preview expiry is 15 minutes.
+verified IDs; policy format supports 10,000 IDs. Preview expiry is one hour.
+
+Open the wizard once from DotControl in the browser you intend to use. Its
+single-use launch link lasts 30 minutes. Reloads and other tabs reuse that
+browser's session: 12 hours idle, renewed by authenticated requests, with a
+24-hour absolute limit. A different browser or agent restart requires a fresh
+launch. Sessions remain local, HttpOnly, same-origin and CSRF-protected; different
+agent ports use distinct cookie names. Losing a page session does not change
+saved sharing permissions or terminal jobs. Only explicit authentication
+rejections can be retried after session recovery; uncertain operations are not
+replayed. Official Codex approval deadlines and history cursors are unchanged.
 
 ## Policy and read contract
 

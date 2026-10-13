@@ -1,10 +1,11 @@
-// Package onboard serves a loopback-only, short-lived authenticated local UI.
+// Package onboard serves a loopback-only, authenticated local UI.
 // The MCP/admin token endpoints keep their existing stricter guards.
 package onboard
 
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
 	"encoding/hex"
@@ -51,16 +52,26 @@ type Backend interface {
 	Diagnostics(context.Context) (any, error)
 }
 type session struct {
-	CSRF    string
-	Expires time.Time
+	CSRF        string
+	Expires     time.Time
+	HardExpires time.Time
 }
+
+const (
+	launchLifetime      = 30 * time.Minute
+	sessionIdleLifetime = 12 * time.Hour
+	sessionMaxLifetime  = 24 * time.Hour
+)
+
 type Server struct {
-	origin   string
-	backend  Backend
-	assets   fs.FS
-	mu       sync.Mutex
-	tickets  map[string]time.Time
-	sessions map[string]session
+	origin     string
+	backend    Backend
+	assets     fs.FS
+	mu         sync.Mutex
+	tickets    map[string]time.Time
+	sessions   map[string]session
+	cookieName string
+	now        func() time.Time
 }
 
 func New(address string, b Backend) *Server {
@@ -69,7 +80,9 @@ func New(address string, b Backend) *Server {
 }
 
 func NewWithAssets(address string, b Backend, assets fs.FS) *Server {
-	return &Server{origin: "http://" + address, backend: b, assets: assets, tickets: map[string]time.Time{}, sessions: map[string]session{}}
+	origin := "http://" + address
+	hash := sha256.Sum256([]byte(origin))
+	return &Server{origin: origin, backend: b, assets: assets, tickets: map[string]time.Time{}, sessions: map[string]session{}, cookieName: "dotcontrol_session_" + hex.EncodeToString(hash[:8]), now: time.Now}
 }
 func random() string {
 	b := make([]byte, 32)
@@ -86,17 +99,17 @@ func (s *Server) LaunchURL() string {
 	defer s.mu.Unlock()
 	s.prune()
 	t := random()
-	s.tickets[t] = time.Now().Add(2 * time.Minute)
+	s.tickets[t] = s.now().Add(launchLifetime)
 	return s.origin + "/onboard/#" + t
 }
 func (s *Server) prune() {
 	for k, v := range s.tickets {
-		if time.Now().After(v) {
+		if !s.now().Before(v) {
 			delete(s.tickets, k)
 		}
 	}
 	for k, v := range s.sessions {
-		if time.Now().After(v.Expires) {
+		if !s.now().Before(v.Expires) || !s.now().Before(v.HardExpires) {
 			delete(s.sessions, k)
 		}
 	}
@@ -148,19 +161,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.bootstrap(w, r)
 		return
 	}
-	c, err := r.Cookie("dotcontrol_session")
+	c, err := r.Cookie(s.cookieName)
 	if err != nil {
-		http.Error(w, "open_from_dotcontrol", 401)
+		write(w, 401, map[string]string{"error": "open_from_dotcontrol"})
 		return
 	}
 	s.mu.Lock()
 	s.prune()
 	sess, ok := s.sessions[c.Value]
-	s.mu.Unlock()
 	if !ok || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-DotControl-CSRF")), []byte(sess.CSRF)) != 1 {
-		http.Error(w, "session_rejected", 403)
+		s.mu.Unlock()
+		write(w, 403, map[string]string{"error": "session_rejected"})
 		return
 	}
+	s.touchSession(w, c.Value, sess)
+	s.mu.Unlock()
 	var value any
 	switch r.URL.Path {
 	case "/onboard/api/history":
@@ -264,24 +279,52 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	s.prune()
 	if input.Ticket == "" {
-		if c, e := r.Cookie("dotcontrol_session"); e == nil {
+		if c, e := r.Cookie(s.cookieName); e == nil {
 			if sess, ok := s.sessions[c.Value]; ok {
-				write(w, 200, map[string]string{"csrf": sess.CSRF})
+				s.sessionReply(w, c.Value, sess)
 				return
 			}
 		}
 	}
 	if _, ok := s.tickets[input.Ticket]; !ok {
-		http.Error(w, "launch_expired_open_dotcontrol", 401)
+		write(w, 401, map[string]string{"error": "launch_expired_open_dotcontrol"})
 		return
 	}
 	delete(s.tickets, input.Ticket)
+	// A fresh launch in the same browser must not invalidate another tab's CSRF.
+	if c, e := r.Cookie(s.cookieName); e == nil {
+		if sess, ok := s.sessions[c.Value]; ok {
+			s.sessionReply(w, c.Value, sess)
+			return
+		}
+	}
 	if len(s.sessions) >= 8 {
-		s.sessions = map[string]session{}
+		var oldest string
+		for id, sess := range s.sessions {
+			if oldest == "" || sess.Expires.Before(s.sessions[oldest].Expires) {
+				oldest = id
+			}
+		}
+		delete(s.sessions, oldest)
 	}
 	id := random()
 	csrf := random()
-	s.sessions[id] = session{CSRF: csrf, Expires: time.Now().Add(2 * time.Hour)}
-	http.SetCookie(w, &http.Cookie{Name: "dotcontrol_session", Value: id, Path: "/onboard/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: 7200})
-	write(w, 200, map[string]string{"csrf": csrf})
+	s.sessionReply(w, id, session{CSRF: csrf, HardExpires: s.now().Add(sessionMaxLifetime)})
+}
+
+// Caller holds mu. Renewal never extends the original absolute lifetime.
+func (s *Server) touchSession(w http.ResponseWriter, id string, sess session) session {
+	now := s.now()
+	sess.Expires = now.Add(sessionIdleLifetime)
+	if sess.Expires.After(sess.HardExpires) {
+		sess.Expires = sess.HardExpires
+	}
+	s.sessions[id] = sess
+	maxAge := int((sess.Expires.Sub(now) + time.Second - 1) / time.Second)
+	http.SetCookie(w, &http.Cookie{Name: s.cookieName, Value: id, Path: "/onboard/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
+	return sess
+}
+func (s *Server) sessionReply(w http.ResponseWriter, id string, sess session) {
+	sess = s.touchSession(w, id, sess)
+	write(w, 200, map[string]any{"csrf": sess.CSRF, "expires_at": sess.Expires, "max_expires_at": sess.HardExpires})
 }
