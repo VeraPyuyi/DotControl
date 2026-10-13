@@ -32,6 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - run: python scripts/test_release_verifier.py
       - run: go test -timeout 3m -count=1 ./...
       - run: go vet ./...
       - name: Build self-contained installer
@@ -49,10 +50,11 @@ jobs:
         run: gh run download ${{ github.run_id }} -R ${{ github.repository }} -n installer-${{ matrix.os }}-${{ matrix.arch }} -D downloaded
       - name: Verify downloaded installer payload
         shell: bash
-        run: |
-          for artifact in downloaded/*.exe downloaded/*.dmg; do
-            [ -f "$artifact" ] || continue
-            python scripts/verify_release_payload.py "$artifact" --install-smoke
-          done
+        run: python scripts/verify_release_payload.py downloaded --install-smoke > candidate-payload.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-payload-${{ matrix.os }}-${{ matrix.arch }}
+          path: candidate-payload.json
+          if-no-files-found: error
       # Publishing is separate: download and verify the actual artifacts first.
       # CI success is not native desktop / cross-computer acceptance.

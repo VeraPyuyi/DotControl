@@ -8,6 +8,19 @@ import tempfile
 from smoke_installer import run as smoke
 
 
+def resolve_artifact(path):
+    path = path.resolve()
+    if path.is_dir():
+        artifacts = [p for p in path.rglob('*')
+                     if p.is_file() and p.suffix.lower() in ('.exe', '.dmg')]
+        if len(artifacts) != 1:
+            raise RuntimeError('exactly_one_installer_required')
+        return artifacts[0]
+    if not path.is_file():
+        raise RuntimeError('installer_missing')
+    return path
+
+
 def run(path, install_smoke=False):
     result = subprocess.run([str(path), '--verify-payload'], capture_output=True,
                             text=True, timeout=120, check=True)
@@ -24,7 +37,7 @@ def main():
     parser.add_argument('artifact', type=Path)
     parser.add_argument('--install-smoke', action='store_true')
     args = parser.parse_args()
-    artifact = args.artifact.resolve()
+    artifact = resolve_artifact(args.artifact)
     with artifact.open('rb') as f:
         actual = hashlib.file_digest(f, 'sha256').hexdigest()
     expected = Path(str(artifact) + '.sha256').read_text().split()[0]
