@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0-alpha.5",
+  "date": "2026-10-13",
+  "environment": "embedded web assets in in-app browser with synthetic local API responses",
+  "private_device_state_used": false,
+  "viewports": [
+    {"width": 1280, "height": 900, "horizontal_overflow": false},
+    {"width": 640, "height": 850, "horizontal_overflow": false},
+    {"width": 360, "height": 800, "horizontal_overflow": false}
+  ],
+  "views": ["overview", "connection", "codex", "sharing"],
+  "states_checked": ["first_setup", "ready", "paused", "revoked", "network_failure", "expired_session"],
+  "browser_checks": {
+    "selected_view_survives_poll": true,
+    "unsaved_device_name_and_focus_survive_poll": true,
+    "sharing_candidates_survive_view_change": true,
+    "sharing_pagination_and_preview": true,
+    "sharing_pause_status_updates_without_reload": true,
+    "checkbox_size_px": 17,
+    "normal_state_console_errors": 0,
+    "retired_approval_or_ssh_requests": 0
+  },
+  "automated_checks": [
+    "authenticated session refresh and multi-tab contract",
+    "sharing refresh preserves unsaved selection",
+    "out-of-order status cannot replace newer policy",
+    "navigation rechecks sharing readiness",
+    "pause and revoke override cached ready state"
+  ],
+  "limitations": [
+    "Synthetic preview does not prove live tunnel connectivity or official source Dot task execution.",
+    "Sharing apply persistence is covered by backend tests; live user policy was not changed by this preview.",
+    "Mac native installer validation and user Mac runtime acceptance are reported separately."
+  ]
+}
