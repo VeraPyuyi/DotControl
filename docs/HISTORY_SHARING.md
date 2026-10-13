@@ -1,6 +1,6 @@
 # Local Codex history sharing
 
-DotControl adds three read-only tools to the existing eleven: `codex_projects`,
+DotControl includes three read-only history tools: `codex_projects`,
 `codex_threads`, `codex_read_thread`. Upgrade the agent, then use **Refresh tools**
 on the existing official plugin and check the actual source session's inventory.
 Agent readiness, official plugin metadata and source-session discovery are
@@ -8,19 +8,34 @@ separate checks. Alpha.5 removes review forwarding and exposes 13 tools.
 
 ## Local setup
 
-Open the local installation page → **共享 Codex 会话（只读）** → enable.
-First enable shares **all local Codex conversations, including future chats**.
-Existing installations do not gain history access merely by upgrading.
-To restrict sharing, load/search chats, select them, preview and confirm.
-An empty allowlist denies every conversation. To restore all, preview and confirm
-**恢复全部共享**. Disabling history preserves the list and terminal settings.
+Open the local console → **会话共享** → **启用并检查历史读取**.
+First enable shares **all local Codex conversations, including future chats**;
+existing installations retain their saved scope and do not gain history access
+merely by upgrading. The page offers two explicit choices:
+
+- **全部会话（默认）**: the initial choice for an unconfigured installation. No
+  allowlist selection is required; this scope includes future conversations.
+- **仅白名单中的会话**: an optional restriction. Only this choice shows the
+  search filters and conversation candidates. A saved empty allowlist denies
+  every conversation; it never falls back to all.
+
+The page initially reflects an existing installation's saved mode. Changing
+either the mode or candidates edits a local draft only. Both modes use
+**预览共享范围** → **确认并保存共享范围**, including a return to all.
+**当前共享范围** continues to show the saved policy separately. Status polling
+and changes in another tab preserve the draft and candidate controls. A draft
+edit or saved-policy revision change invalidates the preview; preview again
+before saving. Edits made while a save is pending remain unsaved drafts.
+Disabling history with **停止读取** preserves the scope and terminal settings.
 Global pause and revocation block history as well. No SSH or Cua readiness check
 is part of reading. No model turn is started by any history operation.
 
-The `share-codex-history` skill can prepare a selection from native sidebar
-groups, projects or individual chats. The page shows exact official identities
-and unresolved items before confirmation. Direct selection also works without
-installing Sidebar Organizer. Groups are selection aids, never live ACLs: only
+The `share-codex-history` skill can optionally prepare a selection from native
+sidebar groups, projects or individual chats. The page shows exact official identities
+and unresolved items via **查看技能待确认清单** before confirmation. Importing
+a current preview aligns the draft mode and selected IDs without saving it.
+Direct selection also works without installing Sidebar Organizer. Groups are
+selection aids, never live ACLs: only
 explicit stable thread IDs are persisted. New/moved/renamed groups do not change
 permissions. Native and App Server group IDs are not joined by name. Bounded
 recent lists do not prove that absent chats were deleted.

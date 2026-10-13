@@ -35,6 +35,11 @@ func TestExplicitInitializationAndRestart(t *testing.T) {
 	if err != nil || p.Version != 1 || p.Revision != 1 || p.Mode != "all" || !Allows(p, idA) {
 		t.Fatalf("initialize: %+v %v", p, err)
 	}
+	// A later-discovered stable ID needs no policy update in all mode.
+	later, err := NewStore(dir).Load()
+	if err != nil || !Allows(later, idB) || !reflect.DeepEqual(later, p) {
+		t.Fatalf("all scope did not retain access for later conversations: %+v %v", later, err)
+	}
 	p, err = s.Apply(p.Revision, "allowlist", []string{idB, idA, idA})
 	if err != nil || !reflect.DeepEqual(p.AllowedThreadIDs, []string{idA, idB}) {
 		t.Fatalf("apply: %+v %v", p, err)

@@ -192,8 +192,14 @@ Delegated tasks consume the target Codex account's quota.
 For reading existing Codex conversations, use the sibling `share-codex-history`
 skill and the local **会话共享** view. This has independent opt-in
 and does not require terminal execution or desktop permissions. First enable
-defaults to all local conversations; restrictions require a reviewed exact-ID
-allowlist. Refresh the existing official plugin and check for 13 actual tools,
+defaults to **全部会话（默认）**, including future local conversations. An
+existing installation reflects its saved mode; enabling again preserves it.
+**仅白名单中的会话** is optional and reveals the search/candidate controls.
+Only an explicitly saved empty allowlist denies all; not selecting allowlist
+mode leaves the all-conversations scope. Mode and candidate changes are drafts:
+use **预览共享范围** then **确认并保存共享范围** for either mode. The
+**当前共享范围** status shows the saved scope, and polling must preserve drafts.
+Refresh the existing official plugin and check for 13 actual tools,
 including `codex_projects`, `codex_threads`, `codex_read_thread`. Do not run a
 terminal task to bypass a history refusal. Group changes do not grant access.
 
@@ -211,7 +217,9 @@ Do not call an incomplete setup “ready”.
 The local page has four views: 概览, 连接设置, Codex, 会话共享. Installed devices
 start on the overview; missing configuration offers 继续设置 without granting access.
 Account/tunnel/key/proxy and redacted diagnostics are in 连接设置. Project permissions
-are collapsed in Codex. History selection/preview/apply are in 会话共享.
-Status polling must not erase unsaved form edits or candidate selections. Reopen
+are collapsed in Codex. History mode/selection/preview/apply are in 会话共享;
+**查看技能待确认清单** is available in both sharing modes. Status polling must
+not erase unsaved mode, form edits or candidate selections. Editing a draft or
+discovering a newer saved revision invalidates its preview; preview again. Reopen
 the page once after an agent restart; ordinary refresh and multiple tabs reuse the
 authenticated browser session. Never share a launch credential with source Dot.
