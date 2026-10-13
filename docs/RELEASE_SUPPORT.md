@@ -2,22 +2,24 @@
 
 [预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.4 说明](RELEASE_NOTES_0_2_ALPHA_4.md)
 
-## alpha.4 候选版状态（2026-10-13）
+## alpha.4 发布与升级实测（2026-10-13）
 
-目标版本 `v0.2.0-alpha.4` 增加默认自动代理、本机网络设置和基于当前进程成功轮询的云端状态。Windows x64、Mac Apple Silicon、Mac Intel 与安装助手准备从现有 PR 分支发布，不合并 PR，不修改用户 Mac；旧版本资产与记录保留。
+`v0.2.0-alpha.4` 已发布，增加默认自动代理、本机网络设置和基于当前进程成功轮询的云端状态。Windows x64、Mac Apple Silicon、Mac Intel 与安装助手均从源提交 `728d152430fb6a800b570e78c1f74e6d3700aee4` 构建；后续验收文档提交不改变安装包字节。PR #1 仍为草稿，未合并；用户 Mac 未修改，旧版本资产与记录保留。
 
 | alpha.4 检查 | Windows x64 | Mac Apple Silicon | Mac Intel |
 |---|---|---|---|
-| 原生测试、竞态检测、vet、构建 | 待记录 | 待记录 | 待记录 |
-| 实际安装包、包内文件和隔离安装检查 | 待记录 | 待记录 | 待记录 |
-| 固定依赖哈希 / Cua 上游应用签名 | 待记录 | 待记录 | 待记录 |
-| 公开 Release 下载字节与原生包内验证 | 待记录 | 待记录 | 待记录 |
-| 当前进程真实成功轮询及托管插件设备查询 | 候选实例通过；最终发布包待复验 | 本轮不修改用户 Mac | 本轮不修改用户 Mac |
+| 原生测试、竞态检测、vet、构建 | 通过 | 通过 | 通过 |
+| 实际安装包、包内文件和隔离安装检查 | 44 个文件、6 项检查通过 | 47 个文件、6 项检查通过 | 47 个文件、6 项检查通过 |
+| 固定依赖哈希 / Cua 上游应用签名 | 哈希通过 / 不适用 | 哈希及上游签名通过 | 哈希及上游签名通过 |
+| 公开 Release 下载字节与原生包内验证 | 通过 | 通过 | 通过 |
+| 当前进程真实成功轮询及托管插件设备查询 | 公开安装包升级及正常重启后通过 | 用户真机未验收 | 用户真机未验收 |
 | 原生 Computer Use、远程审批、源 Dot 图片显示 | 未验收，能力继续受限 | 未验收，能力继续受限 | 未验收，能力继续受限 |
 
-发布前 Windows 候选实例已实测自动模式使用 `system` 来源，云端状态为 `online`，成功轮询时间为 `2026-10-13T07:35:16.3515075Z`。托管插件的设备查询返回 alpha.4、原设备身份和本次 nonce；本机认证 MCP 仍为 14 个工具。历史共享保持 allowlist、修订号 2、1 个会话，清单字节未变。这只验证当时的候选实例，不代表最终安装包、公开发布字节或 Mac Dot 完整闭环已通过。
+Windows 已使用重新下载的公开安装包升级，原设备、隧道、端口、凭据引用、终端权限、暂停／撤销及共享范围保留。仅更新 `driver_path`、`tunnel_path`；共享清单和任务记录的原始字节未变。旧代理及隧道正常退出，旧 alpha.3 托管目录和两份已核对归属的候选程序清理完毕，登录启动项指向新版。正常重启后只有一个代理和一个隧道；系统代理来源为 `system`，成功轮询时间为 `2026-10-13T08:24:31.4923977Z`，真实托管插件返回原设备及新 nonce。仍为 14 个工具，allowlist 修订号 2、1 个会话。向导刷新及多标签页检查通过。
 
-代码、模拟健康快照或本地页面检查不能代替发布包与实际云端验收。后续发布证据应标明提交、平台和实际文件摘要，并复验最终运行实例。以下 alpha.3 及更早证据仅属于相应旧版本。
+候选阶段官方 Dot 在开始和结束均保持 Mac connected/attached、Windows 未 attached，通过 Windows 插件创建只读系统信息任务；实际命令退出码 0，输出 Windows 10.0.26200 / X64。源消息由现有浏览器发送，不将消息发送物理电脑声称为 Mac。升级重启后 Dot 再次核实设备和原线程仍在，但命令输出按原有隐私设计未持久化，返回 `unavailable_after_restart`，不算重新取得输出。 随后在正式安装版上单独新建只读验收任务，源 Dot 实际收到新的官方线程编号及 `commandExecution`：退出码 0，输出同为 Windows 10.0.26200 / X64，开始结束仍保持 Mac attached；没有重放旧任务。见[正式安装版源 Dot 结果](validation/windows-public-dot-0.2.0-alpha.4.json)。
+
+证据：[三平台测试](https://github.com/VeraPyuyi/DotControl/actions/runs/38366303456)、[候选包](https://github.com/VeraPyuyi/DotControl/actions/runs/38366305748)、[公开安装包原生复验](https://github.com/VeraPyuyi/DotControl/actions/runs/38368202657)、[发布字节记录](validation/published-0.2.0-alpha.4.json)、[本机升级记录](validation/windows-upgrade-0.2.0-alpha.4.json)、[候选云端及源 Dot 记录](validation/windows-tunnel-0.2.0-alpha.4.json)。以下 alpha.3 及更早证据仅属于相应旧版本。
 
 本地就绪、云端轮询与源 Dot 本次调用分别判断。云端在线要求当前进程本地就绪并有近期成功轮询；`/readyz` 或 `official_tunnel_doctor=configuration_validated` 均不能替代。`doctor --online` 的 `tunnel_cloud_connection` 单独返回运行中 supervisor 状态。固定客户端 0.0.16 无法保证代理热切换时请求无损结束，因此保存网络方式或检测到代理变化后只标记待应用，不结束运行中的客户端；最新设置在自然退出后的重启或下一次明确的本机重启时应用。PAC、仅 SOCKS 和交互认证限制见[网络说明](NETWORK.md)。
 

@@ -1,6 +1,6 @@
 # DotControl v0.2.0-alpha.4
 
-此候选版准备更新 Windows x64、Mac Apple Silicon 和 Mac Intel 安装包及 Codex 安装助手。从 `codex/windows-codex-delegation` 分支发布，不表示 PR #1 已合并；alpha.3 资产和历史验收记录保留。本轮不修改用户正在使用的 Mac。
+此预发布版提供 Windows x64、Mac Apple Silicon 和 Mac Intel 安装包及 Codex 安装助手。从 `codex/windows-codex-delegation` 分支的 `728d152430fb6a800b570e78c1f74e6d3700aee4` 构建；PR #1 仍未合并，alpha.3 资产和历史验收记录保留。本轮未修改用户正在使用的 Mac。
 
 ## 本版变化
 
@@ -11,14 +11,18 @@
 - `doctor --online` 的 `official_tunnel_doctor=configuration_validated` 仅表示配置检查通过；实际运行中的云端证据由 `tunnel_cloud_connection` 单独返回。
 - 保持 14 个 MCP 工具，网络设置仅在本机开放。设备身份、隧道、系统凭据、暂停／撤销、终端权限配置、共享范围及动作历史继续保留。
 
-## 计划发布资产
+## 已发布资产
 
 - `DotControl-0.2.0-alpha.4-windows-amd64-setup.exe`
 - `DotControl-0.2.0-alpha.4-macos-arm64.dmg`
 - `DotControl-0.2.0-alpha.4-macos-amd64.dmg`
 - `DotControl-onboarding-0.2.0-alpha.4.zip`
 
-发布时各资产须配有 SHA-256，并重新下载验证实际字节和包内文件。当前公开资产与原生构建验收仍待记录。发布前 Windows 候选实例已使用系统代理取得真实成功轮询和托管插件设备查询，保留原设备身份、历史共享清单及 14 个 MCP 工具；这不代表最终安装包或 Mac Dot 完整闭环通过。详情和后续检查在[支持矩阵](RELEASE_SUPPORT.md)逐项记录，alpha.3 的通过项不会自动计入本版。
+各资产附有 SHA-256。三平台原生测试、竞态检测、vet、构建和实际安装包检查通过，每平台完成六项隔离安装、升级、回滚及清理检查；11 个公开发布文件重新下载后均与候选文件字节一致。公开安装包也已在三个原生 runner 重新验证，见[发布证据](validation/published-0.2.0-alpha.4.json)。
+
+Windows 本机已使用公开安装包保留配置升级，旧代理及隧道正常退出，旧 alpha.3 程序和两个临时候选程序已清理。正常重启后系统代理、成功轮询和真实插件设备查询通过；仍为单代理、单隧道、14 个工具。共享策略仍为 allowlist、修订号 2、允许 1 个会话，清单及已有任务记录字节保留。向导已验证刷新和多标签页，见[升级证据](validation/windows-upgrade-0.2.0-alpha.4.json)。
+
+官方 Dot 保持 Mac attached 的只读 Windows 系统信息任务已在候选阶段返回真实线程、退出码 0 和输出；重启后原任务状态及线程编号保留，但原始输出按现有隐私设计标为 `unavailable_after_restart`，不把旧输出当作本次回查结果。正式安装版随后另建一次只读任务，源 Dot 实际收到新的真实线程、命令退出码 0 和系统信息输出，开始结束仍保持 Mac attached，旧任务未重放。即时回传和重启后保存分别记录，详见[支持矩阵](RELEASE_SUPPORT.md)。
 
 ## 使用与边界
 

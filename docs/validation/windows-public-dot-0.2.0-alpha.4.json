@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.4",
+  "source_commit": "728d152430fb6a800b570e78c1f74e6d3700aee4",
+  "runtime": "installed_from_public_windows_release_after_normal_restart",
+  "source": "official Dot conversation with Mac attached, sent via existing browser",
+  "physical_sender_device_not_claimed": "Mac",
+  "official_computer_status_before_and_after": "Mac connected/attached; Windows not attached, reported by official Dot",
+  "request_id": "alpha4-public-systeminfo-20261013-01",
+  "job_id_sha256": "bebf25bb2709d8edf71f25818a25db6ad233cd1b71481f11768b44bb4e49722e",
+  "official_thread_id_returned": true,
+  "created_at": "2026-10-13T08:27:42.7949782Z",
+  "updated_at": "2026-10-13T08:30:06.1277559Z",
+  "state": "completed",
+  "code": "model_turn_completed",
+  "execution": "terminal",
+  "presentation": "background",
+  "verification": "unverified",
+  "result_status": "available",
+  "command_evidence": {
+    "kind": "commandExecution",
+    "status": "completed",
+    "exit_code": 0,
+    "source": "unifiedExecStartup",
+    "output": "Microsoft Windows 10.0.26200\r\nX64\r\n"
+  },
+  "command_text_present_in_execution_event": false,
+  "independently_queried_through_hosted_plugin": true,
+  "submitted_once_old_job_not_replayed": true,
+  "ssh_desktop_history_images_or_approvals_used": false,
+  "old_job_after_restart": {
+    "state": "completed",
+    "thread_id_preserved": true,
+    "result_status": "unavailable_after_restart",
+    "old_output_not_claimed_as_new_result": true
+  },
+  "scope": "Fresh system-information command output returned to source Dot; not GUI, image, SSH or physical sender Mac acceptance."
+}

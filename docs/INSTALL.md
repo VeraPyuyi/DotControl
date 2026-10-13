@@ -8,7 +8,7 @@
 - Mac Apple Silicon：打开 DotControl-0.2.0-alpha.4-macos-arm64.dmg 内的 DotControl Setup.app。
 - Mac Intel：使用 DotControl-0.2.0-alpha.4-macos-amd64.dmg。
 
-alpha.4 当前为发布候选版，发布文件和各平台验证以[支持矩阵](RELEASE_SUPPORT.md)为准。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
+alpha.4 已[预发布](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.4)，三个安装包及安装助手均附校验和；已完成公开下载与原生包内复验。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
 
 安装器自动校验随包组件、识别旧设备、安装到当前用户目录并启动本地向导。发现多个已有设备时选择要升级的设备，不删除状态目录重新安装。正常安装无需终端、Go、Python、Homebrew 或 Xcode。首次发布未配置发布者签名或公证，系统可能显示来源提示；上游 CuaDriver 签名校验失败则停止。
 
