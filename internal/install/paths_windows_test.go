@@ -5,6 +5,7 @@ package install
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -135,5 +136,67 @@ func TestWindowsNamespacePathsRejectedBeforeFilesystemAccess(t *testing.T) {
 		if _, e := preparePaths(p, `C:\state`); e == nil || !strings.Contains(e.Error(), "namespace") {
 			t.Errorf("namespace not rejected before filesystem access: %s: %v", p, e)
 		}
+	}
+}
+
+func TestWindowsCleanupRejectsJunctionAncestor(t *testing.T) {
+	o := opts(t, bundle(t, "0.2.0", "old"))
+	old, e := Apply(context.Background(), o)
+	if e != nil {
+		t.Fatal(e)
+	}
+	outside := t.TempDir()
+	file := filepath.Join(outside, "dotcontrol")
+	if e = os.WriteFile(file, []byte("old"), 0755); e != nil {
+		t.Fatal(e)
+	}
+	bin := filepath.Join(old.Current.Dir, "bin")
+	if e = os.Rename(bin, filepath.Join(old.Current.Dir, "saved-bin")); e != nil {
+		t.Fatal(e)
+	}
+	output, e := exec.Command("cmd", "/c", "mklink", "/J", bin, outside).CombinedOutput()
+	if e != nil {
+		t.Fatalf("create junction fixture: %s %v", output, e)
+	}
+	defer os.Remove(bin)
+	o.BundleDir = bundle(t, "0.2.1", "new")
+	enableCleanup(t, &o, func(context.Context, Current) error { return nil })
+	r, e := Apply(context.Background(), o)
+	assertCleanupPending(t, o, r, e)
+	if b, e := os.ReadFile(file); e != nil || string(b) != "old" {
+		t.Fatalf("junction target changed: %q %v", b, e)
+	}
+}
+
+func TestWindowsCleanupLockedFileKeepsNewCurrentAndRetries(t *testing.T) {
+	o := opts(t, bundle(t, "0.2.0", "old"))
+	old, e := Apply(context.Background(), o)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ptr, e := syscall.UTF16PtrFromString(filepath.Join(old.Current.Dir, "bin", "dotcontrol"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	h, e := syscall.CreateFile(ptr, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_EXISTING, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(func() { _ = syscall.CloseHandle(h) })
+	o.BundleDir = bundle(t, "0.2.1", "new")
+	enableCleanup(t, &o, func(context.Context, Current) error { return nil })
+	r, e := Apply(context.Background(), o)
+	assertCleanupPending(t, o, r, e)
+	if e = syscall.CloseHandle(h); e != nil {
+		t.Fatal(e)
+	}
+	h = syscall.InvalidHandle
+	o.BundleDir = ""
+	next, e := Repair(context.Background(), o)
+	if e != nil || next.Current != r.Current {
+		t.Fatalf("locked-file retry: %#v %v", next, e)
+	}
+	if _, e = os.Stat(old.Current.Dir); !os.IsNotExist(e) {
+		t.Fatalf("old generation remains: %v", e)
 	}
 }

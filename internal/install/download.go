@@ -67,9 +67,18 @@ func Download(ctx context.Context, o DownloadOptions) (result string, err error)
 	if e = recoverInterrupted(ctx, root, o.Rollback); e != nil {
 		return "", e
 	}
-	p := Progress{Phase: "download", UpdatedAt: time.Now().UTC()}
-	if e = atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
+	prior, e := ReadProgress(root)
+	if e != nil && !os.IsNotExist(e) {
 		return "", e
+	}
+	// Acquisition does not own lifecycle reference checks. Keep a committed
+	// cleanup journal intact so the next Apply/Repair can resume it safely.
+	preserveCleanup := e == nil && (prior.Phase == "cleaning_old_versions" || prior.Phase == "cleanup_pending")
+	p := Progress{Phase: "download", UpdatedAt: time.Now().UTC()}
+	if !preserveCleanup {
+		if e = atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
+			return "", e
+		}
 	}
 	if o.Progress != nil {
 		o.Progress(p)
@@ -79,8 +88,10 @@ func Download(ctx context.Context, o DownloadOptions) (result string, err error)
 			p.Phase = "failed"
 			p.Error = err.Error()
 			p.UpdatedAt = time.Now().UTC()
-			if e := atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
-				err = errors.Join(err, e)
+			if !preserveCleanup {
+				if e := atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
+					err = errors.Join(err, e)
+				}
 			}
 			if o.Progress != nil {
 				o.Progress(p)

@@ -39,6 +39,10 @@ type Options struct {
 	BundleDir      string
 	BeforeActivate func(context.Context, Current) error
 	Health         func(context.Context, Current) error
+	// CleanupOldVersions removes owned obsolete payloads only after health is
+	// committed. BeforeCleanup must reject running or referenced generations.
+	CleanupOldVersions bool
+	BeforeCleanup      func(context.Context, Current) error
 	// Rollback is called after the previous pointer is restored, for example to
 	// restart its service. A nil pointer means this was the first installation.
 	Rollback func(context.Context, *Current) error
@@ -48,7 +52,14 @@ type Result struct {
 	Current  Current
 	Previous *Current
 	Reused   bool
+	// CleanupPending leaves Current healthy and active; retry Apply or Repair.
+	CleanupPending bool
 }
+
+// ErrCleanupPending means activation committed, but obsolete owned files still
+// need cleanup. The caller must keep the new runtime active, not roll it back.
+var ErrCleanupPending = errors.New("cleanup_pending")
+
 type RemoveOptions struct {
 	Root         string
 	StateDir     string
@@ -360,11 +371,15 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 		return result, e
 	}
 	p := Progress{}
+	committed := false
 	report := func(phase string) error {
 		p.Phase = phase
 		p.UpdatedAt = time.Now().UTC()
 		if e := atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
 			return e
+		}
+		if phase == "cleaning_old_versions" {
+			committed = true
 		}
 		if o.Progress != nil {
 			o.Progress(p)
@@ -373,13 +388,20 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	}
 	defer func() {
 		if err != nil {
-			if p.RecoveryNeeded {
-				rollbackErr := rollbackActivation(ctx, root, result.Previous, o.Rollback)
-				p.RecoveryNeeded = rollbackErr != nil
-				err = errors.Join(err, rollbackErr)
+			if committed {
+				result.CleanupPending = true
+				p.RecoveryNeeded = false
+				err = errors.Join(ErrCleanupPending, err)
+				p.Phase = "cleanup_pending"
+			} else {
+				if p.RecoveryNeeded {
+					rollbackErr := rollbackActivation(ctx, root, result.Previous, o.Rollback)
+					p.RecoveryNeeded = rollbackErr != nil
+					err = errors.Join(err, rollbackErr)
+				}
+				result.Current = Current{}
+				p.Phase = "failed"
 			}
-			result.Current = Current{}
-			p.Phase = "failed"
 			p.Error = err.Error()
 			p.UpdatedAt = time.Now().UTC()
 			if e := atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
@@ -390,6 +412,37 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 			}
 		}
 	}()
+	// A committed cleanup is irreversible: resume it before inspecting a new
+	// bundle, and never feed its previous (possibly partial) payload to rollback.
+	prior, pe := ReadProgress(root)
+	if pe != nil && !os.IsNotExist(pe) {
+		return result, pe
+	}
+	if pe == nil && (prior.Phase == "cleaning_old_versions" || prior.Phase == "cleanup_pending") {
+		p = prior
+		committed = true
+		if p.Target == nil || p.RecoveryNeeded {
+			return result, errors.New("invalid committed cleanup journal")
+		}
+		result = Result{Current: *p.Target, Previous: p.Previous, Reused: true}
+		if err = cleanupCurrentMatches(root, result.Current); err != nil {
+			return result, err
+		}
+		p.Error = ""
+		if err = report("cleaning_old_versions"); err != nil {
+			return result, err
+		}
+		if err = cleanupOldVersions(ctx, root, &own, result.Current, o.BeforeCleanup); err != nil {
+			return result, err
+		}
+		if err = report("complete"); err != nil {
+			return result, err
+		}
+		if o.BundleDir == "" {
+			return result, nil
+		}
+		p, result, committed = Progress{}, Result{}, false
+	}
 	if err = report("download"); err != nil {
 		return result, err
 	}
@@ -484,6 +537,11 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 		p.RecoveryNeeded = false
 		return result, e
 	}
+	if o.BeforeActivate != nil || o.CleanupOldVersions {
+		if err = report("waiting_for_exit"); err != nil {
+			return result, err
+		}
+	}
 	if o.BeforeActivate != nil {
 		if e = o.BeforeActivate(ctx, target); e != nil {
 			return result, e
@@ -503,8 +561,19 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	}
 	p.RecoveryNeeded = false
 	result.Current = target
+	if o.CleanupOldVersions {
+		if err = report("cleaning_old_versions"); err != nil {
+			if !committed {
+				p.RecoveryNeeded = true
+			}
+			return result, err
+		}
+		if err = cleanupOldVersions(ctx, root, &own, target, o.BeforeCleanup); err != nil {
+			return result, err
+		}
+	}
 	if err = report("complete"); err != nil {
-		p.RecoveryNeeded = true
+		p.RecoveryNeeded = !committed
 		return result, err
 	}
 	return result, nil

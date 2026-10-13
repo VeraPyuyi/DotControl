@@ -47,6 +47,8 @@ result, err := install.Apply(ctx, install.Options{
     Root: root, StateDir: stateDir, BundleDir: bundleDir,
     BeforeActivate: func(ctx context.Context, target install.Current) error { /* stop old service */ return nil },
     Health: func(ctx context.Context, target install.Current) error { /* start target and probe */ return nil },
+    CleanupOldVersions: true,
+    BeforeCleanup: func(ctx context.Context, old install.Current) error { /* reject running or referenced old generation */ return nil },
     Rollback: func(ctx context.Context, previous *install.Current) error { /* stop failed target; restart previous */ return nil },
     Progress: func(p install.Progress) { /* display persisted phase */ },
 })
@@ -66,7 +68,12 @@ as on macOS. `DefaultRoot()` returns `%LOCALAPPDATA%/DotControl` on Windows and
 configuration directory and vault service identity remain the caller's choices.
 
 `Current` contains `Version`, `OS`, `Arch`, `ManifestSHA256` and the absolute `Dir`
-of the installed version. `Result` also exposes `Previous` and `Reused`.
+of the installed version. `Result` also exposes `Previous`, `Reused`, and
+`CleanupPending`. If cleanup fails after health commits, `Current` remains the
+new active generation, `CleanupPending` is true, and
+`errors.Is(err, install.ErrCleanupPending)` is true. The error contains the
+specific cleanup failure. Callers must keep that runtime active and present the
+pending cleanup; they must not treat this as an activation failure or roll back.
 Manifest identity is SHA-256 of canonical JSON after sorting files by path;
 whitespace and file-list ordering do not create a new release identity. The same
 version with a different canonical manifest is rejected.
@@ -76,7 +83,8 @@ version with a different canonical manifest is rejected.
 An OS-backed per-root lock serializes installers across processes, including
 callbacks. Lock acquisition honors cancellation. Root metadata is updated with
 same-directory temporary writes, file synchronization and rename. Phases are
-persisted in `transaction.json`: `download`, `verify`, `stage`, `install`, `health`,
+persisted in `transaction.json`: `download`, `verify`, `stage`, `install`,
+`waiting_for_exit`, `health`, `cleaning_old_versions`, `cleanup_pending`,
 `complete`, or `failed`. The local-bundle `download` phase means acquisition is
 already satisfied; no network request is made by `Apply`.
 
@@ -85,8 +93,8 @@ existing file; a partial or corrupt listed regular file is replaced from the
 verified source. Unknown staging files and links fail closed. Completed staging
 is renamed into `versions/<version>-<hash-prefix>`, which is not modified during
 normal upgrade. `Repair` uses a new generation directory if the installed copy
-is damaged. Old versions are retained, avoiding replacement of a running Windows
-executable. No automatic garbage collection removes old versions.
+is damaged. By default, old versions are retained. Setting `CleanupOldVersions`
+opts into removal after successful activation and health confirmation.
 
 `BeforeActivate` runs before the pointer changes. The journal records rollback
 intent before invoking this callback and before atomically switching
@@ -96,6 +104,28 @@ then calls `Rollback` using a context without the failed operation's cancellatio
 For first installation, rollback removes the pointer and passes nil. Callbacks
 must enforce their own service timeouts. A failure inside `BeforeActivate` also
 invokes `Rollback`, since that callback may have partly stopped the old runtime.
+
+With cleanup enabled, the sequence is verified staging, `waiting_for_exit` and
+`BeforeActivate`, activation and `Health`, then old payload cleanup. The previous
+payload remains intact until health passes. The `cleaning_old_versions` journal
+entry atomically clears rollback intent before any old file can be deleted.
+After that commit, cancellation, cleanup errors, and interruption retain the new
+pointer. Cleanup failures persist `cleanup_pending`; successful cleanup ends in
+`complete`. The engine never stops processes itself.
+
+`BeforeCleanup` runs for each owned generation except the current target, before
+any of that generation's files are removed. It is required when there are old
+generations to clean. The launcher must reject any running or referenced
+generation, including one containing its own installer/launcher executable, and
+prevent new references during cleanup. The callback must be idempotent and
+tolerate already missing files on retry. A refusal leaves cleanup pending.
+
+The next `Apply` or `Repair` resumes committed cleanup before verifying its
+requested bundle. `BundleDir` may be empty for a cleanup-only retry. A nonempty
+bundle proceeds through normal installation after cleanup succeeds. A missing
+guard fails closed even on retry. `Download` preserves the cleanup journal while
+acquiring bytes, so acquisition cannot erase recovery intent. Recovery from a
+committed cleanup never invokes `Rollback` with a partially deleted generation.
 
 On the next locked operation, an interrupted activation is rolled back before
 another install proceeds. Journal recovery restores the executable pointer and
@@ -125,6 +155,19 @@ allows repeated uninstall while preserving unknown files. Download caches and
 unfinished staging directories also remain, rather than recursively deleting
 unverified content. Repair can reinstall alongside an old directory retained
 because it contains user files.
+
+Upgrade cleanup uses the existing schema-1 ownership record without changing its
+format. Before removing an old listed file, it verifies its regular-file type,
+hash, Unix mode where applicable, and absence of links/reparse points/hardlinks.
+A changed or unsafe listed path is preserved and produces `cleanup_pending`;
+other files may already have been removed. The user can restore its expected
+bytes or move the changed file to an unowned path before retrying. Changed
+manifest content is likewise preserved. Missing listed files are treated as
+already removed. Ownership is retired only after all listed payload files and
+the matching manifest are absent. Only their empty parent directories are
+removed; unknown files and directories can keep the old directory present after
+successful cleanup. No state or vault directory is enumerated. Explicit
+uninstall retains its existing ownership-based removal behavior.
 
 ## Optional pinned HTTPS acquisition
 
