@@ -1,4 +1,4 @@
-"""Check an installer artifact on its target OS without installing/enabling it."""
+"""Check payload bytes, optionally testing isolated installation without startup."""
 import argparse
 import hashlib
 import json

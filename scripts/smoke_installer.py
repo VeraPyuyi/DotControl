@@ -68,8 +68,15 @@ def run(setup):
         failed_manifest = dict(m, version='0.2.0-fixture-failed')
         write(broken / 'manifest.json', failed_manifest)
         before_config = (state / 'config.json').read_bytes()
-        command(agent, '--state', state, 'repair', '--bundle', broken,
-                '--program-root', root, '--no-start', success=False)
+        failed = command(agent, '--state', state, 'repair', '--bundle', broken,
+                         '--program-root', root, '--no-start', success=False)
+        assert 'agent_binary_health_failed' in failed.stderr, failed.stderr[:800]
+        transaction = read(root / 'transaction.json')
+        assert transaction['phase'] == 'failed', transaction
+        assert transaction['target']['version'] == failed_manifest['version'], transaction
+        assert transaction.get('recovery_needed', False) is False, transaction
+        assert 'agent_binary_health_failed' in transaction.get('error', ''), transaction
+        assert (Path(transaction['target']['dir']) / 'manifest.json').is_file()
         assert read(root / 'current.json') == current
         assert (state / 'config.json').read_bytes() == before_config
         checks.append('failed_health_restores_previous_pointer_and_config')

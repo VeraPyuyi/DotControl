@@ -49,5 +49,5 @@ jobs:
         with:
           name: released-payload-${{ matrix.platform }}
           path: released-payload.json
-      # This executes the shipped verifier, not desktop actions. Native GUI,
+      # This verifies bytes and isolated no-start install/upgrade recovery. Native GUI,
       # permissions and cross-computer image acceptance remain separate gates.
