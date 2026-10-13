@@ -24,11 +24,16 @@ alpha.5 将控制台拆成四个区域，并删除内置 SSH／实验及审批�
 通过；真实云端成功轮询、托管插件 devices 原设备和新 nonce 已确认。
 
 本机 `/mcp`、官方插件目录、源 Dot 本轮实际目录均为 13 个工具，codex_review 已移除。
-最后的新任务验收停止在前置检查：源 Dot 确认 Mac attached=true 但 offline，Windows
-connected 且未 attached，未提交任务。因此本版新的官方线程编号、命令退出码与结果
-回传尚未验收，不以 alpha.4 的旧结果代替。见[源 Dot 记录](validation/windows-public-dot-0.2.0-alpha.5.json)。
+首次检查因源 Mac 离线而未提交；Mac 恢复连接后，源 Dot 使用同一未提交的请求编号
+创建了新的 Windows 官方 Codex 终端任务，并收到真实线程编号及一条 `commandExecution`：
+退出码 0，原始输出为 `Microsoft Windows 10.0.26200`、`X64`。对同一作业的独立托管插件
+查询与源 Dot 收到的结果一致。开始和结束均由官方 Dot 确认 Mac connected／attached，
+Windows 未 attached，未切换电脑。作业为 completed，`verification` 原值仍为 unverified；
+命令全文仅在模型文字中，执行事件直接提供退出码和输出。没有重发、续聊或重放旧任务。
+这通过本轮限定的只读终端回传验收，不证明消息由 Mac 物理设备发送，也不涉及 SSH、
+桌面操作、图片或审批。见[源 Dot 记录](validation/windows-public-dot-0.2.0-alpha.5.json)。
 
-用户 Mac 本轮未修改；Mac 包及原生 runner 检查不代表用户 Mac 权限或云端实测。
+用户 Mac 本轮未修改；上述源端连接验收不代表 Mac 执行端、权限或 Mac 插件云端验收。
 原生 Computer Use 继续关闭；旧任务原始记录保留，按原有隐私设计未持久化的运行输出
 在重启后仍可能返回 `unavailable_after_restart`，不会自动重放任务。
 
