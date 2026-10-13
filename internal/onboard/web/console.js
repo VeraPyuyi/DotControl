@@ -7,8 +7,9 @@ function showView(name,remember=true){
  for(const panel of document.querySelectorAll('[data-panel]'))panel.hidden=panel.dataset.panel!==consoleView;
  for(const link of document.querySelectorAll('[data-view]'))link.setAttribute('aria-current',link.dataset.view===consoleView?'page':'false');
  if(remember)history.replaceState(null,'',location.pathname+'#'+consoleView);
+ if(consoleView==='sharing')historyRefreshStatus();
  if(!initializedViews.has(consoleView)){
-  const load=consoleView==='codex'?()=>loadConnections():consoleView==='sharing'?()=>historyStatus():null;
+  const load=consoleView==='codex'?()=>loadConnections():null;
   if(load){initializedViews.add(consoleView);load().catch(e=>{initializedViews.delete(consoleView);msg(e.message)})}
  }
 }
@@ -16,6 +17,8 @@ for(const link of document.querySelectorAll('[data-view]'))link.addEventListener
 addEventListener('hashchange',()=>showView(location.hash.slice(1),false));
 function statusCard(id,text,kind){el(id).textContent=text;el(id).dataset.tone=kind}
 function renderConsole(s){
+ if(typeof historyRenderStatus==='function')historyRenderStatus(s);
+ if(consoleView==='sharing')historyRefreshStatus();
  const device=s.device,online=cloudOnline(s.tunnel),terminal=s.codex?.capabilities?.codex_terminal;
  el('device-title').textContent=device.name;
  el('device-version').textContent='v'+device.version+' · '+({windows:'Windows',darwin:'macOS'}[device.os]||device.os||'本机');

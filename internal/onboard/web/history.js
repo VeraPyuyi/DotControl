@@ -1,17 +1,26 @@
 'use strict';
 // Selections stay local. Titles are rendered as text, never HTML.
-let historyPolicy=null,historyPreview=null,historyCursor='',historyChosen=new Set(),historyRows=new Map();
+let historyPolicy=null,historyPreview=null,historyCursor='',historyChosen=new Set(),historyRows=new Map(),historyCapability=null,historyStatusSerial=0,historyPollPending=null;
 const hapi=data=>api('history',data),hmsg=text=>el('history-message').textContent=text;
 function historyCount(){el('history-selection-count').textContent='已选 '+historyChosen.size+' 个'}
 async function historyStatus(resetSelection=false){
- const first=!historyPolicy,v=await hapi({operation:'status'});historyPolicy=v.policy;
- const code=v.capability?.code;
- const label=v.capability?.available?'读取就绪':({history_disabled:'尚未启用',device_paused:'已暂停',access_revoked:'访问已撤销'}[code]||'需要本机检查');
- el('history-state').textContent=label+' · '+(v.policy?.mode==='all'?'全部本机会话（包含未来新增）':v.policy?.mode==='allowlist'?'仅清单内 '+v.policy.allowed_thread_ids.length+' 个会话':'尚未配置共享范围');
+ const request=++historyStatusSerial,first=!historyPolicy,v=await hapi({operation:'status'});
+ if(request!==historyStatusSerial)return v;
+ historyPolicy=v.policy;historyCapability=v.capability;historyRenderStatus();
  if(first||resetSelection)historyChosen=new Set(v.policy?.allowed_thread_ids||[]);
  el('history-enable').textContent=v.capability?.available?'重新检查历史读取':'启用并检查历史读取';
  el('history-enable').className=v.capability?.available?'secondary':'';
  historyCount();return v;
+}
+function historyRenderStatus(runtime=typeof state==='undefined'?null:state){
+ if(!historyCapability)return;
+ const cap=runtime?.codex?.capabilities?.codex_history||historyCapability,code=cap.code;
+ const label=runtime?.revoked?'访问已撤销':runtime?.device?.paused?'已暂停':cap.available?'读取就绪':({history_disabled:'尚未启用',device_paused:'已暂停',access_revoked:'访问已撤销'}[code]||'需要本机检查');
+ el('history-state').textContent=label+' · '+(historyPolicy?.mode==='all'?'全部本机会话（包含未来新增）':historyPolicy?.mode==='allowlist'?'仅清单内 '+historyPolicy.allowed_thread_ids.length+' 个会话':'尚未配置共享范围');
+}
+function historyRefreshStatus(){
+ if(!historyPollPending)historyPollPending=historyStatus().catch(e=>hmsg(e.message)).finally(()=>{historyPollPending=null});
+ return historyPollPending;
 }
 function historyRender(){
  const box=el('history-threads');box.replaceChildren();
