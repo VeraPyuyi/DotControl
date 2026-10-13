@@ -105,7 +105,7 @@ configuration was validated; `tunnel_cloud_connection` separately reads the
 running supervisor's evidence. Missing or stale evidence stays unconfirmed.
 The source must still check its current devices response and nonce; historical
 `devices_seen` does not prove a new call succeeded. Keep the local service, cloud
-poll and source invocation outcomes separate. No alpha.5 release, native-platform
+poll and source invocation outcomes separate. No release, native-platform
 or real-cloud acceptance should be claimed without matching current evidence.
 
 The device starts paused. Only the local user may enable it in the wizard.
