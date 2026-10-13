@@ -136,7 +136,7 @@ func TestStoreEditsPreserveProfilesAndStableIDs(t *testing.T) {
 	if err != nil || saved.ID == "" || saved.Presentation != "visible" {
 		t.Fatalf("upsert: %#v %v", saved, err)
 	}
-	server, err := s.UpsertServer(ServerProfile{Name: "Example", SSHAlias: "example-build", RemoteDir: "/srv/example"})
+	server, err := seedLegacyServer(s, ServerProfile{ID: "legacy", Name: "Example", SSHAlias: "example-build", RemoteDir: "/srv/example"})
 	if err != nil || server.ID == "" {
 		t.Fatal(err)
 	}
@@ -243,4 +243,8 @@ func TestStoreRefusesHardlinkedState(t *testing.T) {
 	if err := NewStore(dir).SetCodexExecutable(""); err == nil {
 		t.Fatal("overwrote hardlinked state")
 	}
+}
+
+func seedLegacyServer(s *Store, p ServerProfile) (ServerProfile, error) {
+	return p, s.Update(func(c *Config) error { c.ServerProfiles = append(c.ServerProfiles, p); return nil })
 }

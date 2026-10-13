@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+type Status struct {
+	Available bool   `json:"available"`
+	Code      string `json:"code"`
+}
+
 const (
 	SourceConfigured     = "configured"
 	SourceRunningDesktop = "desktop_running"

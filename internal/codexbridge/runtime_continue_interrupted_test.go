@@ -11,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
-	"github.com/dotcontrol/dotcontrol/internal/experiment"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
 
@@ -43,17 +41,6 @@ func TestContinueInterruptedTerminalPreservesOwnedTaskAndRetry(t *testing.T) {
 		t.Run(map[bool]string{false: "live", true: "cold_start"}[restart], func(t *testing.T) {
 			p := &runtimePeer{}
 			cfg, r := runtimeFixture(t, p)
-			_, err := connections.NewStore(cfg.Runtime.ConnectionsDir).UpsertServer(connections.ServerProfile{ID: "server-a", Name: "Fixture", SSHAlias: "fixture.invalid", RemoteDir: "/tmp"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			r.ServerProfileID, r.ExperimentID = "server-a", "continue-fixture"
-			cfg.Runtime.ExperimentStatus = func(_ context.Context, profile, id, binding string) (experiment.Status, error) {
-				if profile != r.ServerProfileID || id != r.ExperimentID || len(binding) != 64 {
-					t.Error("experiment readback changed binding")
-				}
-				return experiment.Status{ExperimentID: id, State: "absent"}, nil
-			}
 			b, err := New(cfg)
 			if err != nil {
 				t.Fatal(err)
@@ -69,10 +56,6 @@ func TestContinueInterruptedTerminalPreservesOwnedTaskAndRetry(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			binding := b.runtime.jobs[old.JobID].entry.ExperimentBinding
-			if len(binding) != 64 {
-				t.Fatal("missing frozen experiment binding")
-			}
 			if restart {
 				if err = b.Close(); err != nil {
 					t.Fatal(err)
@@ -82,7 +65,7 @@ func TestContinueInterruptedTerminalPreservesOwnedTaskAndRetry(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			next := model.CodexContinue{DeviceID: r.DeviceID, JobID: old.JobID, RequestID: "explicit-continue", Prompt: "Continue the same experiment; request any necessary approval again."}
+			next := model.CodexContinue{DeviceID: r.DeviceID, JobID: old.JobID, RequestID: "explicit-continue", Prompt: "Continue the same task within its configured permission scope."}
 			queued, err := b.Continue(context.Background(), next)
 			if err != nil {
 				t.Fatalf("confirmed interrupted terminal task was not continuable: %v", err)
@@ -103,9 +86,6 @@ func TestContinueInterruptedTerminalPreservesOwnedTaskAndRetry(t *testing.T) {
 			waitRuntimeInactive(t, b, old.JobID)
 			if p.count("thread/start") != 1 || p.count("thread/resume") != 1 || p.count("turn/start") != 2 || p.count("turn/interrupt") != 1 {
 				t.Fatal("continuation created another thread, replayed, or inherited cancellation")
-			}
-			if got := b.runtime.jobs[old.JobID].entry.ExperimentBinding; got != binding {
-				t.Fatal("frozen experiment binding changed")
 			}
 			if err = b.Close(); err != nil {
 				t.Fatal(err)

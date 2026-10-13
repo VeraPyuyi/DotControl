@@ -2,9 +2,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 
 	"github.com/dotcontrol/dotcontrol/internal/codexbridge"
 	"github.com/dotcontrol/dotcontrol/internal/codexhistory"
@@ -22,8 +24,6 @@ type Request struct {
 	Codex        *model.CodexSubmit        `json:"codex,omitempty"`
 	JobID        string                    `json:"job_id,omitempty"`
 	Continuation *model.CodexContinue      `json:"continuation,omitempty"`
-	ApprovalID   string                    `json:"approval_id,omitempty"`
-	Reviewer     codexbridge.HumanReview   `json:"-"`
 }
 type Backend interface {
 	Call(context.Context, string, Request) (any, error)
@@ -87,8 +87,11 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 			return s.History.Projects(ctx, *r.HistoryList)
 		}
 		return s.History.Threads(ctx, *r.HistoryList)
-	case "codex_submit", "codex_job", "codex_cancel", "codex_continue", "codex_review":
+	case "codex_submit", "codex_job", "codex_cancel", "codex_continue":
 		if s.Bridge == nil {
+			if method == "codex_submit" && r.Codex != nil && (r.Codex.RetiredFieldsPresent || r.Codex.ServerProfileID != "" || r.Codex.ExperimentID != "") {
+				return nil, errors.New("feature_retired")
+			}
 			return model.CodexUnsupported{DeviceID: device.ID, State: "unsupported", Code: "codex_bridge_not_configured"}, nil
 		}
 		switch method {
@@ -104,8 +107,6 @@ func (s Local) Call(ctx context.Context, method string, r Request) (any, error) 
 				return nil, errors.New("wrong_device")
 			}
 			return s.Bridge.Continue(ctx, *r.Continuation)
-		case "codex_review":
-			return s.Bridge.Review(ctx, r.DeviceID, r.JobID, r.ApprovalID, r.Reviewer)
 		default:
 			return s.Bridge.Cancel(r.DeviceID, r.JobID)
 		}
@@ -136,5 +137,13 @@ func Decode(data []byte, out any) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return errors.New("invalid_json")
 	}
-	return json.Unmarshal(raw, out)
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(out); err != nil {
+		return errors.New("invalid_request")
+	}
+	if dec.Decode(new(any)) != io.EOF {
+		return errors.New("invalid_request")
+	}
+	return nil
 }

@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"os/exec"
+	"time"
 )
+
+const commandWaitDelay = 2 * time.Second
 
 // CommandResult is internal evidence for classification, never a UI response.
 type CommandResult struct {

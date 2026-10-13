@@ -133,7 +133,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "origin_rejected", 403)
 		return
 	}
-	if r.URL.Path == "/onboard/" || r.URL.Path == "/onboard/app.js" || r.URL.Path == "/onboard/connections.js" || r.URL.Path == "/onboard/reviews.js" || r.URL.Path == "/onboard/history.js" || r.URL.Path == "/onboard/style.css" {
+	if r.URL.Path == "/onboard/" || r.URL.Path == "/onboard/app.js" || r.URL.Path == "/onboard/connections.js" || r.URL.Path == "/onboard/console.js" || r.URL.Path == "/onboard/history.js" || r.URL.Path == "/onboard/style.css" {
 		if r.Method != "GET" {
 			http.Error(w, "method_rejected", 405)
 			return
@@ -150,7 +150,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch name {
 		case "index.html":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		case "app.js", "connections.js", "reviews.js", "history.js":
+		case "app.js", "connections.js", "console.js", "history.js":
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		case "style.css":
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
@@ -206,16 +206,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				value, err = backend.History(r.Context(), input)
 			} else {
 				err = errors.New("history_unavailable")
-			}
-		}
-	case "/onboard/api/reviews":
-		var input ReviewRequest
-		err = decode(r, &input)
-		if err == nil {
-			if backend, ok := s.backend.(ReviewsBackend); ok {
-				value, err = backend.Reviews(r.Context(), input)
-			} else {
-				err = errors.New("reviews_unavailable")
 			}
 		}
 	case "/onboard/api/connections":

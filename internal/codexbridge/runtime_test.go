@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -99,11 +98,11 @@ func runtimeFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSubmit) {
 	if err := store.SetCodexExecutable(os.Args[0]); err != nil {
 		t.Fatal(err)
 	}
-	_, err = store.UpsertExecution(connections.ExecutionProfile{ID: "exec-a", Name: "Test", ProjectDir: project, Presentation: "background", PermissionProfile: "read-only", Execution: "terminal"})
+	_, err = store.UpsertExecution(connections.ExecutionProfile{ID: "exec-a", Name: "Test", ProjectDir: project, Presentation: "background", PermissionProfile: "read-only", Execution: "terminal", ApprovalPolicy: "never"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{DeviceID: "device-a", StateDir: dir, Runtime: &RuntimeConfig{ConnectionsDir: dir, Acceptance: map[string]PlatformAcceptance{runtime.GOOS: {Terminal: true, RemoteReview: true}}}}
+	cfg := Config{DeviceID: "device-a", StateDir: dir, Runtime: &RuntimeConfig{ConnectionsDir: dir, Acceptance: map[string]PlatformAcceptance{runtime.GOOS: {Terminal: true}}}}
 	cfg.Runtime.StartClient = func(ctx context.Context, exe, cwd string) (*Client, error) {
 		a, z := net.Pipe()
 		p.mu.Lock()
@@ -143,7 +142,7 @@ func runtimeFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSubmit) {
 					json.Unmarshal(r.Params, &params)
 					policy := p.approvalPolicy
 					if policy == "" {
-						policy = "on-request"
+						policy = "never"
 					}
 					if params["ephemeral"] != false || params["approvalPolicy"] != policy || params["approvalsReviewer"] != "user" || params["permissions"] != "read-only" {
 						t.Errorf("wrong thread contract: %v", params)
@@ -335,78 +334,6 @@ func TestContinueBindsRequestAndClassifiesLocalTakeover(t *testing.T) {
 	}
 }
 
-func TestHumanReviewIsBoundAndStaleResponsesCannotApprove(t *testing.T) {
-	p := &runtimePeer{}
-	cfg, r := runtimeFixture(t, p)
-	b, e := New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer b.Close()
-	j, _ := b.Submit(context.Background(), r)
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
-	p.send(map[string]any{"id": "approval-rpc", "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": j.ThreadID, "turnId": j.TurnID, "itemId": "command-a", "startedAtMs": time.Now().UnixMilli(), "command": "echo bounded", "cwd": t.TempDir(), "availableDecisions": []string{"accept", "decline", "cancel"}}})
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return len(j.Runtime.Approvals) == 1 })
-	approval := j.Runtime.Approvals[0].ApprovalID
-	if _, e = b.Review(context.Background(), "device-a", j.JobID, approval, nil); e == nil || e.Error() != "human_review_required" {
-		t.Fatalf("nil human=%v", e)
-	}
-	if _, e = b.Review(context.Background(), "device-a", j.JobID, approval, func(ctx context.Context, p model.ReviewPrompt) (model.ReviewAnswer, error) {
-		return model.ReviewAnswer{}, errors.New("human_input_required")
-	}); e == nil || e.Error() != "human_input_required" {
-		t.Fatalf("callback retry=%v", e)
-	}
-	started := make(chan struct{})
-	answer := make(chan struct{})
-	done := make(chan error, 1)
-	go func() {
-		_, e := b.Review(context.Background(), "device-a", j.JobID, approval, func(ctx context.Context, prompt model.ReviewPrompt) (model.ReviewAnswer, error) {
-			if prompt.ThreadID != j.ThreadID || prompt.TurnID != j.TurnID || !strings.Contains(prompt.Message, "echo bounded") {
-				t.Error("unbound review")
-			}
-			close(started)
-			<-answer
-			return model.ReviewAnswer{Action: "accept", Content: map[string]any{"decision": "accept"}}, nil
-		})
-		done <- e
-	}()
-	<-started
-	p.notification("serverRequest/resolved", map[string]any{"requestId": "approval-rpc"})
-	time.Sleep(50 * time.Millisecond)
-	close(answer)
-	if e = <-done; e == nil {
-		t.Fatal("stale review accepted")
-	}
-	p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "completed"}})
-	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
-}
-func TestSecretAndUnboundElicitationsRemainAtTarget(t *testing.T) {
-	p := &runtimePeer{}
-	cfg, r := runtimeFixture(t, p)
-	b, e := New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer b.Close()
-	j, _ := b.Submit(context.Background(), r)
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
-	p.send(map[string]any{"id": "secret-rpc", "method": "mcpServer/elicitation/request", "params": map[string]any{"threadId": j.ThreadID, "turnId": j.TurnID, "serverName": "app", "mode": "form", "message": "Enter password", "requestedSchema": map[string]any{"type": "object", "properties": map[string]any{"password": map[string]any{"type": "string"}}}}})
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return len(j.Runtime.Approvals) == 1 })
-	if j.Runtime.Approvals[0].State != "awaiting_target" {
-		t.Fatal("secret forwarded")
-	}
-	called := false
-	_, e = b.Review(context.Background(), "device-a", j.JobID, j.Runtime.Approvals[0].ApprovalID, func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error) {
-		called = true
-		return model.ReviewAnswer{}, nil
-	})
-	if e == nil || called {
-		t.Fatal("secret review opened")
-	}
-	p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "interrupted"}})
-	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "cancelled" })
-}
-
 func TestNativeMissingInventoryBlocksBeforeThreadOrLease(t *testing.T) {
 	p := &runtimePeer{native: true}
 	cfg, r := runtimeFixture(t, p)
@@ -418,7 +345,7 @@ func TestNativeMissingInventoryBlocksBeforeThreadOrLease(t *testing.T) {
 	defer b.Close()
 	j, _ := b.Submit(context.Background(), r)
 	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return runtimeTerminal(j.State) })
-	if j.Code != "official_computer_use_unavailable" || p.count("thread/start") != 0 {
+	if j.Code != "needs_local_setup" || p.count("thread/start") != 0 {
 		t.Fatalf("missing native inventory=%+v", j)
 	}
 }
@@ -449,49 +376,13 @@ func configureNative(t *testing.T, cfg *Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Runtime.Acceptance = map[string]PlatformAcceptance{runtime.GOOS: {NativeComputerUse: true, RemoteReview: true}}
+	cfg.Runtime.Acceptance = map[string]PlatformAcceptance{runtime.GOOS: {NativeComputerUse: true}}
 	e, err := engine.New(engine.Config{DeviceID: "device-a", StateDir: t.TempDir()}, runtimeDriver{}, runtimeMonitor{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { e.Close() })
 	cfg.Runtime.Engine = e
-}
-func TestNativeUnknownStopKeepsLeaseUntilOwnedReadConfirms(t *testing.T) {
-	p := &runtimePeer{native: true, cuPresent: true}
-	cfg, r := runtimeFixture(t, p)
-	configureNative(t, &cfg)
-	b, e := New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	j, _ := b.Submit(context.Background(), r)
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
-	if _, e = cfg.Runtime.Engine.Apps(context.Background()); e == nil {
-		t.Fatal("desktop entered active native lease")
-	}
-	p.mu.Lock()
-	conn := p.conn
-	p.mu.Unlock()
-	conn.Close()
-	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "outcome_unknown" })
-	b.Close()
-	if _, e = cfg.Runtime.Engine.Apps(context.Background()); e == nil || e.Error() != "external_execution_unresolved" {
-		t.Fatalf("unknown native stop released=%v", e)
-	}
-	b, e = New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer b.Close()
-	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
-	waitRuntimeInactive(t, b, j.JobID)
-	if _, e = cfg.Runtime.Engine.Apps(context.Background()); e != nil {
-		t.Fatalf("confirmed owned stop failed to release=%v", e)
-	}
-	if p.count("turn/start") != 1 || p.count("thread/start") != 1 {
-		t.Fatal("recovery replayed native task")
-	}
 }
 func TestPermissionAndPresentationFailClosedWithoutSideEffects(t *testing.T) {
 	for _, kind := range []string{"permission", "visible", "platform"} {
@@ -520,42 +411,6 @@ func TestPermissionAndPresentationFailClosedWithoutSideEffects(t *testing.T) {
 	}
 }
 
-func TestHumanReviewOneTimeResponseAndUnsafeChoiceRejected(t *testing.T) {
-	p := &runtimePeer{}
-	cfg, r := runtimeFixture(t, p)
-	b, e := New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer b.Close()
-	j, _ := b.Submit(context.Background(), r)
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
-	p.send(map[string]any{"id": "approved-once", "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": j.ThreadID, "turnId": j.TurnID, "itemId": "command-a", "startedAtMs": time.Now().UnixMilli(), "command": "echo bounded", "cwd": t.TempDir()}})
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return len(j.Runtime.Approvals) == 1 })
-	token := j.Runtime.Approvals[0].ApprovalID
-	_, e = b.Review(context.Background(), "device-a", j.JobID, token, func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error) {
-		return model.ReviewAnswer{Action: "accept", Content: map[string]any{"decision": "acceptForSession"}}, nil
-	})
-	if e == nil {
-		t.Fatal("persistent approval accepted")
-	}
-	_, e = b.Review(context.Background(), "device-a", j.JobID, token, func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error) {
-		return model.ReviewAnswer{Action: "accept", Content: map[string]any{"decision": "accept"}}, nil
-	})
-	if e != nil {
-		t.Fatal(e)
-	}
-	called := false
-	_, e = b.Review(context.Background(), "device-a", j.JobID, token, func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error) {
-		called = true
-		return model.ReviewAnswer{Action: "accept"}, nil
-	})
-	if e == nil || called {
-		t.Fatal("one-time review replayed")
-	}
-	p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "completed"}})
-	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
-}
 func TestTargetPauseInterruptsTerminalTurnWithoutClaimingStop(t *testing.T) {
 	p := &runtimePeer{}
 	cfg, r := runtimeFixture(t, p)
@@ -629,56 +484,6 @@ func TestToolEvidenceIncludesActualOutputWithoutVerifyingTask(t *testing.T) {
 	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
 }
 
-func TestCompletedNativeJournalStillRecoversPendingDesktopLease(t *testing.T) {
-	p := &runtimePeer{native: true, cuPresent: true}
-	cfg, r := runtimeFixture(t, p)
-	configureNative(t, &cfg)
-	b, e := New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	j, _ := b.Submit(context.Background(), r)
-	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
-	p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "completed"}})
-	waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.State == "completed" })
-	b.Close()
-	// Simulate crash between durable terminal event and durable desktop release.
-	b, e = New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	lease, e := cfg.Runtime.Engine.AcquireDelegation(context.Background(), j.JobID)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if e = lease.Finish(false); e != nil {
-		t.Fatal(e)
-	}
-	b.mu.Lock()
-	b.runtime.jobs[j.JobID].entry.DesktopPending = true
-	e = b.saveRuntimeLocked(b.runtime.jobs[j.JobID])
-	b.mu.Unlock()
-	if e != nil {
-		t.Fatal(e)
-	}
-	b.Close()
-	before := p.count("thread/read")
-	b, e = New(cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer b.Close()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, e = cfg.Runtime.Engine.Apps(context.Background()); e == nil {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if e != nil || p.count("thread/read") != before+1 {
-		t.Fatalf("terminal journal stranded native guard: %v reads=%d", e, p.count("thread/read")-before)
-	}
-}
 func TestOnlyExplicitlySupportedOfficialVersionCanRun(t *testing.T) {
 	for _, version := range []string{"0.144.0", "unknown", "0.162.0-alpha.17.3"} {
 		if supportedRuntimeVersion(version, nil) {

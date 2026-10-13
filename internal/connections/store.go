@@ -199,26 +199,7 @@ func (s *Store) UpsertExecution(p ExecutionProfile) (ExecutionProfile, error) {
 	return p, nil
 }
 
-func (s *Store) UpsertServer(p ServerProfile) (ServerProfile, error) {
-	if p.ID == "" {
-		id, err := newID("server_")
-		if err != nil {
-			return ServerProfile{}, err
-		}
-		p.ID = id
-	}
-	err := s.Update(func(c *Config) error {
-		for i := range c.ServerProfiles {
-			if c.ServerProfiles[i].ID == p.ID {
-				c.ServerProfiles[i] = p
-				return nil
-			}
-		}
-		c.ServerProfiles = append(c.ServerProfiles, p)
-		return nil
-	})
-	if err != nil {
-		return ServerProfile{}, err
-	}
-	return p, nil
+// UpsertServer is a compatibility tombstone; legacy profiles are read-only.
+func (s *Store) UpsertServer(ServerProfile) (ServerProfile, error) {
+	return ServerProfile{}, failure("feature_retired")
 }

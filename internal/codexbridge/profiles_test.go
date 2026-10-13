@@ -16,7 +16,7 @@ func TestProfileCatalogExposesReferencesWithoutLocalConfiguration(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = store.UpsertServer(connections.ServerProfile{ID: "server-one", Name: "Example server", SSHAlias: "example.invalid", SSHPort: 2222, RemoteDir: "/private-work", IdentityFile: filepath.Join(dir, "private-key"), DeployCommand: "private-deploy-command"})
+	_, err = seedLegacyServer(store, connections.ServerProfile{ID: "server-one", Name: "Example server", SSHAlias: "example.invalid", SSHPort: 2222, RemoteDir: "/private-work", IdentityFile: filepath.Join(dir, "private-key"), DeployCommand: "private-deploy-command"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestProfileCatalogExposesReferencesWithoutLocalConfiguration(t *testing.T) 
 	}
 	defer b.Close()
 	catalog := b.ProfileCatalog()
-	if catalog == nil || len(catalog.Execution) != 1 || len(catalog.Servers) != 1 || catalog.Execution[0].ID != "project-one" || catalog.Servers[0].ID != "server-one" {
+	if catalog == nil || len(catalog.Execution) != 1 || len(catalog.Servers) != 0 || catalog.Execution[0].ID != "project-one" {
 		t.Fatalf("catalog missing configured references: %+v", catalog)
 	}
 	raw, _ := json.Marshal(catalog)
@@ -35,4 +35,8 @@ func TestProfileCatalogExposesReferencesWithoutLocalConfiguration(t *testing.T) 
 			t.Fatalf("catalog disclosed %s", private)
 		}
 	}
+}
+
+func seedLegacyServer(s *connections.Store, p connections.ServerProfile) (connections.ServerProfile, error) {
+	return p, s.Update(func(c *connections.Config) error { c.ServerProfiles = append(c.ServerProfiles, p); return nil })
 }

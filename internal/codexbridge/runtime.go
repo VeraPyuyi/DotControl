@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
-	"github.com/dotcontrol/dotcontrol/internal/experiment"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
 
@@ -37,27 +35,10 @@ func (b *Bridge) runtimeProfile(profileID, serverID string) (connections.Config,
 	if info, e := os.Stat(cfg.CodexExecutable); e != nil || !info.Mode().IsRegular() {
 		return cfg, p, nil, "codex_executable_unavailable"
 	}
-	var server *connections.ServerProfile
 	if serverID != "" {
-		for _, s := range cfg.ServerProfiles {
-			if s.ID == serverID {
-				copy := s
-				server = &copy
-				break
-			}
-		}
-		if server == nil {
-			return cfg, p, nil, "server_profile_not_found"
-		}
-		if server.RemoteDir == "" {
-			return cfg, p, nil, "remote_directory_required"
-		}
-		if server.IdentityFile != "" {
-			if f, e := os.Stat(server.IdentityFile); e != nil || !f.Mode().IsRegular() {
-				return cfg, p, nil, "identity_reference_unavailable"
-			}
-		}
+		return cfg, p, nil, "feature_retired"
 	}
+	var server *connections.ServerProfile
 	return cfg, p, server, ""
 }
 func (b *Bridge) profileHash(cfg connections.Config, p connections.ExecutionProfile, s *connections.ServerProfile) string {
@@ -90,7 +71,7 @@ func (b *Bridge) runtimeAdmission(cfg connections.Config, p connections.Executio
 	if (p.Execution == "terminal" && !a.Terminal) || (p.Execution == "computer_use" && !a.NativeComputerUse) {
 		return "runtime_acceptance_required"
 	}
-	if b.runtime.cfg.TerminalOnly && p.ApprovalPolicy != "never" {
+	if p.ApprovalPolicy != "never" {
 		return "needs_local_setup"
 	}
 	if b.runtime.cfg.TerminalOnly {
@@ -141,6 +122,9 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 		}
 		return cloneJob(j.entry.Job), nil
 	}
+	if r.RetiredFieldsPresent || r.ServerProfileID != "" || r.ExperimentID != "" {
+		return model.CodexJob{}, failure("feature_retired")
+	}
 	if ctx.Err() != nil {
 		return model.CodexJob{}, failure("cancelled")
 	}
@@ -148,10 +132,8 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	var cfg connections.Config
 	var p connections.ExecutionProfile
 	var server *connections.ServerProfile
-	if len(r.Prompt) > 65536 || strings.TrimSpace(r.Prompt) == "" || !validID.MatchString(r.ProfileID) || (r.ServerProfileID != "" && !validID.MatchString(r.ServerProfileID)) {
+	if len(r.Prompt) > 65536 || strings.TrimSpace(r.Prompt) == "" || !validID.MatchString(r.ProfileID) {
 		state, code = "rejected", "invalid_request"
-	} else if r.ExperimentID != "" && (!experiment.ValidID(r.ExperimentID) || r.ServerProfileID == "") {
-		state, code = "rejected", "invalid_experiment_request"
 	} else if r.Presentation != "" && r.Presentation != "visible" && r.Presentation != "background" {
 		state, code = "rejected", "invalid_presentation"
 	} else if len(r.AllowedApps) > 0 || len(r.WorkingDirs) > 0 {
@@ -179,14 +161,6 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	if state == "queued" && presentation == "visible" && b.runtime.cfg.OpenThread == nil {
 		state, code = "blocked", "visible_presentation_unavailable"
 	}
-	experimentBinding := ""
-	if state == "queued" && r.ExperimentID != "" {
-		var bindingErr error
-		experimentBinding, bindingErr = experiment.New(b.runtime.stateDir, experiment.Options{}).PrepareBinding(*server, r.ExperimentID)
-		if bindingErr != nil {
-			state, code = "blocked", bindingErr.Error()
-		}
-	}
 	id, e := randomJobID()
 	if e != nil {
 		return model.CodexJob{}, e
@@ -199,11 +173,10 @@ func (b *Bridge) submitRuntime(ctx context.Context, r model.CodexSubmit) (model.
 	if state == "blocked" || state == "rejected" {
 		info.PresentationState = "not_started"
 	}
-	j := &runtimeJob{entry: runtimeEntry{Version: 1, Phase: "intent", Requests: map[string]string{r.RequestID: hash}, CurrentRequestID: r.RequestID, Job: model.CodexJob{DeviceID: b.deviceID, JobID: id, RequestID: r.RequestID, State: state, Code: code, Message: runtimeMessage(code), CreatedAt: now, UpdatedAt: now, RequestHash: hash, PromptHash: b.hash("prompt", []byte(r.Prompt)), ProfileID: r.ProfileID, ServerProfileID: r.ServerProfileID, ExperimentID: r.ExperimentID, Runtime: info}}, approvals: map[string]*runtimeApproval{}}
+	j := &runtimeJob{entry: runtimeEntry{Version: 1, Phase: "intent", Requests: map[string]string{r.RequestID: hash}, CurrentRequestID: r.RequestID, Job: model.CodexJob{DeviceID: b.deviceID, JobID: id, RequestID: r.RequestID, State: state, Code: code, Message: runtimeMessage(code), CreatedAt: now, UpdatedAt: now, RequestHash: hash, PromptHash: b.hash("prompt", []byte(r.Prompt)), ProfileID: r.ProfileID, ServerProfileID: r.ServerProfileID, ExperimentID: r.ExperimentID, Runtime: info}}}
 	if p.ID != "" {
 		j.entry.ProfileHash = b.profileHash(cfg, p, server)
 	}
-	j.entry.ExperimentBinding = experimentBinding
 	if e = b.saveRuntimeLocked(j); e != nil {
 		return model.CodexJob{}, e
 	}
@@ -229,14 +202,8 @@ func runtimeMessage(code string) string {
 		return "Interruption requested; stopping has not been confirmed."
 	case "turn_interrupted":
 		return "The owned Codex turn reported interruption."
-	case "awaiting_human_review":
-		return "The owned turn is waiting for human review."
 	case "waiting_for_idle":
 		return "Waiting for a continuous idle interval before acquiring the desktop."
-	case "interrupt_for_local_takeover":
-		return "Waiting for the owned turn to stop before opening it for local review."
-	case "local_takeover_open_failed":
-		return "The owned turn stopped, but opening it for local review failed."
 	case "needs_local_setup":
 		return "This terminal profile requires local setup. No human approval is forwarded; inspect the turn state to confirm whether interruption finished."
 	case "terminal_only":
@@ -244,7 +211,7 @@ func runtimeMessage(code string) string {
 	case "terminal_disabled":
 		return "Terminal execution has not been enabled locally."
 	case "terminal_selection_mismatch":
-		return "This execution and server profile pair was not selected for terminal execution locally."
+		return "This execution profile was not selected for terminal execution locally."
 	case "terminal_configuration_changed":
 		return "The saved terminal configuration changed after local validation. Validate it locally before enabling execution again."
 	}
@@ -284,6 +251,9 @@ func (b *Bridge) Continue(ctx context.Context, r model.CodexContinue) (model.Cod
 	}
 	if _, ok := b.requests[r.RequestID]; ok {
 		return model.CodexJob{}, failure("request_id_conflict")
+	}
+	if j.entry.Job.ServerProfileID != "" || j.entry.Job.ExperimentID != "" || j.entry.ExperimentBinding != "" {
+		return model.CodexJob{}, failure("feature_retired")
 	}
 	interrupted := continuableInterrupted(j.entry)
 	if j.active || b.runtime.closing || j.client != nil || j.lease != nil || j.entry.DesktopPending || j.entry.Job.Runtime == nil || j.entry.Job.ThreadID == "" ||
@@ -369,9 +339,6 @@ func (b *Bridge) launchLocked(id, prompt string, recoverOnly bool) {
 	j.cancel = cancel
 	j.runContext = ctx
 	j.active = true
-	j.handoff = make(chan struct{})
-	j.handoffRequested = false
-	j.reviewWrites = nil
 	b.runtime.wg.Add(1)
 	go func() { defer b.runtime.wg.Done(); b.run(ctx, id, prompt, recoverOnly) }()
 }
@@ -412,7 +379,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	nativeReady := false
 	stopWatcher := func() {}
 	if !recoverOnly {
-		stopWatcher = b.watchRuntimePause(ctx, id)
+		stopWatcher = b.watchRuntimeGuards(ctx, id)
 	}
 	defer func() {
 		stopWatcher()
@@ -452,9 +419,6 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 		}
 		j.lease = nil
 		j.client = nil
-		j.approvals = map[string]*runtimeApproval{}
-		j.reviewWrites = nil
-		j.reviewItems = nil
 		j.entry.Job.Runtime.Approvals = nil
 		b.mu.Unlock()
 		if !recoverOnly && stopped && releaseErr == nil {
@@ -479,7 +443,6 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	j := b.runtime.jobs[id]
 	snapshot := cloneJob(j.entry.Job)
 	profileHash := j.entry.ProfileHash
-	experimentBinding := j.entry.ExperimentBinding
 	cfg, p, server, code := b.runtimeProfile(snapshot.ProfileID, snapshot.ServerProfileID)
 	b.mu.Unlock()
 	preflightState := "blocked"
@@ -499,13 +462,6 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 			b.updateRuntime(id, "blocked", code, "")
 			return
 		}
-	}
-	b.mu.Lock()
-	b.runtime.jobs[id].approvalPolicy = effectiveApprovalPolicy(p)
-	b.mu.Unlock()
-	if !recoverOnly && snapshot.ExperimentID != "" && experimentBinding == "" {
-		b.updateRuntime(id, "blocked", "experiment_binding_missing", "")
-		return
 	}
 	if !recoverOnly && b.runtime.cfg.Engine != nil && b.runtime.cfg.Engine.Device().Paused {
 		b.updateRuntime(id, "blocked", "device_paused", "")
@@ -652,10 +608,7 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 			return
 		}
 		params["ephemeral"] = false
-		params["developerInstructions"] = taskInstructions(id, p, server)
-		if snapshot.ExperimentID != "" {
-			params["developerInstructions"] = taskInstructions(id, p, nil) + experimentInstructions(b.runtime.stateDir, snapshot.ServerProfileID, snapshot.ExperimentID, experimentBinding)
-		}
+		params["developerInstructions"] = taskInstructions(id, p)
 		if !b.beforeRuntimeDispatch(ctx, id) {
 			return
 		}
@@ -700,7 +653,6 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 	b.mu.Lock()
 	j = b.runtime.jobs[id]
 	j.entry.Job.TurnID = ""
-	j.reviewItems = nil
 	j.entry.Phase = "turn_intent"
 	j.entry.Job.State = "starting"
 	j.entry.Job.Code = "turn_start_pending"
@@ -747,9 +699,8 @@ func (b *Bridge) run(ctx context.Context, id, prompt string, recoverOnly bool) {
 func (b *Bridge) presentFinishedRuntime(run context.Context, id string) {
 	b.mu.Lock()
 	j := b.runtime.jobs[id]
-	handoff := j.handoffRequested && j.entry.Job.State == "awaiting_target"
 	visible := j.entry.Job.Runtime.Presentation == "visible" && (j.entry.Job.State == "completed" || j.entry.Job.State == "failed")
-	if j.runContext != run || b.runtimeInterruptedLocked(j) || j.entry.DesktopPending || j.client != nil || j.lease != nil || (!handoff && !visible) || !terminalTurn(j.entry.Job.Runtime.TurnState) {
+	if j.runContext != run || b.runtimeInterruptedLocked(j) || j.entry.DesktopPending || j.client != nil || j.lease != nil || !visible || !terminalTurn(j.entry.Job.Runtime.TurnState) {
 		b.mu.Unlock()
 		return
 	}
@@ -772,18 +723,7 @@ func (b *Bridge) presentFinishedRuntime(run context.Context, id string) {
 	if err != nil {
 		j.entry.Job.Runtime.PresentationState = "open_failed"
 	}
-	if handoff {
-		j.entry.Job.State = "local_takeover"
-		j.entry.Job.Code = "local_takeover"
-		if err != nil {
-			j.entry.Job.State = "awaiting_target"
-			j.entry.Job.Code = "local_takeover_open_failed"
-		}
-		if err == nil {
-			j.entry.Job.Runtime.ReviewLocation = "target_codex_open_requested"
-		}
-		j.entry.Job.Message = runtimeMessage(j.entry.Job.Code)
-	}
+
 	_ = b.saveRuntimeLocked(j)
 }
 func (b *Bridge) operationError(id string, err error, sideEffect bool) {
@@ -827,17 +767,13 @@ func ownedWorkspace(project, id string) (string, error) {
 	}
 	return current, nil
 }
-func taskInstructions(id string, p connections.ExecutionProfile, s *connections.ServerProfile) string {
-	text := "This is DotControl-owned task " + id + ". Work only on the user-authorized task in the independent current task directory. Check existing files and process/experiment records before launching work. Do not inspect unrelated chats, projects, credentials or other users' jobs. Report actual command/tool evidence separately from your conclusion. A finished model turn does not establish task or experiment success. Never claim verified completion from a PID, heartbeat or prose alone. Ask for human review when permission or scope is unclear."
+func taskInstructions(id string, p connections.ExecutionProfile) string {
+	text := "This is DotControl-owned task " + id + ". Work only on the user-authorized task in the independent current task directory. Check existing files and process/experiment records before launching work. Do not inspect unrelated chats, projects, credentials or other users' jobs. Report actual command/tool evidence separately from your conclusion. A finished model turn does not establish task or experiment success. Never claim verified completion from a PID, heartbeat or prose alone. Stop and report needs_local_setup when permission or scope is unclear."
 	if p.Execution == "terminal" {
 		text += " Official Computer Use is disabled. Do not use desktop/browser automation or substitute OS input tools."
 	} else {
 		apps, _ := json.Marshal(p.AllowedApps)
 		text += " Use only official Computer Use tooling and these user-selected apps: " + string(apps) + ". This instruction is a scope constraint, not a technical app sandbox."
-	}
-	if s != nil {
-		raw, _ := json.Marshal(s)
-		text += fmt.Sprintf(" The user-selected local server reference is %s. Use only these saved SSH references; never copy credentials. Stable experiment ID: %s. Work under its remote_dir in an independent subdirectory named %s. Before launch, check for an existing record bearing this ID and do not duplicate it. Never stop unrelated processes. Use deploy_command only if this task explicitly authorizes deployment; its presence alone is not deployment authorization.", raw, id, id)
 	}
 	return text
 }
@@ -946,10 +882,7 @@ func (b *Bridge) latchNativeInterruptionLocked(j *runtimeJob) {
 
 // The startup watcher runs independently of protocol calls. A temporary pause
 // is latched even if the human resumes before an outstanding RPC returns.
-func (b *Bridge) watchRuntimePause(run context.Context, id string) func() {
-	if b.runtime.cfg.Engine == nil {
-		return func() {}
-	}
+func (b *Bridge) watchRuntimeGuards(run context.Context, id string) func() {
 	ctx, cancel := context.WithCancel(run)
 	done := make(chan struct{})
 	go func() {
@@ -961,7 +894,17 @@ func (b *Bridge) watchRuntimePause(run context.Context, id string) func() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if !b.runtime.cfg.Engine.Device().Paused {
+				b.mu.Lock()
+				job := b.runtime.jobs[id]
+				var client *Client
+				if job != nil && job.runContext == run && job.active {
+					client = job.client
+				}
+				b.mu.Unlock()
+				if client != nil {
+					b.interruptPendingRequests(id, client)
+				}
+				if b.runtime.cfg.Engine == nil || !b.runtime.cfg.Engine.Device().Paused {
 					continue
 				}
 				b.mu.Lock()
@@ -1003,6 +946,11 @@ func (b *Bridge) beforeRuntimeDispatch(ctx context.Context, id string) bool {
 	j.entry.Job.State = "cancelled"
 	j.entry.Job.Code = "cancelled_before_execution"
 	j.entry.Job.Message = "Cancelled before the next Codex operation was dispatched."
+	if j.entry.NeedsLocalSetup {
+		j.entry.Job.State = "blocked"
+		j.entry.Job.Code = "needs_local_setup"
+		j.entry.Job.Message = runtimeMessage("needs_local_setup")
+	}
 	j.entry.Job.UpdatedAt = time.Now().UTC()
 	_ = b.saveRuntimeLocked(j)
 	return false

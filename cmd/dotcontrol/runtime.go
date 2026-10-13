@@ -63,7 +63,6 @@ type runtimeOwner struct {
 	proof                    connectionProof
 	revoked, noTunnel        bool
 	repair                   chan struct{}
-	authorizations           map[string]*authorizationPreview
 }
 type observedBackend struct {
 	owner *runtimeOwner

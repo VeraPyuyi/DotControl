@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,7 +27,7 @@ type terminalCheck struct {
 }
 
 // The local one-click path selects only the official workspace profile, never
-// full access. SSH and experiment setup are optional later task concerns.
+// full access. It does not depend on server configuration.
 func basicTerminalProfile(dir string) connections.ExecutionProfile {
 	return connections.ExecutionProfile{ID: "terminal-default", Name: "本机 Codex 任务", ProjectDir: filepath.Join(dir, "tasks"), PermissionProfile: ":workspace", ApprovalPolicy: "never", Execution: "terminal", Presentation: "visible"}
 }
@@ -77,6 +78,15 @@ func terminalCheckCommand(ctx context.Context, dir string, args []string) error 
 	if err := f.Parse(args); err != nil {
 		return err
 	}
+	retiredServerFlag := false
+	f.Visit(func(option *flag.Flag) {
+		if option.Name == "server-profile" {
+			retiredServerFlag = true
+		}
+	})
+	if retiredServerFlag {
+		return errors.New("feature_retired")
+	}
 	if *profile == "" || len(f.Args()) != 0 {
 		return errors.New("invalid_terminal_check")
 	}
@@ -120,6 +130,15 @@ func terminalCheckCLI(ctx context.Context, dir string, args []string) error {
 	if err := f.Parse(args); err != nil {
 		return err
 	}
+	retiredServerFlag := false
+	f.Visit(func(option *flag.Flag) {
+		if option.Name == "server-profile" {
+			retiredServerFlag = true
+		}
+	})
+	if retiredServerFlag {
+		return errors.New("feature_retired")
+	}
 	if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(*nonce) || len(f.Args()) != 0 {
 		return errors.New("invalid_terminal_check")
 	}
@@ -127,63 +146,34 @@ func terminalCheckCLI(ctx context.Context, dir string, args []string) error {
 	if err != nil {
 		return errors.New("task_directory_unavailable")
 	}
-	result := runTerminalHelper(ctx, filepath.Join(dir, "connections"), cwd, *server, *nonce, connections.PreflightSSH)
+	result := runTerminalHelper(ctx, cwd, *server, *nonce)
 	output(result)
 	// Failure is carried in this sole JSON receipt, so GUI shell wrappers do
 	// not mix an additional stderr line into the parseable response.
 	return nil
 }
 
-// The installed helper runs INSIDE the selected official command sandbox. It
-// proves local access and SSH, but never submits a remote job or edits SSH trust.
-func runTerminalHelper(ctx context.Context, connectionsDir, cwd, server, nonce string, preflight func(context.Context, connections.ServerProfile, connections.PreflightOptions) connections.Status) terminalCheck {
-	r := terminalCheck{Code: "terminal_probe_failed", Nonce: nonce}
-	dirs := []string{cwd}
-	// Basic delegation needs only its owned task directory. The optional fixed
-	// experiment helper additionally needs the device-side experiment journal.
+// The installed helper runs inside the selected official command sandbox.
+func runTerminalHelper(ctx context.Context, cwd, server, nonce string) terminalCheck {
+	r := terminalCheck{Code: "terminal_permission_denied", Nonce: nonce}
 	if server != "" {
-		dirs = append(dirs, filepath.Dir(connectionsDir))
+		r.Code = "feature_retired"
+		return r
 	}
-	for _, dir := range dirs {
-		f, err := os.CreateTemp(dir, ".dotcontrol-write-check-")
-		if err != nil {
-			r.Code = "terminal_permission_denied"
-			return r
-		}
-		name := f.Name()
-		_, writeErr := f.WriteString(nonce)
-		syncErr := f.Sync()
-		closeErr := f.Close()
-		removeErr := os.Remove(name)
-		if writeErr != nil || syncErr != nil || closeErr != nil || removeErr != nil {
-			r.Code = "terminal_permission_denied"
-			return r
-		}
+	if ctx.Err() != nil {
+		return r
 	}
-	if server != "" {
-		c, err := connections.NewStore(connectionsDir).Load()
-		if err != nil {
-			return r
-		}
-		found := false
-		for _, p := range c.ServerProfiles {
-			if p.ID == server {
-				found = true
-				s := preflight(ctx, p, connections.PreflightOptions{})
-				if !s.Available {
-					r.Code = s.Code
-					return r
-				}
-				if p.RemoteDir == "" {
-					r.Code = "ssh_remote_dir_unavailable"
-					return r
-				}
-			}
-		}
-		if !found {
-			r.Code = "server_profile_not_found"
-			return r
-		}
+	f, err := os.CreateTemp(cwd, ".dotcontrol-write-check-")
+	if err != nil {
+		return r
+	}
+	name := f.Name()
+	_, writeErr := f.WriteString(nonce)
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	removeErr := os.Remove(name)
+	if writeErr != nil || syncErr != nil || closeErr != nil || removeErr != nil {
+		return r
 	}
 	r.Available = true
 	r.Code = "terminal_ready"
@@ -201,7 +191,7 @@ func terminalProbeResult(exit int, out, nonce string) terminalCheck {
 		if r.Available && exit == 0 {
 			return r
 		}
-	case "terminal_server_required", "terminal_permission_denied", "ssh_auth_failed", "ssh_identity_unavailable", "ssh_unknown_host", "ssh_host_key_changed", "ssh_network_error", "ssh_timeout", "ssh_remote_dir_unavailable", "ssh_unavailable", "ssh_preflight_failed", "server_profile_not_found", "ssh_remote_check_unconfirmed", "ssh_cancelled":
+	case "terminal_permission_denied", "feature_retired":
 		return terminalCheck{Code: r.Code}
 	}
 	return terminalCheck{Code: "terminal_probe_failed"}
@@ -233,15 +223,7 @@ func checkTerminal(ctx context.Context, dir, profile, server string) (terminalCh
 		return terminalCheck{}, binding, errors.New("terminal_needs_local_setup")
 	}
 	if server != "" {
-		found := false
-		for _, s := range c.ServerProfiles {
-			if s.ID == server {
-				found = true
-			}
-		}
-		if !found {
-			return terminalCheck{}, binding, errors.New("server_profile_not_found")
-		}
+		return terminalCheck{}, binding, errors.New("feature_retired")
 	}
 	found, err := connections.DiscoverCodex(ctx, c.CodexExecutable, connections.DiscoveryOptions{})
 	if err != nil {
@@ -291,7 +273,7 @@ func checkTerminal(ctx context.Context, dir, profile, server string) (terminalCh
 		if err != nil {
 			return terminalCheck{}, binding, errors.New("powershell_unavailable")
 		}
-		command = []string{shell, "-NoProfile", "-NonInteractive", "-Command", codexbridge.ExperimentPowerShellCommand(command)}
+		command = []string{shell, "-NoProfile", "-NonInteractive", "-Command", codexbridge.PowerShellCommand(command)}
 	}
 	var response struct {
 		ExitCode int    `json:"exitCode"`
@@ -312,6 +294,9 @@ func checkTerminal(ctx context.Context, dir, profile, server string) (terminalCh
 // Only the protected local wizard can select/enable terminal mode. A mode
 // switch invalidates desktop observations and never changes the global pause.
 func (o *runtimeOwner) configureTerminal(ctx context.Context, request onboard.ConnectionsRequest) (any, error) {
+	if request.ServerProfileID != "" {
+		return nil, errors.New("feature_retired")
+	}
 	if request.Operation == "check_terminal" {
 		r, _, err := checkTerminal(ctx, o.dir, request.ProfileID, request.ServerProfileID)
 		return r, err

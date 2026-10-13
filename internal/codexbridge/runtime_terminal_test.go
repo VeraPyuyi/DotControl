@@ -19,19 +19,7 @@ import (
 func terminalMode(t *testing.T, cfg *Config, enabled bool, requests ...*model.CodexSubmit) {
 	t.Helper()
 	cfg.Runtime.TerminalOnly, cfg.Runtime.TerminalEnabled = true, enabled
-	terminalFixtureServer(t, *cfg, requests...)
-	terminalSelection(t, cfg, "exec-a", "server-a")
-}
-
-func terminalFixtureServer(t *testing.T, cfg Config, requests ...*model.CodexSubmit) {
-	t.Helper()
-	_, err := connections.NewStore(cfg.Runtime.ConnectionsDir).UpsertServer(connections.ServerProfile{ID: "server-a", Name: "server-a", SSHAlias: "fixture.invalid", RemoteDir: "/test"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, r := range requests {
-		r.ServerProfileID = "server-a"
-	}
+	terminalSelection(t, cfg, "exec-a", "")
 }
 
 func terminalPolicy(t *testing.T, cfg Config, policy string) {
@@ -64,7 +52,7 @@ func peerParams(t *testing.T, p *runtimePeer, method string, index int) map[stri
 }
 
 func TestTerminalStartAndResumeUseSelectedPolicyAndSamePermissionScope(t *testing.T) {
-	for _, policy := range []string{"", "on-request", "never"} {
+	for _, policy := range []string{"never"} {
 		t.Run(policy, func(t *testing.T) {
 			p := &runtimePeer{approvalPolicy: policy}
 			cfg, r := runtimeFixture(t, p)
@@ -266,7 +254,7 @@ func TestTerminalCapabilitySeparatesConfiguredReadyFromConnected(t *testing.T) {
 }
 
 func TestNeverPolicyApprovalHaltsWithoutHumanResponse(t *testing.T) {
-	for _, method := range []string{"item/commandExecution/requestApproval", "item/permissions/requestApproval", "mcpServer/elicitation/request"} {
+	for _, method := range []string{"item/commandExecution/requestApproval", "item/permissions/requestApproval", "mcpServer/elicitation/request", "item/tool/requestUserInput"} {
 		t.Run(method, func(t *testing.T) {
 			p := &runtimePeer{approvalPolicy: "never"}
 			cfg, r := runtimeFixture(t, p)
@@ -284,13 +272,8 @@ func TestNeverPolicyApprovalHaltsWithoutHumanResponse(t *testing.T) {
 			if j.Code != "needs_local_setup" || len(j.Runtime.Approvals) != 0 || j.State == "blocked" {
 				t.Fatalf("pending stop = %+v", j)
 			}
-			called := false
-			_, err = b.Review(context.Background(), r.DeviceID, j.JobID, "unexpected-approval", func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error) {
-				called = true
-				return model.ReviewAnswer{Action: "accept"}, nil
-			})
-			if err == nil || called || p.count("") != 0 {
-				t.Fatal("never policy opened or sent a human response")
+			if p.count("") != 0 {
+				t.Fatal("synthesized approval response")
 			}
 			p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "interrupted"}})
 			waitRuntimeInactive(t, b, j.JobID)
@@ -368,7 +351,6 @@ func TestTerminalModeChangesRequireNoUnsettledRuntime(t *testing.T) {
 	p := &runtimePeer{approvalPolicy: "never"}
 	cfg, r := runtimeFixture(t, p)
 	terminalPolicy(t, cfg, "never")
-	terminalFixtureServer(t, cfg, &r)
 	b, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -380,7 +362,7 @@ func TestTerminalModeChangesRequireNoUnsettledRuntime(t *testing.T) {
 	if !ok {
 		t.Fatal("local terminal mode switching is unavailable")
 	}
-	if err = switcher.ConfigureTerminal(true, true, "exec-a", "server-a", refreshTerminalBinding(t, cfg)); err != nil {
+	if err = switcher.ConfigureTerminal(true, true, "exec-a", "", refreshTerminalBinding(t, cfg)); err != nil {
 		t.Fatal(err)
 	}
 	j, _ := b.Submit(context.Background(), r)
@@ -466,8 +448,6 @@ func TestProbeWorkspaceSharesOwnedScopeWithoutExpandingProject(t *testing.T) {
 func TestNeverPolicyTerminalEventCannotHidePendingPermissionRequest(t *testing.T) {
 	b, j, _, _ := isolatedRuntimeReview(t)
 	b.mu.Lock()
-	j.approvalPolicy = "never"
-	j.approvals = map[string]*runtimeApproval{}
 	j.entry.Job.Runtime.Approvals = nil
 	j.entry.Job.State = "running"
 	b.mu.Unlock()
@@ -534,7 +514,6 @@ func TestTerminalModeSwitchRequiresGlobalPauseAndGatesContinuation(t *testing.T)
 	p := &runtimePeer{approvalPolicy: "never"}
 	cfg, r := runtimeFixture(t, p)
 	terminalPolicy(t, cfg, "never")
-	terminalFixtureServer(t, cfg, &r)
 	e, err := engine.New(engine.Config{DeviceID: r.DeviceID, StateDir: t.TempDir()}, terminalDriver{}, terminalMonitor{})
 	if err != nil {
 		t.Fatal(err)
@@ -546,13 +525,13 @@ func TestTerminalModeSwitchRequiresGlobalPauseAndGatesContinuation(t *testing.T)
 		t.Fatal(err)
 	}
 	defer b.Close()
-	if err = b.ConfigureTerminal(true, true, "exec-a", "server-a", refreshTerminalBinding(t, cfg)); err == nil || err.Error() != "terminal_mode_pause_required" {
+	if err = b.ConfigureTerminal(true, true, "exec-a", "", refreshTerminalBinding(t, cfg)); err == nil || err.Error() != "terminal_mode_pause_required" {
 		t.Fatalf("unpaused mode change=%v", err)
 	}
 	if err = e.Pause(true); err != nil {
 		t.Fatal(err)
 	}
-	if err = b.ConfigureTerminal(true, true, "exec-a", "server-a", refreshTerminalBinding(t, cfg)); err != nil {
+	if err = b.ConfigureTerminal(true, true, "exec-a", "", refreshTerminalBinding(t, cfg)); err != nil {
 		t.Fatal(err)
 	}
 	if err = e.Pause(false); err != nil {

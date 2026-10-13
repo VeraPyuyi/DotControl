@@ -51,36 +51,8 @@ func terminalBindingFixture(t *testing.T, p *runtimePeer) (Config, model.CodexSu
 	if _, err = store.UpsertExecution(other); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"server-a", "server-b"} {
-		if _, err = store.UpsertServer(connections.ServerProfile{ID: id, Name: id, SSHAlias: "fixture.invalid", RemoteDir: "/test"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	terminalSelection(t, &cfg, "exec-a", "server-a")
-	r.ServerProfileID = "server-a"
+	terminalSelection(t, &cfg, "exec-a", "")
 	return cfg, r
-}
-
-func TestTerminalEnabledAcceptsOnlySelectedExecutionServerPair(t *testing.T) {
-	for _, tc := range []struct{ name, profile, server string }{{"other execution", "exec-b", "server-a"}, {"other server", "exec-a", "server-b"}, {"missing server", "exec-a", ""}} {
-		t.Run(tc.name, func(t *testing.T) {
-			p := &runtimePeer{approvalPolicy: "never"}
-			cfg, r := terminalBindingFixture(t, p)
-			b, err := New(cfg)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer b.Close()
-			r.ProfileID, r.ServerProfileID = tc.profile, tc.server
-			j, err := b.Submit(context.Background(), r)
-			if err != nil || j.State != "blocked" || j.Code != "terminal_selection_mismatch" {
-				t.Fatalf("unprobed pair admitted=%+v %v", j, err)
-			}
-			if p.count("initialize") != 0 {
-				t.Fatal("unprobed pair contacted Codex")
-			}
-		})
-	}
 }
 
 func TestTerminalOptionalServerRetainsExactBindingAcrossRestart(t *testing.T) {
@@ -102,13 +74,13 @@ func TestTerminalOptionalServerRetainsExactBindingAcrossRestart(t *testing.T) {
 		}
 		r.RequestID, r.ServerProfileID = requestID+"-remote", "server-a"
 		j, err := b.Submit(context.Background(), r)
-		if err != nil || j.State != "blocked" || j.Code != "terminal_selection_mismatch" {
+		if err == nil || err.Error() != "feature_retired" {
 			b.Close()
 			t.Fatalf("empty binding switched to saved server=%+v %v", j, err)
 		}
 		r.RequestID, r.ServerProfileID, r.ExperimentID = requestID+"-experiment", "", "fixture-a"
 		j, err = b.Submit(context.Background(), r)
-		if err != nil || j.State != "rejected" || j.Code != "invalid_experiment_request" {
+		if err == nil || err.Error() != "feature_retired" {
 			b.Close()
 			t.Fatalf("serverless experiment admitted=%+v %v", j, err)
 		}
@@ -166,12 +138,12 @@ func TestTerminalPairChangeRejectsOldContinuationAndCanRestoreSelection(t *testi
 	}
 	j = waitRuntime(t, b, j.JobID, func(j model.CodexJob) bool { return j.TurnID != "" })
 	hash := refreshTerminalBinding(t, cfg)
-	if err = switcher.ConfigureTerminal(true, true, "exec-a", "server-a", hash); err == nil || err.Error() != "terminal_runtime_busy" {
+	if err = switcher.ConfigureTerminal(true, true, "exec-a", "", hash); err == nil || err.Error() != "terminal_runtime_busy" {
 		t.Fatalf("same pair bypassed running guard=%v", err)
 	}
 	p.notification("turn/completed", map[string]any{"threadId": j.ThreadID, "turn": map[string]any{"id": j.TurnID, "status": "completed"}})
 	waitRuntimeInactive(t, b, j.JobID)
-	if err = switcher.ConfigureTerminal(true, true, "exec-b", "server-b", hash); err != nil {
+	if err = switcher.ConfigureTerminal(true, true, "exec-b", "", hash); err != nil {
 		t.Fatal(err)
 	}
 	next := model.CodexContinue{DeviceID: r.DeviceID, JobID: j.JobID, RequestID: "same-owned-job", Prompt: "continue"}
@@ -181,7 +153,7 @@ func TestTerminalPairChangeRejectsOldContinuationAndCanRestoreSelection(t *testi
 	if p.count("thread/resume") != 0 {
 		t.Fatal("mismatched continuation reached Codex")
 	}
-	if err = switcher.ConfigureTerminal(true, true, "exec-a", "server-a", hash); err != nil {
+	if err = switcher.ConfigureTerminal(true, true, "exec-a", "", hash); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = b.Continue(context.Background(), next); err != nil {

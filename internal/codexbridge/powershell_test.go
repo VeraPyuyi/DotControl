@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestExperimentPowerShellInvocationQuotesArgumentsAndWaitsForExit(t *testing.T) {
-	arguments := []string{`C:\Program Files\dotcontrol 助手 ‘智能’.exe`, "--state", `C:\state with 'quote' ‘智能’ $x;`, "experiment", "status", "test\nline\r\u0085\u2028`#>"}
-	command := ExperimentPowerShellCommand(arguments)
+func TestPowerShellInvocationQuotesArgumentsAndWaitsForExit(t *testing.T) {
+	arguments := []string{`C:\Program Files\dotcontrol 助手 ‘智能’.exe`, "--state", `C:\state with 'quote' ‘智能’ $x;`, "terminal-check-helper", "--nonce", "test\nline\r\u0085\u2028`#>"}
+	command := PowerShellCommand(arguments)
 	for _, want := range []string{"[Text.Encoding]::UTF8.GetString", "ConvertFrom-Json", "2>&1 |", "$LASTEXITCODE", "exit $dcExit"} {
 		if !strings.Contains(command, want) {
 			t.Fatalf("missing required PowerShell behavior %q: %s", want, command)
@@ -44,12 +43,6 @@ func TestExperimentPowerShellInvocationQuotesArgumentsAndWaitsForExit(t *testing
 	for _, r := range command {
 		if r > 127 {
 			t.Fatal("non-ASCII line separator or quote entered command")
-		}
-	}
-	if runtime.GOOS == "windows" {
-		instructions := experimentInstructions(`C:\state`, "server-a", "fixture-a", strings.Repeat("a", 64))
-		if !strings.Contains(instructions, "$LASTEXITCODE") || !strings.Contains(instructions, "PowerShell command exactly") {
-			t.Fatal("official tool instructions omit the tested PowerShell command")
 		}
 	}
 }

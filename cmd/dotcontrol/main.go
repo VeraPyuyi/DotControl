@@ -94,7 +94,7 @@ func run(args []string) error {
 		return setup(*dir, args[1:])
 	}
 	if args[0] == "ssh-authorize" {
-		return authorizeCLI(ctx, *dir, args[1:])
+		return errors.New("feature_retired")
 	}
 	if args[0] == "experiment" {
 		return experimentCLI(ctx, *dir, args[1:])
@@ -193,7 +193,6 @@ dotcontrol [--state DIRECTORY] COMMAND
   setup       Guided setup (or --name/--driver/--tunnel/--tunnel-id flags)
   credential  Store a tunnel runtime key in the operating-system vault
   doctor      Check local prerequisites; --online also runs official tunnel doctor
-  experiment  submit / status / stop: configured-server CPU fixture; stable ID
   serve       Run the device agent; --gateway serves paired devices instead
   status      Show local activity, connection readiness and pause state
   pause       Stop future input and interrupt the current task

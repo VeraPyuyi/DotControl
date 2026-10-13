@@ -11,17 +11,15 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
-	"github.com/dotcontrol/dotcontrol/internal/experiment"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 )
 
 // Acceptance is installation/platform-specific. All gates are closed by default.
 // Enabling a gate is a release acceptance decision, not an inventory inference.
-type PlatformAcceptance struct{ Terminal, NativeComputerUse, RemoteReview bool }
+type PlatformAcceptance struct{ Terminal, NativeComputerUse bool }
 type RuntimeConfig struct {
 	ConnectionsDir string
 	// Copied at startup; later changes require the protected idle-only setter.
@@ -38,10 +36,8 @@ type RuntimeConfig struct {
 	OpenThread            func(context.Context, string) error
 	SupportedVersions     []string
 	// StartClient is the official stdio transport seam, used by protocol tests.
-	StartClient      func(context.Context, string, string) (*Client, error)
-	ExperimentStatus func(context.Context, string, string, string) (experiment.Status, error)
+	StartClient func(context.Context, string, string) (*Client, error)
 }
-type HumanReview func(context.Context, model.ReviewPrompt) (model.ReviewAnswer, error)
 type runtimeState struct {
 	stateDir          string
 	cfg               RuntimeConfig
@@ -73,25 +69,12 @@ type runtimeRecord struct {
 	MAC      string       `json:"mac"`
 }
 type runtimeJob struct {
-	entry            runtimeEntry
-	client           *Client
-	lease            *engine.DelegationLease
-	cancel           context.CancelFunc
-	runContext       context.Context
-	active           bool
-	handoff          chan struct{}
-	handoffRequested bool
-	approvals        map[string]*runtimeApproval
-	reviewWrites     map[string]context.CancelFunc
-	reviewItems      map[string]json.RawMessage
-	approvalPolicy   string
-}
-type runtimeApproval struct {
-	request   ServerRequest
-	prompt    model.ReviewPrompt
-	expires   time.Time
-	reviewing bool
-	consumed  bool
+	entry      runtimeEntry
+	client     *Client
+	lease      *engine.DelegationLease
+	cancel     context.CancelFunc
+	runContext context.Context
+	active     bool
 }
 
 func cloneJob(j model.CodexJob) model.CodexJob {
@@ -174,7 +157,7 @@ func (b *Bridge) openRuntime(cfg Config) error {
 			}
 			rs.requests[id] = j.JobID
 		}
-		rs.jobs[j.JobID] = &runtimeJob{entry: e, approvals: map[string]*runtimeApproval{}}
+		rs.jobs[j.JobID] = &runtimeJob{entry: e}
 		rs.chain = r.MAC
 	}
 	if s.Err() != nil {
@@ -193,6 +176,9 @@ func (b *Bridge) openRuntime(cfg Config) error {
 		return failure("storage_unavailable")
 	}
 	for _, j := range rs.jobs {
+		if retiredRuntime(j.entry) {
+			continue
+		}
 		j.entry.Job.Runtime.ResultStatus = "unavailable_after_restart"
 		if j.entry.Job.Runtime.ImageDeliveryStatus != "" && j.entry.Job.Runtime.ImageDeliveryStatus != "not_required" {
 			j.entry.Job.Runtime.ImageDeliveryStatus = "unavailable_after_restart"
@@ -204,6 +190,9 @@ func (b *Bridge) openRuntime(cfg Config) error {
 	}
 	// Recovery is read-only and addresses only IDs already in the authenticated journal.
 	for id, j := range rs.jobs {
+		if retiredRuntime(j.entry) {
+			continue
+		}
 		if (j.entry.Job.State == "recovery_required" || j.entry.DesktopPending) && j.entry.Job.ThreadID != "" && cfg.Runtime != nil {
 			b.launchLocked(id, "", true)
 		}
@@ -250,6 +239,10 @@ func (b *Bridge) saveRuntimeLocked(j *runtimeJob) error {
 	}
 	return nil
 }
+func retiredRuntime(e runtimeEntry) bool {
+	return e.Job.ServerProfileID != "" || e.Job.ExperimentID != "" || e.ExperimentBinding != ""
+}
+
 func runtimeTerminal(state string) bool {
 	switch state {
 	case "completed", "failed", "cancelled", "blocked", "rejected", "local_takeover":
@@ -312,7 +305,7 @@ func (b *Bridge) ConfigureTerminal(only, enabled bool, profileID, serverID, conf
 		return failure("terminal_mode_pause_required")
 	}
 	if enabled {
-		if !only || !validID.MatchString(profileID) || (serverID != "" && !validID.MatchString(serverID)) || !terminalConfigHashPattern.MatchString(configHash) {
+		if !only || !validID.MatchString(profileID) || serverID != "" || !terminalConfigHashPattern.MatchString(configHash) {
 			return failure("needs_local_setup")
 		}
 		cfg, p, _, code := b.runtimeProfile(profileID, serverID)
@@ -378,6 +371,10 @@ func (b *Bridge) terminalCapabilityLocked() model.Capability {
 	code := "terminal_profile_not_configured"
 	for _, p := range cfg.ExecutionProfiles {
 		if p.Execution != "terminal" {
+			continue
+		}
+		if p.ApprovalPolicy != "never" {
+			code = "needs_local_setup"
 			continue
 		}
 		_, _, _, reason := b.runtimeProfile(p.ID, "")

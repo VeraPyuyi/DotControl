@@ -43,31 +43,20 @@ type connectionFake struct {
 	calls int
 }
 
-func (f *connectionFake) Reviews(context.Context, ReviewRequest) (any, error) {
-	f.calls++
-	return map[string]bool{"local": true}, nil
-}
-
-func TestLocalReviewRequiresProtectedSessionAndRejectsCredentialFields(t *testing.T) {
+func TestLocalReviewEndpointRemoved(t *testing.T) {
 	f := &connectionFake{}
 	s := New("127.0.0.1:9317", f)
 	origin := "http://127.0.0.1:9317"
-	if req(s, "/onboard/api/reviews", `{"operation":"list"}`, origin, "", nil).Code != 401 {
-		t.Fatal("unprotected approval")
-	}
 	ticket := strings.Split(s.LaunchURL(), "#")[1]
 	w := req(s, "/onboard/api/session", `{"ticket":"`+ticket+`"}`, origin, "", nil)
 	var session map[string]string
 	json.Unmarshal(w.Body.Bytes(), &session)
 	cookie := w.Result().Cookies()[0]
-	if req(s, "/onboard/api/reviews", `{"operation":"list"}`, origin, session["csrf"], cookie).Code != 200 {
-		t.Fatal("missing local review")
-	}
-	if req(s, "/onboard/api/reviews", `{"operation":"answer","password":"never"}`, origin, session["csrf"], cookie).Code != 400 {
-		t.Fatal("credential field accepted")
-	}
-	if req(s, "/onboard/api/reviews", `{"operation":"answer"}`, origin, "wrong", cookie).Code != 403 {
-		t.Fatal("missing csrf")
+	for _, op := range []string{"list", "prompt", "answer", "take_over"} {
+		w = req(s, "/onboard/api/reviews", `{"operation":"`+op+`"}`, origin, session["csrf"], cookie)
+		if w.Code != 404 || f.calls != 0 {
+			t.Fatalf("retired endpoint: %d calls %d", w.Code, f.calls)
+		}
 	}
 }
 

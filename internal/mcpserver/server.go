@@ -30,17 +30,6 @@ type CodexJobArgs struct {
 	DeviceID string `json:"device_id"`
 	JobID    string `json:"job_id"`
 }
-type CodexSubmitArgs struct {
-	DeviceID        string   `json:"device_id"`
-	RequestID       string   `json:"request_id"`
-	Prompt          string   `json:"prompt"`
-	ProfileID       string   `json:"profile_id,omitempty"`
-	ServerProfileID string   `json:"server_profile_id,omitempty"`
-	ExperimentID    string   `json:"experiment_id,omitempty" jsonschema:"Stable ID for the bounded CPU fixture. Requires server_profile_id; retries query the same experiment."`
-	Presentation    string   `json:"presentation,omitempty"`
-	AllowedApps     []string `json:"allowed_apps,omitempty"`
-	WorkingDirs     []string `json:"working_dirs,omitempty"`
-}
 
 // json.RawMessage is []byte to the schema generator. Expose a JSON object at
 // the MCP boundary, then serialize it for the engine's canonical request hash.
@@ -79,9 +68,32 @@ func New(backend service.Backend) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "cancel", Description: "Permanently cancel this task's future actions and request interruption of its in-flight action. Already-issued native input cannot be undone; inspect unknown outcomes.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a TaskArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "cancel", service.Request{DeviceID: a.DeviceID, TaskID: a.TaskID})
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "codex_submit", Description: "Submit a task to this target computer's official Codex using a locally configured profile_id and stable request_id. Optional server_profile_id selects local SSH configuration, never credentials. presentation defaults to visible; background hides presentation only, not foreground Computer Use. Returns an immediate durable job. Identical retries return it; changed bodies conflict. Unaccepted platform capabilities remain blocked. Never replay unknown outcomes. Model completion, verified output, and image delivery are distinct.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexSubmitArgs) (*mcp.CallToolResult, any, error) {
-		input := model.CodexSubmit{DeviceID: a.DeviceID, RequestID: a.RequestID, Prompt: a.Prompt, ProfileID: a.ProfileID, ServerProfileID: a.ServerProfileID, ExperimentID: a.ExperimentID, Presentation: a.Presentation, AllowedApps: a.AllowedApps, WorkingDirs: a.WorkingDirs}
-		return call(ctx, backend, "codex_submit", service.Request{DeviceID: a.DeviceID, Codex: &input})
+	// Decode compatibility-only fields without advertising them. The bridge
+	// resolves authentic old request IDs before rejecting any new retired request.
+	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"device_id", "request_id", "prompt"}, "properties": map[string]any{
+		"device_id": map[string]any{"type": "string"}, "request_id": map[string]any{"type": "string"}, "prompt": map[string]any{"type": "string"},
+		"profile_id": map[string]any{"type": "string"}, "presentation": map[string]any{"type": "string"},
+		"allowed_apps": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "working_dirs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}}
+	s.AddTool(&mcp.Tool{Name: "codex_submit", Description: "Submit a task to this target computer's official Codex using a locally configured profile_id and stable request_id. Presentation defaults to visible. Identical retries return the durable record; changed bodies conflict. Local never-approval permissions must be configured before execution. Never replay unknown outcomes.", InputSchema: schema, Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var input model.CodexSubmit
+		if err := service.Decode(req.Params.Arguments, &input); err != nil {
+			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "invalid_request"}}}, nil
+		}
+		res, out, err := call(ctx, backend, "codex_submit", service.Request{DeviceID: input.DeviceID, Codex: &input})
+		if err != nil {
+			return nil, err
+		}
+		if res == nil {
+			raw, err := json.Marshal(out)
+			if err != nil {
+				return nil, err
+			}
+			res = &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(raw)}}}
+		}
+		if out != nil {
+			res.StructuredContent = out
+		}
+		return res, nil
 	})
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_job", Description: "Read a durable Codex job owned by this DotControl device. Accepts only returned job_id values; never reads or imports the user's other Codex threads. A blocked/rejected job has started no desktop work.", Annotations: read}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "codex_job", service.Request{DeviceID: a.DeviceID, JobID: a.JobID})
@@ -89,10 +101,9 @@ func New(backend service.Backend) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_cancel", Description: "Record cancellation intent for a Codex job owned by this device. Terminal blocked/rejected jobs preserve their original state. Cancellation intent does not prove a native interruption or undo an effect; foreign thread IDs are refused.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a CodexJobArgs) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "codex_cancel", service.Request{DeviceID: a.DeviceID, JobID: a.JobID})
 	})
-	mcp.AddTool(s, &mcp.Tool{Name: "codex_continue", Description: "Continue only a DotControl-owned Codex job with a stable new request_id. A local user taking ownership blocks remote continuation. Never resend uncertain turns. Continuing the controller does not restart a server experiment.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a model.CodexContinue) (*mcp.CallToolResult, any, error) {
+	mcp.AddTool(s, &mcp.Tool{Name: "codex_continue", Description: "Continue only a DotControl-owned Codex job with a stable new request_id. A local user taking ownership blocks remote continuation. Never resend uncertain turns.", Annotations: &mcp.ToolAnnotations{IdempotentHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, a model.CodexContinue) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "codex_continue", service.Request{DeviceID: a.DeviceID, Continuation: &a})
 	})
-	addReviewTool(s, backend)
 	mcp.AddTool(s, &mcp.Tool{Name: "codex_projects", Description: "List projects readable under this target's LOCAL history-sharing policy. No terminal or desktop operation. Project membership comes only from the official local interface; unassigned chats remain searchable with codex_threads. Never changes sharing permissions.", Annotations: read}, func(ctx context.Context, _ *mcp.CallToolRequest, a codexhistory.ListRequest) (*mcp.CallToolResult, any, error) {
 		return call(ctx, backend, "codex_projects", service.Request{DeviceID: a.DeviceID, HistoryList: &a})
 	})

@@ -257,12 +257,12 @@ func Handler(backend service.Backend) http.Handler {
 		}
 		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 		dec.DisallowUnknownFields()
-		if dec.Decode(&input) != nil {
+		if dec.Decode(&input) != nil || dec.Decode(new(any)) != io.EOF {
 			http.Error(w, "invalid_request", 400)
 			return
 		}
 		switch input.Method {
-		case "devices", "apps", "observe", "execute", "task", "cancel", "codex_submit", "codex_job", "codex_cancel", "codex_continue", "codex_review", "codex_projects", "codex_threads", "codex_read_thread":
+		case "devices", "apps", "observe", "execute", "task", "cancel", "codex_submit", "codex_job", "codex_cancel", "codex_continue", "codex_projects", "codex_threads", "codex_read_thread":
 		default:
 			http.Error(w, "unknown_method", 400)
 			return
@@ -336,6 +336,9 @@ func (g *Gateway) Call(ctx context.Context, method string, req service.Request) 
 			var ds []model.Device
 			b, _ := json.Marshal(value)
 			if e == nil && json.Unmarshal(b, &ds) == nil && len(ds) == 1 && ds[0].ID == peer.DeviceID {
+				if ds[0].CodexProfiles != nil {
+					ds[0].CodexProfiles.Servers = nil
+				}
 				devices = append(devices, ds[0])
 			} else {
 				devices = append(devices, model.Device{ID: peer.DeviceID, Name: peer.Name, Paused: true})

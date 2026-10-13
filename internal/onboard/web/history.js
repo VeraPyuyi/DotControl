@@ -10,6 +10,7 @@ async function historyStatus(resetSelection=false){
  el('history-state').textContent=label+' · '+(v.policy?.mode==='all'?'全部本机会话（包含未来新增）':v.policy?.mode==='allowlist'?'仅清单内 '+v.policy.allowed_thread_ids.length+' 个会话':'尚未配置共享范围');
  if(first||resetSelection)historyChosen=new Set(v.policy?.allowed_thread_ids||[]);
  el('history-enable').textContent=v.capability?.available?'重新检查历史读取':'启用并检查历史读取';
+ el('history-enable').className=v.capability?.available?'secondary':'';
  historyCount();return v;
 }
 function historyRender(){

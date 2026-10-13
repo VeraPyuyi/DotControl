@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.0-alpha.4"
+const Version = "0.2.0-alpha.5"
 
 type Target struct {
 	PID      int    `json:"pid"`
@@ -98,7 +98,7 @@ type Device struct {
 // Paths, SSH endpoints, identity files and deployment commands stay local.
 type CodexProfileCatalog struct {
 	Execution []CodexProfileSummary `json:"execution"`
-	Servers   []CodexProfileSummary `json:"servers"`
+	Servers   []CodexProfileSummary `json:"servers,omitempty"`
 }
 type CodexProfileSummary struct {
 	ID           string `json:"id"`
@@ -133,15 +133,16 @@ type HistoryCapability struct {
 type CodexCapabilities = DeviceCapabilities
 
 type CodexSubmit struct {
-	DeviceID        string   `json:"device_id"`
-	RequestID       string   `json:"request_id"`
-	Prompt          string   `json:"prompt"`
-	AllowedApps     []string `json:"allowed_apps"`
-	WorkingDirs     []string `json:"working_dirs"`
-	ProfileID       string   `json:"profile_id,omitempty"`
-	ServerProfileID string   `json:"server_profile_id,omitempty"`
-	ExperimentID    string   `json:"experiment_id,omitempty"`
-	Presentation    string   `json:"presentation,omitempty"`
+	RetiredFieldsPresent bool     `json:"-"`
+	DeviceID             string   `json:"device_id"`
+	RequestID            string   `json:"request_id"`
+	Prompt               string   `json:"prompt"`
+	AllowedApps          []string `json:"allowed_apps"`
+	WorkingDirs          []string `json:"working_dirs"`
+	ProfileID            string   `json:"profile_id,omitempty"`
+	ServerProfileID      string   `json:"server_profile_id,omitempty"`
+	ExperimentID         string   `json:"experiment_id,omitempty"`
+	Presentation         string   `json:"presentation,omitempty"`
 }
 
 type CodexContinue struct {
@@ -224,27 +225,6 @@ type CodexApproval struct {
 	Scope      string    `json:"scope"`
 	State      string    `json:"state"`
 	ExpiresAt  time.Time `json:"expires_at"`
-}
-
-type ReviewPrompt struct {
-	DeviceID   string
-	JobID      string
-	ApprovalID string
-	ThreadID   string
-	TurnID     string
-	Kind       string
-	Operation  string
-	Scope      string
-	Details    string
-	Message    string
-	Schema     any
-	Choices    []string
-	ExpiresAt  time.Time
-}
-
-type ReviewAnswer struct {
-	Action  string
-	Content map[string]any
 }
 
 type CodexUnsupported struct {

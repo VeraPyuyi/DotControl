@@ -30,7 +30,9 @@ function renderConsole(s){
  el('overview-resume').hidden=!!(!device.paused||s.revoked);
  const setup=el('setup-next');setup.hidden=!!(s.tunnel_id&&s.terminal_enabled);
  setup.textContent=!s.tunnel_id?'继续设置：连接账号与插件':'继续设置：连接本机 Codex';
+ setup.className=setup.hidden?'secondary':'';el('copy-test').className=setup.hidden?'':'secondary';
  setup.onclick=()=>showView(!s.tunnel_id?'connection':'codex');el('setup-note').hidden=setup.hidden;
+ el('connect-basic').className=s.terminal_enabled?'secondary':'';
  el('connect-basic').textContent=s.terminal_enabled?'重新配置基础终端':'连接并启用 Codex';
  el('device-description').textContent=s.revoked?'远程访问已关闭。请在连接设置中重新配置。':device.paused?'远程任务与会话读取已暂停，可在本机恢复。':'关闭此页面后，DotControl 会继续运行。';
  if(!initializedViews.has('navigation')){initializedViews.add('navigation');showView(location.hash.slice(1)||'overview',false)}

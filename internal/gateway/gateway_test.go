@@ -142,7 +142,7 @@ func TestGatewayRoutesExactPairedDeviceAndReportsOffline(t *testing.T) {
 			if mismatched.Load() {
 				id = "impostor"
 			}
-			return []model.Device{{ID: id, Name: "Device A", Nonce: "fresh-device-nonce", Activity: model.Activity{Available: true}}}, nil
+			return []model.Device{{ID: id, Name: "Device A", Nonce: "fresh-device-nonce", Activity: model.Activity{Available: true}, CodexProfiles: &model.CodexProfileCatalog{Servers: []model.CodexProfileSummary{{ID: "retired-server", Name: "retired"}}}}}, nil
 		}
 		if req.DeviceID != "device-a" {
 			return nil, errors.New("wrong route")
@@ -160,6 +160,9 @@ func TestGatewayRoutesExactPairedDeviceAndReportsOffline(t *testing.T) {
 	ds := v.([]model.Device)
 	if len(ds) != 1 || ds[0].ID != "device-a" || !ds[0].Activity.Available || ds[0].Nonce != "fresh-device-nonce" {
 		t.Fatalf("unexpected live device: %#v", ds)
+	}
+	if ds[0].CodexProfiles != nil && len(ds[0].CodexProfiles.Servers) > 0 {
+		t.Fatal("gateway exposed legacy server catalog")
 	}
 	v, err = g.Call(ctx, "task", service.Request{DeviceID: "device-a", TaskID: "task-1"})
 	if err != nil {
@@ -272,7 +275,7 @@ func TestHistoryMethodsReachBackendButPolicyMutationsDoNot(t *testing.T) {
 		}))
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("POST", "https://127.0.0.1/rpc", strings.NewReader(`{"method":"`+method+`","request":{"device_id":"device-a"}}`)))
-		if strings.HasPrefix(method, "history_") {
+		if strings.HasPrefix(method, "history_") || method == "codex_review" {
 			if called || w.Code != 400 {
 				t.Fatal("remote policy mutation", method)
 			}

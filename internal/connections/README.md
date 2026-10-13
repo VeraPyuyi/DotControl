@@ -13,8 +13,7 @@ directory; its parents must be trusted. Reads do not create a directory.
 - `Load() (Config, error)` returns schema version 1 and empty profiles for a new
   store. Unknown JSON fields, unsupported versions, duplicate IDs, invalid
   references, links and malformed state are rejected, never overwritten.
-- `UpsertExecution(ExecutionProfile)` and `UpsertServer(ServerProfile)` return the
-  saved profile. Empty IDs receive random stable IDs; pass that ID on edits.
+- `UpsertExecution(ExecutionProfile)` returns the saved profile. Empty IDs receive random stable IDs; pass that ID on edits.
   Unrelated records and the Codex executable reference remain intact.
 - `SetCodexExecutable(path)` changes only that reference; an empty value clears
   the override and lets the caller use discovery.
@@ -77,33 +76,10 @@ ancestry evidence, **not** a code-signature verification or proof of computer-us
 capability. `DiscoveryOptions.Candidates` and `.Version` are injection seams.
 Discovery does not automatically save the selected executable.
 
-## SSH preflight
+## Retired server operations
 
-`PreflightSSH(ctx, profile, PreflightOptions{})` uses the system `ssh` found on
-PATH, `exec.CommandContext`, and separate argv entries. It respects the user's
-local SSH alias, agent, and optional identity-file reference. It requires
-public-key authentication, batch mode, strict host-key verification, and finite
-timeouts. It disables host-key updates, forwarding, local commands and shared
-control sockets. `CheckHostIP=no` prevents SSH config from adding host IP entries,
-and `ForkAfterAuthentication=no` makes the check wait for the remote command.
-It never adds a host key, asks for a password, copies a key,
-or runs `deploy_command`. Existing user-owned SSH config (including an explicitly
-configured proxy/jump host) remains authoritative.
-
-An explicit identity reference must be a regular file that can be opened. This
-check reads no key bytes; SSH owns key parsing. Known unusable-key diagnostics
-return `ssh_identity_unavailable` even when an agent fallback authenticates, so
-a successful fallback cannot conceal a broken explicitly selected reference.
-
-With `remote_dir`, the only remote command checks directory existence and
-search permission using safely quoted POSIX shell arguments. Without it, the
-command is `exit 0`, allowing connection setup before directory selection.
-
-Results are `ssh_ready` (connection and directory checked), `ssh_connected`
-(connection only), or a fixed error code: `ssh_unknown_host`,
-`ssh_host_key_changed`, `ssh_auth_failed`, `ssh_network_error`,
-`ssh_remote_dir_unavailable`, `ssh_timeout`, `ssh_cancelled`, `ssh_unavailable`,
-`ssh_identity_unavailable`, or `ssh_preflight_failed`. Unknown/localized SSH failures remain generic rather
-than being reported as success. No stderr, alias, path or saved command is
-returned. `CommandRunner`, `PreflightOptions.LookPath`, and `.Timeout` are test
-seams. Tests never connect to a server.
+Server profiles remain decodable and are preserved when editing ordinary Codex
+configuration. `UpsertServer` is a compatibility tombstone returning
+`feature_retired`; the product no longer edits server profiles, authorizes public
+keys, performs SSH preflight, or executes remote scripts. These operations do not
+read or modify the user's SSH configuration, identity files or remote machines.

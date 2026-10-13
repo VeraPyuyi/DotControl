@@ -190,9 +190,6 @@ func (b *Bridge) healthy() error {
 	return nil
 }
 func (b *Bridge) Submit(ctx context.Context, r model.CodexSubmit) (model.CodexJob, error) {
-	if r.ExperimentID != "" && r.ProfileID == "" {
-		return model.CodexJob{}, failure("invalid_experiment_request")
-	}
 	if r.ProfileID != "" {
 		return b.submitRuntime(ctx, r)
 	}
@@ -219,10 +216,13 @@ func (b *Bridge) Submit(ctx context.Context, r model.CodexSubmit) (model.CodexJo
 		}
 		return j, nil
 	}
+	if r.RetiredFieldsPresent || r.ServerProfileID != "" || r.ExperimentID != "" {
+		return model.CodexJob{}, failure("feature_retired")
+	}
 	if err := ctx.Err(); err != nil {
 		return model.CodexJob{}, failure("cancelled")
 	}
-	state, code, message := "blocked", "official_cu_acceptance_required", "Official native Computer Use execution is not enabled: image delivery, delegated action, local human approval, and interruption acceptance are pending."
+	state, code, message := "blocked", "official_cu_acceptance_required", "Official native Computer Use execution is not enabled: image delivery, delegated action, and interruption acceptance are pending."
 	if reason := validate(r); reason != "" {
 		state, code, message = "rejected", reason, "The delegation request is invalid; no Codex thread or desktop action was started."
 	}
@@ -266,7 +266,7 @@ func (b *Bridge) Job(deviceID, jobID string) (model.CodexJob, error) {
 	if err != nil {
 		return j, err
 	}
-	return b.experimentJob(j), nil
+	return j, nil
 }
 func (b *Bridge) job(deviceID, jobID string) (model.CodexJob, error) {
 	if err := b.healthy(); err != nil {

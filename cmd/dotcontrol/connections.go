@@ -15,10 +15,17 @@ import (
 )
 
 func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsRequest) (any, error) {
+	switch r.Operation {
+	case "save_server", "check_ssh", "authorize_prepare", "authorize_start", "authorize_status", "pick_public_key", "pick_identity":
+		return nil, errors.New("feature_retired")
+	}
+	if r.Server != nil || r.ServerProfileID != "" || r.PublicKeyPath != "" || r.AuthorizationID != "" {
+		return nil, errors.New("feature_retired")
+	}
 	o.connectionsMu.Lock()
 	defer o.connectionsMu.Unlock()
 	switch r.Operation {
-	case "save_codex", "save_execution", "save_server":
+	case "save_codex", "save_execution":
 		if err := o.invalidateTerminalConfiguration(); err != nil {
 			return nil, err
 		}
@@ -29,14 +36,8 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 		return o.connectBasicTerminal(ctx, store)
 	case "terminal_mode", "check_terminal", "enable_terminal":
 		return o.configureTerminal(ctx, r)
-	case "authorize_prepare", "authorize_start", "authorize_status":
-		return o.authorizeConnection(ctx, store, r)
-	case "pick_public_key":
-		return desktop.ChoosePath(ctx, "identity")
 	case "pick_project":
 		return desktop.ChoosePath(ctx, "directory")
-	case "pick_identity":
-		return desktop.ChoosePath(ctx, "identity")
 	case "pick_codex":
 		return desktop.ChoosePath(ctx, "executable")
 	case "permissions":
@@ -102,22 +103,6 @@ func (o *runtimeOwner) Connections(ctx context.Context, r onboard.ConnectionsReq
 			return nil, errors.New("invalid_execution_profile")
 		}
 		return store.UpsertExecution(*r.Execution)
-	case "save_server":
-		if r.Server == nil {
-			return nil, errors.New("invalid_server_profile")
-		}
-		return store.UpsertServer(*r.Server)
-	case "check_ssh":
-		cfg, err := store.Load()
-		if err != nil {
-			return nil, err
-		}
-		for _, server := range cfg.ServerProfiles {
-			if server.ID == r.ProfileID {
-				return connections.PreflightSSH(ctx, server, connections.PreflightOptions{}), nil
-			}
-		}
-		return nil, errors.New("server_profile_not_found")
 	default:
 		return nil, errors.New("unknown_connection_operation")
 	}

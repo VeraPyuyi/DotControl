@@ -32,9 +32,6 @@ func (b *Bridge) finishTurn(id, status string) {
 	if j.entry.NeedsLocalSetup {
 		state, code = "blocked", "needs_local_setup"
 	}
-	if j.handoffRequested && !b.runtimeInterruptedLocked(j) {
-		state, code = "awaiting_target", "interrupt_for_local_takeover"
-	}
 	j.entry.Job.State = state
 	j.entry.Job.Code = code
 	j.entry.Job.Message = runtimeMessage(code)
@@ -46,16 +43,12 @@ func (b *Bridge) finishTurn(id, status string) {
 		j.entry.Job.Runtime.ResultStatus = "available"
 	}
 	j.entry.Phase = "turn_terminal"
-	j.approvals = map[string]*runtimeApproval{}
 	_ = b.saveRuntimeLocked(j)
 }
 func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 	tick := time.NewTicker(40 * time.Millisecond)
 	defer tick.Stop()
 	cancelled := ctx.Done()
-	b.mu.Lock()
-	handoff := b.runtime.jobs[id].handoff
-	b.mu.Unlock()
 	var deadline <-chan time.Time
 	var timer *time.Timer
 	defer func() {
@@ -65,16 +58,6 @@ func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 	}()
 	for {
 		select {
-		case <-handoff:
-			handoff = nil
-			b.mu.Lock()
-			j := b.runtime.jobs[id]
-			thread, turn := j.entry.Job.ThreadID, j.entry.Job.TurnID
-			b.mu.Unlock()
-			var ack json.RawMessage
-			_ = runtimeCall(c, "turn/interrupt", map[string]any{"threadId": thread, "turnId": turn}, &ack)
-			timer = time.NewTimer(3 * time.Second)
-			deadline = timer.C
 		case <-cancelled:
 			cancelled = nil
 			b.mu.Lock()
@@ -126,7 +109,7 @@ func (b *Bridge) consume(ctx context.Context, id string, c *Client) bool {
 				}
 				b.mu.Unlock()
 			}
-			b.refreshApprovals(id, c)
+			b.interruptPendingRequests(id, c)
 		}
 	}
 }
@@ -162,7 +145,7 @@ func (b *Bridge) consumeNotification(id string, n Notification) bool {
 		client := b.runtime.jobs[id].client
 		b.mu.Unlock()
 		if client != nil {
-			b.refreshApprovals(id, client)
+			b.interruptPendingRequests(id, client)
 		}
 		// Completed items may appear only in the terminal event. Item IDs dedupe both paths.
 		for _, item := range event.Turn.Items {
@@ -174,21 +157,7 @@ func (b *Bridge) consumeNotification(id string, n Notification) bool {
 		if event.TurnID == turn {
 			b.collectItem(id, event.Item)
 		}
-	case "item/started":
-		if event.TurnID == turn && len(event.Item) <= 16384 {
-			var item struct{ ID, Type string }
-			if json.Unmarshal(event.Item, &item) == nil && item.Type == "fileChange" && item.ID != "" {
-				b.mu.Lock()
-				j := b.runtime.jobs[id]
-				if j.reviewItems == nil {
-					j.reviewItems = map[string]json.RawMessage{}
-				}
-				if len(j.reviewItems) < 64 {
-					j.reviewItems[item.ID] = event.Item
-				}
-				b.mu.Unlock()
-			}
-		}
+
 	}
 	return false
 }

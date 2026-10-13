@@ -50,14 +50,11 @@ func TestDevicesReportsTerminalReadinessDespiteUnavailableDesktop(t *testing.T) 
 	if _, err = store.UpsertExecution(connections.ExecutionProfile{ID: "terminal", Name: "Terminal", ProjectDir: t.TempDir(), Execution: "terminal", Presentation: "background", PermissionProfile: ":read-only", ApprovalPolicy: "never"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.UpsertServer(connections.ServerProfile{ID: "server-a", Name: "server-a", SSHAlias: "fixture.invalid", RemoteDir: "/test"}); err != nil {
-		t.Fatal(err)
-	}
 	stored, err := store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := codexbridge.New(codexbridge.Config{DeviceID: "device-a", StateDir: t.TempDir(), Runtime: &codexbridge.RuntimeConfig{TerminalOnly: true, TerminalEnabled: true, TerminalProfileID: "terminal", TerminalServerID: "server-a", TerminalConfigHash: codexbridge.TerminalConfigHash(stored), Engine: e, ConnectionsDir: dir, Acceptance: map[string]codexbridge.PlatformAcceptance{runtime.GOOS: {Terminal: true}}}})
+	b, err := codexbridge.New(codexbridge.Config{DeviceID: "device-a", StateDir: t.TempDir(), Runtime: &codexbridge.RuntimeConfig{TerminalOnly: true, TerminalEnabled: true, TerminalProfileID: "terminal", TerminalConfigHash: codexbridge.TerminalConfigHash(stored), Engine: e, ConnectionsDir: dir, Acceptance: map[string]codexbridge.PlatformAcceptance{runtime.GOOS: {Terminal: true}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

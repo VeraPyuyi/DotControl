@@ -19,12 +19,9 @@ func (b *Bridge) ProfileCatalog() *model.CodexProfileCatalog {
 	if err != nil {
 		return nil
 	}
-	out := &model.CodexProfileCatalog{Execution: []model.CodexProfileSummary{}, Servers: []model.CodexProfileSummary{}}
+	out := &model.CodexProfileCatalog{Execution: []model.CodexProfileSummary{}}
 	for _, p := range cfg.ExecutionProfiles {
 		out.Execution = append(out.Execution, model.CodexProfileSummary{ID: p.ID, Name: p.Name, Execution: p.Execution, Presentation: p.Presentation})
-	}
-	for _, p := range cfg.ServerProfiles {
-		out.Servers = append(out.Servers, model.CodexProfileSummary{ID: p.ID, Name: p.Name})
 	}
 	return out
 }
