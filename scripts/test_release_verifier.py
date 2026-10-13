@@ -1,10 +1,20 @@
 import pathlib
 import tempfile
 import unittest
+import plistlib
+from package_release import VERSION, app_info
 from verify_release_payload import resolve_artifact
 
 
 class ArtifactDiscovery(unittest.TestCase):
+    def test_macos_app_build_matches_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'Info.plist'
+            app_info(path, 'Fixture', 'fixture', 'org.dotcontrol.fixture')
+            info = plistlib.loads(path.read_bytes())
+            self.assertEqual(info['CFBundleShortVersionString'], VERSION.split('-')[0])
+            self.assertEqual(info['CFBundleVersion'], VERSION.rsplit('.', 1)[-1])
+
     def test_nested_download_is_found(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)

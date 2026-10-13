@@ -53,7 +53,8 @@ def app_info(path, name, binary, identifier):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(plistlib.dumps({'CFBundleIdentifier': identifier,
         'CFBundleName': name, 'CFBundleExecutable': binary,
-        'CFBundleShortVersionString': '0.2.0', 'CFBundleVersion': '3',
+        'CFBundleShortVersionString': VERSION.split('-')[0],
+        'CFBundleVersion': VERSION.rsplit('.', 1)[-1],
         'CFBundlePackageType': 'APPL', 'LSUIElement': True,
         'LSMinimumSystemVersion': '14.0',
         'NSInputMonitoringUsageDescription': 'Detect human activity without reading key contents.'}))
