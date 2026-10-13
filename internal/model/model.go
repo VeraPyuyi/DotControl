@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.0-alpha.5"
+const Version = "0.2.0-alpha.6"
 
 type Target struct {
 	PID      int    `json:"pid"`

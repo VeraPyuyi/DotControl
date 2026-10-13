@@ -4,11 +4,11 @@
 
 ## 1. 安装
 
-- Windows 11 x64：打开 DotControl-0.2.0-alpha.5-windows-amd64-setup.exe。
-- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.5-macos-arm64.dmg 内的 DotControl Setup.app。
-- Mac Intel：使用 DotControl-0.2.0-alpha.5-macos-amd64.dmg。
+- Windows 11 x64：打开 DotControl-0.2.0-alpha.6-windows-amd64-setup.exe。
+- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.6-macos-arm64.dmg 内的 DotControl Setup.app。
+- Mac Intel：使用 DotControl-0.2.0-alpha.6-macos-amd64.dmg。
 
-alpha.5 [发布入口](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.5)，三个安装包及安装助手均附校验和；实际公开下载与包内验证结果见支持矩阵。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
+alpha.6 [发布入口](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.6)，三个安装包及安装助手均附校验和；实际公开下载与包内验证结果见支持矩阵。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
 
 安装器自动校验随包组件、识别旧设备、安装到当前用户目录并启动本地向导。发现多个已有设备时选择要升级的设备，不删除状态目录重新安装。正常安装无需终端、Go、Python、Homebrew 或 Xcode。首次发布未配置发布者签名或公证，系统可能显示来源提示；上游 CuaDriver 签名校验失败则停止。
 
@@ -76,7 +76,7 @@ uninstall 只移除本项目管理的程序文件和登录启动设置，保留�
 Windows 非托管开发版本迁入托管目录时，先等待任务结束并从原入口正常退出旧代理，再指定原程序的绝对路径：
 
 ```text
-DotControl-0.2.0-alpha.5-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
+DotControl-0.2.0-alpha.6-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
 ```
 
 安装器确认候选为普通无链接的 DotControl 程序，并记录 SHA-256；失败时可重新启动原程序。它不会自动删除非托管程序或其目录。非托管迁移仅支持 Windows；Mac 托管升级继续使用原设备目录。不能通过删除原设备目录绕过迁移选择。
