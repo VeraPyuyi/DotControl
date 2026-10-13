@@ -1,6 +1,23 @@
 # 0.2 支持与验收
 
-[预发布下载](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.3) · [安装指南](INSTALL.md)
+[预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.4 说明](RELEASE_NOTES_0_2_ALPHA_4.md)
+
+## alpha.4 候选版状态（2026-10-13）
+
+目标版本 `v0.2.0-alpha.4` 增加默认自动代理、本机网络设置和基于当前进程成功轮询的云端状态。Windows x64、Mac Apple Silicon、Mac Intel 与安装助手准备从现有 PR 分支发布，不合并 PR，不修改用户 Mac；旧版本资产与记录保留。
+
+| alpha.4 检查 | Windows x64 | Mac Apple Silicon | Mac Intel |
+|---|---|---|---|
+| 原生测试、竞态检测、vet、构建 | 待记录 | 待记录 | 待记录 |
+| 实际安装包、包内文件和隔离安装检查 | 待记录 | 待记录 | 待记录 |
+| 固定依赖哈希 / Cua 上游应用签名 | 待记录 | 待记录 | 待记录 |
+| 公开 Release 下载字节与原生包内验证 | 待记录 | 待记录 | 待记录 |
+| 当前进程真实成功轮询及源 Dot 调用 | 待验收 | 本轮不修改用户 Mac | 本轮不修改用户 Mac |
+| 原生 Computer Use、远程审批、源 Dot 图片显示 | 未验收，能力继续受限 | 未验收，能力继续受限 | 未验收，能力继续受限 |
+
+以上没有“通过”项。代码、模拟健康快照或本地页面检查不能代替发布包与实际云端验收。后续证据应标明提交、平台和实际发布文件摘要。以下 alpha.3 及更早证据仅属于相应旧版本。
+
+本地就绪、云端轮询与源 Dot 本次调用分别判断。云端在线要求当前进程本地就绪并有近期成功轮询；`/readyz` 或 `official_tunnel_doctor=configuration_validated` 均不能替代。`doctor --online` 的 `tunnel_cloud_connection` 单独返回运行中 supervisor 状态。保存网络方式后，长轮询或在途工作可使安全重连继续待处理，不能因此强制结束或重放任务。PAC、仅 SOCKS 和交互认证限制见[网络说明](NETWORK.md)。
 
 ## alpha.3 发布与升级实测（2026-10-13）
 

@@ -5,7 +5,7 @@ on:
       tag:
         description: Published prerelease tag
         required: true
-        default: v0.2.0-alpha.3
+        default: v0.2.0-alpha.4
 permissions:
   contents: read
 jobs:

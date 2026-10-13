@@ -4,9 +4,11 @@
 
 ## 1. 安装
 
-- Windows 11 x64：打开 DotControl-0.2.0-alpha.3-windows-amd64-setup.exe。
-- Mac Apple Silicon：打开 macos-arm64.dmg 内的 DotControl Setup.app。
-- Mac Intel：使用 macos-amd64.dmg。
+- Windows 11 x64：打开 DotControl-0.2.0-alpha.4-windows-amd64-setup.exe。
+- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.4-macos-arm64.dmg 内的 DotControl Setup.app。
+- Mac Intel：使用 DotControl-0.2.0-alpha.4-macos-amd64.dmg。
+
+alpha.4 当前为发布候选版，发布文件和各平台验证以[支持矩阵](RELEASE_SUPPORT.md)为准。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
 
 安装器自动校验随包组件、识别旧设备、安装到当前用户目录并启动本地向导。发现多个已有设备时选择要升级的设备，不删除状态目录重新安装。正常安装无需终端、Go、Python、Homebrew 或 Xcode。首次发布未配置发布者签名或公证，系统可能显示来源提示；上游 CuaDriver 签名校验失败则停止。
 
@@ -24,9 +26,17 @@ Mac 的 CuaDriver 固定放在 /Applications/CuaDriver.app。活动检测和菜�
 
 安装 Codex 引导插件后，可以说“帮我安装并连接 DotControl”。它使用相同安装器和正常浏览器工具协助填写；登录、密钥录入和系统权限仍由你完成。插件源码位于 plugins/dotcontrol-onboarding，仓库同时提供 Codex marketplace 描述。
 
+### 网络连接
+
+向导的“网络连接（通常无需修改）”默认选择 **自动使用已有代理**：先使用当前代理进程继承的代理环境变量，再读取当前用户系统中的静态 HTTP / HTTPS 代理；没有代理则直连，匹配绕过规则时也直连。可在本机改为 **直连** 或填写无用户名、密码的 **手动 HTTP / HTTPS 代理**。仅影响官方隧道的云端控制连接，本地向导、MCP 和健康检查始终直连，不修改系统代理、DNS 或 TLS 设置。
+
+PAC、仅 SOCKS 和交互认证未实现自动支持。请按返回的具体原因，在本机代理程序处理或选择已可用的静态 HTTP / HTTPS 连接，不把认证信息发到聊天。保存后可能显示“等待安全重连”：仍在长轮询、处理任务或交付响应时继续等待，不强制结束进程，也不重发任务。详见[网络模式、状态与诊断](NETWORK.md)。
+
 ## 3. 验证并启用
 
 点击“复制连接测试指令”，发给源电脑上的官方 Dot。保持官方连接在源电脑，让 Dot 通过目标设备的插件调用 devices，核对名称、设备 ID、随机值。
+
+向导分别显示本地服务、云端隧道和源 Dot 调用。本地就绪只证明本机入口可用；云端在线还要求当前隧道进程的健康详情包含近期成功轮询；源 Dot 必须另外核对本次插件返回。进程存在、本地 `/readyz` 为 200 或 `doctor --online` 的配置检查成功均不能单独证明云端在线。插件工具仍为 14 个，升级后在官方设置刷新工具并核对实际会话目录。
 
 Windows 的终端任务可在本机独立启用，不要求 Cua Driver 或 SSH。按向导完成本机 Codex 终端配置和当前目录授权后，再启用该能力；SSH 与服务器访问按实际任务另行配置。历史共享独立且可选，由本机明确选择共享范围。
 
@@ -62,10 +72,10 @@ uninstall 只移除本项目管理的程序文件和登录启动设置，保留�
 Windows 非托管开发版本迁入托管目录时，先等待任务结束并从原入口正常退出旧代理，再指定原程序的绝对路径：
 
 ```text
-DotControl-0.2.0-alpha.3-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
+DotControl-0.2.0-alpha.4-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
 ```
 
-安装器确认候选为普通无链接的 DotControl 程序，并记录 SHA-256；失败时可重新启动原程序。它不会自动删除非托管程序或其目录。非托管迁移在 alpha.3 仅支持 Windows；Mac 托管升级继续使用原设备目录。不能通过删除原设备目录绕过迁移选择。
+安装器确认候选为普通无链接的 DotControl 程序，并记录 SHA-256；失败时可重新启动原程序。它不会自动删除非托管程序或其目录。非托管迁移仅支持 Windows；Mac 托管升级继续使用原设备目录。不能通过删除原设备目录绕过迁移选择。
 
 自动验收可使用完整安装包的 `--install --state <绝对路径> --program-root <绝对路径> --no-start`，返回单个 JSON 结果。`--no-start` 仅用于隔离测试：校验包和二进制版本，更新所选隔离目录，不启动代理、不修改登录启动、不创建凭据、不安装共享 Mac 组件；结果中的 `runtime_verified` 为 false。已提交的清理阻塞返回 `installed: true, cleanup_pending: true`，无需回退新版。`--extract-payload <空目录绝对路径>` 只展开并校验实际嵌入文件，可用于隔离验收。两个维护入口均不打开界面，不接受外部 `--bundle` 替换安装包内载荷。通常使用双击安装。
 

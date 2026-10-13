@@ -15,7 +15,7 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.0-alpha.3'
+VERSION = '0.2.0-alpha.4'
 LOCK = json.loads((ROOT / 'dependencies.lock.json').read_text())
 
 def run(*args, **kw):

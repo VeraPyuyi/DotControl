@@ -7,7 +7,9 @@ description: Use when the user asks to install, connect, repair, or diagnose Dot
 
 Use the same released installer as the graphical setup. Do not implement an
 alternate installer, compile components, install Python/Homebrew/Xcode/Go,
-edit credential stores directly, or alter DNS/proxy/TLS settings.
+edit credential stores directly, or alter system DNS/proxy/TLS settings. Use only
+the protected local wizard for DotControl's own network mode; it does not change
+system settings.
 
 ## Discover and install
 
@@ -24,10 +26,10 @@ edit credential stores directly, or alter DNS/proxy/TLS settings.
    `current.json` identifies the installed version directory. Verify the selected
    path stays beneath this root before executing.
 4. Otherwise download the appropriate asset and `.sha256` file from the fixed
-   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.3`.
-   Asset names: `DotControl-0.2.0-alpha.3-windows-amd64-setup.exe`,
-   `DotControl-0.2.0-alpha.3-macos-arm64.dmg`, or
-   `DotControl-0.2.0-alpha.3-macos-amd64.dmg`.
+   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.4`.
+   Asset names: `DotControl-0.2.0-alpha.4-windows-amd64-setup.exe`,
+   `DotControl-0.2.0-alpha.4-macos-arm64.dmg`, or
+   `DotControl-0.2.0-alpha.4-macos-amd64.dmg`.
    Verify SHA-256 using built-in OS facilities before launching. Do not substitute
    another tag or ignore mismatched/missing assets. A checksum protects download
    integrity; these alpha installers are not publisher-signed/notarized.
@@ -61,9 +63,38 @@ copyable fields; leave it open for the user.
 ## Verify and enable
 
 Keep these checks separate: installed; local agent healthy; driver usable;
-activity detection available; tunnel ready; source Dot plugin devices call;
+activity detection available; current-process cloud poll confirmed; source Dot plugin devices call;
 MCP image returned; image actually visible at source Dot. Never substitute
 process existence for readiness or local image viewing for cloud delivery.
+
+The default network mode is `auto`: process proxy environment first, then the
+current user's effective static HTTP/HTTPS system proxy, honoring bypass rules.
+The local wizard offers auto, direct and manual HTTP/HTTPS modes. Manual addresses
+must not contain usernames or passwords. Only the tunnel control plane uses this
+route, through an environment reference; loopback services always connect directly.
+Do not read proxy credentials, reproduce environment values, or change system
+proxy/DNS/TLS settings. PAC-only, SOCKS-only and interactive proxy authentication
+are explicit limitations. Report the returned reason and use local proxy handling
+or an already available static HTTP/HTTPS route. Do not promise automatic PAC or
+authentication support.
+
+Saving a route may return `queued_until_safe` and show pending reconnect while a
+long poll, queued work, active request or response delivery is in progress, or
+when idle evidence is incomplete. Saved is not connected. Keep waiting for the
+managed supervisor; never force-kill a busy tunnel, start a competing tunnel
+process, replay work, or resume a paused/revoked device to clear pending status.
+
+Cloud readiness requires local readiness AND a successful poll from the current
+tunnel process, within `max(90 seconds, 2 * poll deadline)`, with no newer failure.
+Detailed health must match the current process generation. A successful `/readyz`,
+an existing process or `doctor` exit code alone does not establish cloud readiness.
+In `doctor --online`, `official_tunnel_doctor=configuration_validated` means only
+configuration was validated; `tunnel_cloud_connection` separately reads the
+running supervisor's evidence. Missing or stale evidence stays unconfirmed.
+The source must still check its current devices response and nonce; historical
+`devices_seen` does not prove a new call succeeded. Keep the local service, cloud
+poll and source invocation outcomes separate. No alpha.4 release, native-platform
+or real-cloud acceptance should be claimed without matching current evidence.
 
 The device starts paused. Only the local user may enable it in the wizard.
 Repair, restart and upgrade preserve the existing pause/revoke state. On Mac,
@@ -140,7 +171,7 @@ Report official turn completion, independently checked output, MCP image return
 and source display separately. Do not claim model text is verified experiment output.
 The current candidate accepts Windows terminal delegation only after local opt-in;
 native desktop and remote review remain gated. Configuring a profile cannot
-enable an unaccepted platform. The alpha.3 installer includes this configuration UI; local opt-in remains required.
+enable an unaccepted platform. The alpha.4 installer retains this configuration UI; local opt-in remains required.
 
 After checking the source tool catalog, read `devices.capabilities` before choosing
 an execution mode. Basic Cua desktop control, Codex connection,
@@ -163,6 +194,9 @@ terminal task to bypass a history refusal. Group changes do not grant access.
 
 Use the wizard's redacted diagnostic export. Distinguish missing key, paused,
 locked, unavailable activity, driver error, DNS, TLS and tunnel client exit.
+Also distinguish proxy limitations/authentication, stale cloud evidence and a safe
+reconnect still pending. The network settings remain local-only; MCP still has
+14 tools and does not expose a remote network configuration action.
 No secret values, typed content or full desktop content belong in diagnostics.
 Report verified stages, exact remaining blocker, and required local interaction.
 Do not call an incomplete setup “ready”.
