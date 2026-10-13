@@ -1,13 +1,21 @@
 'use strict';
 // Selections stay local. Titles are rendered as text, never HTML.
 let historyPolicy=null,historyPreview=null,historyCursor='',historyChosen=new Set(),historyRows=new Map(),historyCapability=null,historyStatusSerial=0,historyPollPending=null;
+let historyEditSerial=0,historyResetAt=null,historyChecks=new Map();
 const hapi=data=>api('history',data),hmsg=text=>el('history-message').textContent=text;
 function historyCount(){el('history-selection-count').textContent='已选 '+historyChosen.size+' 个'}
 async function historyStatus(resetSelection=false){
+ if(resetSelection)historyResetAt=historyEditSerial;
  const request=++historyStatusSerial,first=!historyPolicy,v=await hapi({operation:'status'});
  if(request!==historyStatusSerial)return v;
  historyPolicy=v.policy;historyCapability=v.capability;historyRenderStatus();
- if(first||resetSelection)historyChosen=new Set(v.policy?.allowed_thread_ids||[]);
+ // Polls may supersede an apply's read. Carry its reset until the latest read,
+ // unless the user has already started a new candidate edit after applying.
+ if(first||historyResetAt===historyEditSerial){
+  historyChosen=new Set(v.policy?.allowed_thread_ids||[]);
+  for(const [id,check] of historyChecks)check.checked=historyChosen.has(id);
+ }
+ historyResetAt=null;
  el('history-enable').textContent=v.capability?.available?'重新检查历史读取':'启用并检查历史读取';
  el('history-enable').className=v.capability?.available?'secondary':'';
  historyCount();return v;
@@ -23,11 +31,12 @@ function historyRefreshStatus(){
  return historyPollPending;
 }
 function historyRender(){
- const box=el('history-threads');box.replaceChildren();
+ const box=el('history-threads');box.replaceChildren();historyChecks.clear();
  for(const [id,t] of historyRows){
   const label=document.createElement('label'),check=document.createElement('input'),text=document.createElement('span'),title=document.createElement('span'),meta=document.createElement('span');
   label.className='thread-row';text.className='thread-info';title.className='thread-title';meta.className='thread-meta';
-  check.type='checkbox';check.checked=historyChosen.has(id);check.onchange=()=>{check.checked?historyChosen.add(id):historyChosen.delete(id);historyCount()};
+  check.type='checkbox';check.checked=historyChosen.has(id);check.onchange=()=>{historyEditSerial++;check.checked?historyChosen.add(id):historyChosen.delete(id);historyCount()};
+  historyChecks.set(id,check);
   title.textContent=t.title||'未命名会话';meta.textContent=(t.cwd||'无工作目录')+' · '+id;text.append(title,meta);label.append(check,text);box.append(label);
  }
  if(!historyRows.size){const empty=document.createElement('p');empty.className='empty-state';empty.textContent='当前筛选没有会话，已有共享清单保持不变。';box.append(empty)}
@@ -47,7 +56,7 @@ function historyButton(id,fn){el(id).onclick=async()=>{el(id).disabled=true;try{
 historyButton('history-enable',async()=>{await hapi({operation:'enable'});await historyStatus();hmsg('已启用历史读取。首次默认全部共享；已有清单保持不变。设备暂停时仍拒绝读取。请刷新源端官方插件工具。')});
 historyButton('history-disable',async()=>{await hapi({operation:'disable'});await historyStatus();hmsg('已停止历史读取，终端委派配置不变。')});
 historyButton('history-load',()=>historyLoad(false));historyButton('history-more',()=>historyLoad(true));
-historyButton('history-clear-selection',async()=>{if(!historyPolicy)await historyStatus();historyChosen.clear();historyRender();hmsg('候选清单已清空；点击预览并确认后才会禁止全部读取。')});
+historyButton('history-clear-selection',async()=>{if(!historyPolicy)await historyStatus();historyEditSerial++;historyChosen.clear();historyRender();hmsg('候选清单已清空；点击预览并确认后才会禁止全部读取。')});
 historyButton('history-preview-selection',async()=>{if(!historyPolicy?.revision)await historyStatus();historyShowPreview(await hapi({operation:'preview',revision:historyPolicy.revision,mode:'allowlist',thread_ids:[...historyChosen]}))});
 historyButton('history-all',async()=>{await historyStatus();historyShowPreview(await hapi({operation:'preview',revision:historyPolicy.revision,mode:'all'}))});
 historyButton('history-apply',async()=>{if(!historyPreview)return;await hapi({operation:'apply',preview_id:historyPreview.preview_id,revision:historyPreview.revision});historyPreview=null;el('history-preview').hidden=true;await historyStatus(true);historyRender();hmsg('共享范围已保存并立即生效。旧分页凭据已失效；分组变化不会自动改变权限。')});

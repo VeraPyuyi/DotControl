@@ -14,7 +14,8 @@ function showView(name,remember=true){
  }
 }
 for(const link of document.querySelectorAll('[data-view]'))link.addEventListener('click',e=>{e.preventDefault();showView(link.dataset.view)});
-addEventListener('hashchange',()=>showView(location.hash.slice(1),false));
+addEventListener('hashchange',()=>{const name=location.hash.slice(1);if(Object.hasOwn(viewNames,name))showView(name,false)});
+el('skip-content').addEventListener('click',e=>{e.preventDefault();el('content').focus()});
 function statusCard(id,text,kind){el(id).textContent=text;el(id).dataset.tone=kind}
 function renderConsole(s){
  if(typeof historyRenderStatus==='function')historyRenderStatus(s);

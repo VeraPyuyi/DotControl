@@ -24,5 +24,17 @@ vm.createContext(ctx);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),ct
  requests[0]({policy:{revision:3,mode:'all'},capability:{available:true}});await older;
  assert.equal(vm.runInContext('historyPolicy.revision',ctx),4,'late status response cannot roll back current policy');
  assert.equal(vm.runInContext("historyChosen.has('latest')",ctx),true);
+ vm.runInContext("historyRows.set('latest',{title:'Before'});historyRows.set('applied',{title:'Applied'});historyRender()",ctx);
+ const oldCheckbox=vm.runInContext("historyChecks.get('latest')",ctx);
+ const reset=vm.runInContext('historyStatus(true)',ctx),poll=vm.runInContext('historyRefreshStatus()',ctx);
+ const applied={policy:{revision:5,mode:'allowlist',allowed_thread_ids:['applied']},capability:{available:true}};
+ requests[2](applied);await reset;requests[3](applied);await poll;
+ assert.equal(vm.runInContext("historyChosen.has('applied')",ctx),true,'poll must retain an explicit post-apply selection reset');
+ assert.equal(vm.runInContext("historyChecks.get('latest')",ctx),oldCheckbox,'refresh retains actual checkbox nodes and focus');
+ assert.equal(oldCheckbox.checked,false);assert.equal(vm.runInContext("historyChecks.get('applied').checked",ctx),true);
+ const resetting=vm.runInContext('historyStatus(true)',ctx);
+ vm.runInContext("historyEditSerial++;historyChosen.add('new-edit')",ctx);
+ requests[4](applied);await resetting;
+ assert.equal(vm.runInContext("historyChosen.has('new-edit')",ctx),true,'late reset must not replace newer user edits');
  console.log('History status preserves pending candidates');
 })().catch(e=>{console.error(e);process.exitCode=1});
