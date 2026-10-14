@@ -9,6 +9,17 @@ import (
 	"testing"
 )
 
+func TestStartupRefusalExplainsLocalBlockWithoutHidingRollback(t *testing.T) {
+	got := installationMessage("DotControl: autostart_unavailable\ntask_scheduler_access_denied")
+	if !strings.Contains(got, "不会申请管理员权限") || !strings.Contains(got, "task_scheduler_access_denied") {
+		t.Fatal(got)
+	}
+	got = installationMessage("DotControl: autostart_unavailable\ntask_scheduler_access_denied\nrollback_executable_changed")
+	if !strings.Contains(got, "rollback_executable_changed") {
+		t.Fatal("rollback failure hidden", got)
+	}
+}
+
 func TestLegacyUpgradeExplainsNormalExitAndRetry(t *testing.T) {
 	message := installationMessage("DotControl: legacy_agent_stop_required\n")
 	// Activation and recovery can both encounter the same still-running agent.

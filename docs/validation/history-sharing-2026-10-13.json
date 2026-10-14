@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-13",
+  "candidate": "0.2.0-alpha.3-dev",
+  "feature": "read_only_local_codex_history_with_confirmed_sharing_scope",
+  "automated": {
+    "windows_go_test_all": "passed",
+    "go_vet_all": "passed",
+    "history_policy_reader_ui_service_mcp_and_command_race_tests": "passed",
+    "javascript_syntax": "passed",
+    "macos_arm64_build": "passed_compile_only",
+    "macos_intel_build": "passed_compile_only",
+    "independent_spec_and_quality_reviews": "addressed_concrete_findings",
+    "coverage": [
+      "first_enable_all_and_upgrade_opt_in",
+      "allowlist_empty_missing_corrupt_and_restart",
+      "cross_process_revision_compare_and_swap",
+      "temporary_foreign_conflicting_and_same_named_sidebar_identities",
+      "partial_sidebar_coverage_does_not_remove_permissions",
+      "preview_does_not_apply_and_expired_or_stale_apply_is_rejected",
+      "excluded_metadata_direct_id_and_project_membership",
+      "encrypted_cursor_integrity_filter_binding_policy_and_restart_invalidation",
+      "inflight_policy_change_pause_and_disable",
+      "bounded_reader_processes_and_late_enable_suppression",
+      "reasoning_tool_logs_and_attachment_bodies_omitted",
+      "mcp_http_and_stdio_rpc_history_dispatch",
+      "no_remote_policy_mutation_route"
+    ]
+  },
+  "official_windows_local_interface": {
+    "version": "0.162.0-alpha.17.2",
+    "status": "passed",
+    "source": "installed_official_app_server_stdio",
+    "existing_non_dotcontrol_created_conversation": true,
+    "recent_and_older_turns": "passed",
+    "allowlist_permitted_read_and_excluded_direct_id": "passed",
+    "filtered_list_old_cursor_and_empty_projects": "passed",
+    "test_policy_location": "temporary_private_directory",
+    "original_conversations_resumed_or_modified": false,
+    "raw_titles_or_bodies_in_this_record": false
+  },
+  "running_windows_candidate": {
+    "updated": true,
+    "old_agent_stopped_normally_after_owned_job_completed": true,
+    "existing_config_identity_pause_and_terminal_setup_preserved": true,
+    "tunnel_after_update": "ready",
+    "runtime_stdio_catalog_count": 14,
+    "rpc_read_before_enable": "history_disabled",
+    "history_opt_in": "confirmed_by_local_user",
+    "history_after_opt_in": {"available": true, "state": "ready", "mode": "all", "revision": 1},
+    "live_hosted_plugin_projects_search_and_read": "passed",
+    "initial_hosted_search_transport_closed": "observed_later_exact_search_and_read_succeeded"
+  },
+  "official_plugin": {
+    "existing_identity_preserved": true,
+    "official_refresh_used": true,
+    "actual_detail_catalog": {"write": 6, "read": 8, "total": 14},
+    "history_tools": ["codex_projects", "codex_threads", "codex_read_thread"]
+  },
+  "mac_source_dot": {
+    "official_attached_still_mac": "confirmed_before_and_after_by_source_dot",
+    "windows_attached": false,
+    "previous_source_session_catalog_count": 11,
+    "new_history_tools_discovered": true,
+    "observed_history_tools": ["codex_projects", "codex_threads", "codex_read_thread"],
+    "devices_history_state": "ready_all_revision_1",
+    "conversation_bodies_read": true,
+    "existing_non_dotcontrol_conversation_recent_turn_count": 1,
+    "title_search": "initial_mcp_timeout_minus_32603_then_one_retry_succeeded",
+    "read_result": "title_and_one_turn_returned_with_next_cursor",
+    "omitted_non_text": true,
+    "body_truncation_marker": "not_returned",
+    "source_displayed": "title_turn_count_omission_notice_and_short_topic_summary",
+    "mac_initial_connection": "offline_with_attached_true",
+    "mac_final_connection": "connected_with_attached_true",
+    "local_mac_task_created": false,
+    "mac_process_execution_proven": false,
+    "all_mode_dot_to_windows_read": "passed_at_dot_plugin_boundary_with_mac_attachment_preserved",
+    "cross_computer_allowlist_acceptance": "not_passed_pending_local_scope_confirmation"
+  },
+  "mac_target_execution": "not_tested",
+  "published_installers_updated": false,
+  "known_limits": [
+    "Read API and terminal execution permissions are independent; the history allowlist is not a filesystem sandbox for separately enabled terminal execution.",
+    "Nonempty allowlist listings use bounded filtered upstream pagination; empty pages with cursors may reveal coarse index coverage, never excluded titles, summaries, bodies or project metadata.",
+    "Recent sidebar snapshots are incomplete and permission changes require explicit local confirmation.",
+    "Official project membership can be absent; no name or path inference fills it."
+  ]
+}

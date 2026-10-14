@@ -78,7 +78,7 @@ func TestSDKToolCatalogAndExecuteObjectRoundTrip(t *testing.T) {
 				if a == nil {
 					t.Fatalf("%s missing annotations", tool.Name)
 				}
-				wantRead := tool.Name != "execute" && tool.Name != "cancel" && tool.Name != "codex_submit" && tool.Name != "codex_cancel"
+				wantRead := tool.Name != "execute" && tool.Name != "cancel" && tool.Name != "codex_submit" && tool.Name != "codex_cancel" && tool.Name != "codex_continue"
 				if a.ReadOnlyHint != wantRead {
 					t.Errorf("%s readonly=%v want=%v", tool.Name, a.ReadOnlyHint, wantRead)
 				}
@@ -105,7 +105,7 @@ func TestSDKToolCatalogAndExecuteObjectRoundTrip(t *testing.T) {
 				}
 			}
 			sort.Strings(names)
-			if strings.Join(names, ",") != "apps,cancel,codex_cancel,codex_job,codex_submit,devices,execute,observe,task" {
+			if strings.Join(names, ",") != "apps,cancel,codex_cancel,codex_continue,codex_job,codex_projects,codex_read_thread,codex_submit,codex_threads,devices,execute,observe,task" {
 				t.Fatalf("tool catalog=%v", names)
 			}
 			args := map[string]any{"device_id": "device-a", "task_id": "task-a", "action_id": "action-a", "observation_id": "obs-a", "target": map[string]any{"pid": 42, "window_id": "window-a"}, "kind": "type_text", "args": map[string]any{"text": "你好，DotControl。🚀", "element_token": "field-1"}, "mode": "background", "expect": "\u200e56"}
@@ -134,6 +134,39 @@ func TestSDKToolCatalogAndExecuteObjectRoundTrip(t *testing.T) {
 				}
 			case <-ctx.Done():
 				t.Fatal("tool never reached backend")
+			}
+		})
+	}
+}
+
+func TestConnectionDiscoveryDoesNotDispatchTasks(t *testing.T) {
+	for _, transport := range []string{"memory", "http"} {
+		t.Run(transport, func(t *testing.T) {
+			var reads atomic.Int32
+			ctx, cs := connect(t, backendFunc(func(_ context.Context, method string, _ service.Request) (any, error) {
+				if method != "devices" {
+					t.Errorf("connection check dispatched %s", method)
+					return nil, errors.New("unexpected_call")
+				}
+				return map[string]any{"nonce": reads.Add(1), "paused": true}, nil
+			}), transport)
+			if cs.InitializeResult().Instructions == "" {
+				t.Fatal("host received no connection guidance")
+			}
+			if _, err := cs.ListTools(ctx, nil); err != nil {
+				t.Fatal(err)
+			}
+			if reads.Load() != 0 {
+				t.Fatal("discovery unexpectedly called backend")
+			}
+			for i := 0; i < 2; i++ {
+				res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "devices", Arguments: map[string]any{}})
+				if err != nil || res.IsError {
+					t.Fatalf("devices: %v %+v", err, res)
+				}
+			}
+			if reads.Load() != 2 {
+				t.Fatal("connection reads were cached or duplicated")
 			}
 		})
 	}
@@ -289,7 +322,7 @@ func TestHTTPLegacyInitializationAndToolCalls(t *testing.T) {
 	if err := json.Unmarshal(list["result"], &tools); err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 9 {
+	if len(tools.Tools) != 13 {
 		t.Fatalf("legacy tools=%d", len(tools.Tools))
 	}
 	call := post(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"devices","arguments":{}}}`)

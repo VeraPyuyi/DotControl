@@ -6,10 +6,28 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 )
+
+func TestLocalClientNeverUsesProxyTransport(t *testing.T) {
+	var intercepted atomic.Int32
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { intercepted.Add(1); http.Error(w, "proxy", 502) }))
+	defer proxy.Close()
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, `{"ok":true}`) }))
+	defer target.Close()
+	u, _ := url.Parse(proxy.URL)
+	old := http.DefaultTransport
+	transport := &http.Transport{Proxy: http.ProxyURL(u)}
+	http.DefaultTransport = transport
+	defer func() { http.DefaultTransport = old; transport.CloseIdleConnections() }()
+	data, err := (Client{Address: strings.TrimPrefix(target.URL, "http://"), Token: "test-only"}).Post(context.Background(), "/admin/status", nil)
+	if err != nil || string(data) != `{"ok":true}` || intercepted.Load() != 0 {
+		t.Fatalf("loopback passed to proxy: calls=%d err=%v", intercepted.Load(), err)
+	}
+}
 
 func TestClientErrorKeepsStatusWithoutResponseContent(t *testing.T) {
 	for _, status := range []int{401, 404, 500} {

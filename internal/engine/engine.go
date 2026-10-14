@@ -60,6 +60,7 @@ type Engine struct {
 	activeTask             string
 	activeCancel           context.CancelFunc
 	activeDone             chan struct{}
+	externalPending        string
 	syncFile               func(*os.File) error
 }
 
@@ -124,6 +125,12 @@ func (e *Engine) healthyLocked() error {
 	return nil
 }
 func (e *Engine) acquire(ctx context.Context) error {
+	e.mu.Lock()
+	blocked := e.externalPending != ""
+	e.mu.Unlock()
+	if blocked {
+		return fail("external_execution_unresolved")
+	}
 	select {
 	case <-e.stop:
 		return fail("closed")
@@ -135,6 +142,13 @@ func (e *Engine) acquire(ctx context.Context) error {
 	case <-ctx.Done():
 		return fail("cancelled")
 	case <-e.gate:
+		e.mu.Lock()
+		blocked = e.externalPending != ""
+		e.mu.Unlock()
+		if blocked {
+			e.unlock()
+			return fail("external_execution_unresolved")
+		}
 		return nil
 	}
 }

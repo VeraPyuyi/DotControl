@@ -17,9 +17,14 @@ type Managed struct {
 }
 
 func NewManaged(ctx context.Context, helper string) *Managed {
-	m := &Managed{ctx: ctx, helper: helper}
+	m := NewInactive(ctx, helper)
 	m.Restart()
 	return m
+}
+
+// NewInactive allocates state without starting an OS monitor or requesting permissions.
+func NewInactive(ctx context.Context, helper string) *Managed {
+	return &Managed{ctx: ctx, helper: helper}
 }
 func (m *Managed) Restart() {
 	m.mu.Lock()

@@ -142,7 +142,7 @@ func TestGatewayRoutesExactPairedDeviceAndReportsOffline(t *testing.T) {
 			if mismatched.Load() {
 				id = "impostor"
 			}
-			return []model.Device{{ID: id, Name: "Device A", Nonce: "fresh-device-nonce", Activity: model.Activity{Available: true}}}, nil
+			return []model.Device{{ID: id, Name: "Device A", Nonce: "fresh-device-nonce", Activity: model.Activity{Available: true}, CodexProfiles: &model.CodexProfileCatalog{Servers: []model.CodexProfileSummary{{ID: "retired-server", Name: "retired"}}}}}, nil
 		}
 		if req.DeviceID != "device-a" {
 			return nil, errors.New("wrong route")
@@ -160,6 +160,9 @@ func TestGatewayRoutesExactPairedDeviceAndReportsOffline(t *testing.T) {
 	ds := v.([]model.Device)
 	if len(ds) != 1 || ds[0].ID != "device-a" || !ds[0].Activity.Available || ds[0].Nonce != "fresh-device-nonce" {
 		t.Fatalf("unexpected live device: %#v", ds)
+	}
+	if ds[0].CodexProfiles != nil && len(ds[0].CodexProfiles.Servers) > 0 {
+		t.Fatal("gateway exposed legacy server catalog")
 	}
 	v, err = g.Call(ctx, "task", service.Request{DeviceID: "device-a", TaskID: "task-1"})
 	if err != nil {
@@ -257,5 +260,27 @@ func TestGatewayHandlerRejectsUnrecognizedRequests(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest("GET", "https://127.0.0.1/rpc", nil))
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("GET status=%d", w.Code)
+	}
+}
+
+func TestHistoryMethodsReachBackendButPolicyMutationsDoNot(t *testing.T) {
+	for _, method := range []string{"codex_projects", "codex_threads", "codex_read_thread", "codex_continue", "codex_review", "history_apply", "history_enable"} {
+		called := false
+		h := Handler(backendFunc(func(_ context.Context, m string, _ service.Request) (any, error) {
+			called = true
+			if m != method {
+				t.Fatal(m)
+			}
+			return map[string]bool{"reached": true}, nil
+		}))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "https://127.0.0.1/rpc", strings.NewReader(`{"method":"`+method+`","request":{"device_id":"device-a"}}`)))
+		if strings.HasPrefix(method, "history_") || method == "codex_review" {
+			if called || w.Code != 400 {
+				t.Fatal("remote policy mutation", method)
+			}
+		} else if !called || w.Code != 200 {
+			t.Fatal("missing dispatch", method, w.Code)
+		}
 	}
 }

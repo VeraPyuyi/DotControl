@@ -11,6 +11,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -22,6 +25,10 @@ jobs:
       - run: go test -timeout 3m -count=1 ./...
       - run: go test -race -timeout 3m -count=1 ./...
       - run: go vet ./...
+      - name: Isolated native background lifecycle
+        env:
+          DOTCONTROL_STARTUP_NATIVE_SMOKE: '1'
+        run: go test ./internal/desktop -run '^TestNative(Windows|Darwin)StartupLifecycle$' -count=1 -v -timeout 5m
       - run: go build -trimpath ./cmd/dotcontrol
       - if: runner.os == 'macOS'
         run: xcrun swiftc -O -framework AppKit -framework CoreGraphics native/macos/Activity.swift -o /tmp/DotControlActivity

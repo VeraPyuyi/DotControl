@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.4",
+  "recorded_at": "2026-10-13T07:53:00Z",
+  "candidate_final_commit": "ce4bc6347ffc0a6aae38f90b9dec9b83ac598b0f",
+  "windows_cloud": {
+    "system_proxy_detected": true,
+    "local_ready": true,
+    "cloud_state": "online",
+    "last_successful_poll_at": "2026-10-13T07:52:17.6752015Z",
+    "hosted_devices_after_normal_restart": true,
+    "device_identity_preserved": true,
+    "fresh_nonce_returned": true,
+    "mcp_tool_count": 14
+  },
+  "retained": {
+    "history_mode": "allowlist",
+    "revision": 2,
+    "allowed_count": 1,
+    "candidate_restart_config_and_journal_hashes_unchanged": true,
+    "paused": false,
+    "revoked": false
+  },
+  "official_dot_read_only_task": {
+    "source": "official Dot conversation with Mac attached, sent via existing browser",
+    "physical_sender_device_not_claimed": "Mac",
+    "computer_status_before_and_after": "Mac connected/attached; Windows not attached, reported by official Dot",
+    "request_id": "alpha4-mac-dot-systeminfo-20261013-01",
+    "job_id_sha256": "deee431966ce7fb1d43d548512b3725365c069277e9a90f24c7b1376ae892384",
+    "official_thread_id_returned": true,
+    "state": "completed",
+    "code": "model_turn_completed",
+    "verification": "unverified",
+    "command_evidence": {
+      "kind": "commandExecution",
+      "source": "unifiedExecStartup",
+      "status": "completed",
+      "exit_code": 0,
+      "output": "Microsoft Windows 10.0.26200\r\nX64\r\n",
+      "command_text_present": false
+    },
+    "queried_again_through_hosted_plugin": true,
+    "ssh_desktop_images_or_approvals_used": false,
+    "scope": "read-only task executed before conservative reconnect correction; final candidate restart and hosted devices separately verified"
+  },
+  "limits": [
+    "Current official tunnel-client has no lossless drain: proxy changes apply next start; no live child termination for route changes.",
+    "Mac packages and Mac as execution target not validated by this Windows runtime check.",
+    "A completed Codex turn is not blanket task verification.",
+    "Release and installed public bytes are separate subsequent gates."
+  ]
+}

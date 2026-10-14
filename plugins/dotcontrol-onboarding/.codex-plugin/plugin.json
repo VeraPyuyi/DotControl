@@ -1,7 +1,7 @@
 {
   "name": "dotcontrol-onboarding",
-  "version": "0.2.0-alpha.2",
-  "description": "Install and connect DotControl on Windows and macOS using the shared local installer.",
+  "version": "0.2.0-alpha.3",
+  "description": "Install and connect DotControl, and locally review which Codex conversations may be shared read-only.",
   "author": {"name": "VeraPyuyi"},
   "license": "MIT",
   "skills": "./skills/",

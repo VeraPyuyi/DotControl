@@ -1,0 +1,90 @@
+{
+  "version": "0.2.0-alpha.7",
+  "source_commit": "3424e41a05b1858e12dc2137b3e0c3ceece078f0",
+  "date": "2026-10-14",
+  "installer_source": "fresh_unauthenticated_public_release_download",
+  "installer_sha256": "3b6a3d330a5d355261e866de075e5c9ea2d1cafdbc3f71a3fccf96bdbe145cf0",
+  "installed": true,
+  "runtime_health_verified_before_cleanup": true,
+  "old_agent_and_tunnel_already_stopped_before_upgrade": true,
+  "old_agent_and_tunnel_exit_rechecked_by_installer": true,
+  "force_termination": false,
+  "locks_deleted": false,
+  "preservation_checks": {
+    "file_hashes_preserved_before_new_acceptance": {
+      "history_access.json": true,
+      "history_access.initialized": true,
+      "ledger.jsonl": true,
+      "config.json": false,
+      "codex-jobs.jsonl": true,
+      "connections/connections.json": true,
+      "codex-jobs.key": true,
+      "codex-runtime-v1.jsonl": true,
+      "ledger.key": true,
+      "revoked": true,
+      "paused": true
+    },
+    "changed_config_fields": [
+      "tunnel_path",
+      "driver_path"
+    ],
+    "device_preserved": true,
+    "state_path_and_port_preserved": true,
+    "tunnel_preserved": true,
+    "terminal_permission_binding_preserved": true,
+    "history": {
+      "mode": "allowlist",
+      "revision": 3,
+      "count": 2
+    },
+    "history_bytes_still_unchanged_after_acceptance": true,
+    "new_acceptance_job_appended_normally": true,
+    "paused": false,
+    "revoked": false
+  },
+  "background": {
+    "configured": true,
+    "mechanism": "task-scheduler",
+    "managed": true,
+    "agent_count": 1,
+    "supervisor_count": 1,
+    "tunnel_count": 1,
+    "task_running": true,
+    "points_to_current": true,
+    "logon_type": "InteractiveToken",
+    "run_level_com_value": 0,
+    "run_level": "least_privilege",
+    "legacy_run_removed": true
+  },
+  "credential_store": "original_namespace_retained_no_secret_export",
+  "cleanup": {
+    "managed_alpha6_directory_removed": true,
+    "pending": false
+  },
+  "current_process_cloud": {
+    "configured": true,
+    "running": true,
+    "ready": true,
+    "local_ready": true,
+    "cloud_state": "online",
+    "last_successful_poll_at": "2026-10-14T04:20:49.1962197Z",
+    "proxy_source": "environment",
+    "network_change_pending": false
+  },
+  "wizard_browser": {
+    "first_load": true,
+    "reload": true,
+    "second_tab": true,
+    "sharing_unmodified": true
+  },
+  "hosted_devices": {
+    "succeeded": true,
+    "device_matches_existing": true,
+    "fresh_nonce": true,
+    "terminal_available": true,
+    "history_mode": "allowlist",
+    "history_revision": 3
+  },
+  "user_mac_modified": false,
+  "historical_jobs_replayed": false
+}
