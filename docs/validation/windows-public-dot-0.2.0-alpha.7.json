@@ -1,0 +1,62 @@
+{
+  "version": "0.2.0-alpha.7",
+  "source_commit": "3424e41a05b1858e12dc2137b3e0c3ceece078f0",
+  "date": "2026-10-14",
+  "source": "Official Dot conversation with Mac attached; sent via existing browser",
+  "physical_sender_mac_not_claimed": true,
+  "official_plugin_refresh": {
+    "completed": true,
+    "tool_count": 13,
+    "write_count": 5,
+    "read_count": 8,
+    "devices_connection_first_metadata_verified": true,
+    "codex_review_present": false
+  },
+  "connection_only": {
+    "devices_succeeded": true,
+    "original_device": true,
+    "fresh_nonce": true,
+    "version": "0.2.0-alpha.7",
+    "terminal_ready": true,
+    "task_created": false
+  },
+  "official_computer_status_before_and_after": {
+    "source": "official source Dot report",
+    "mac_connected": true,
+    "mac_attached": true,
+    "windows_attached": false,
+    "computer_connection_switched": false
+  },
+  "cross_computer_task_acceptance": "passed_scoped_read_only_terminal_task",
+  "task_dispatched": true,
+  "submitted_once": true,
+  "continued_or_recreated": false,
+  "request_id_sha256": "9a69e41a43f0627f2d983a7f1e9c0f00959a6d500d54621b389a9f7afb7faeb3",
+  "job_id_sha256": "3a9a54f3a37429f326986b097e05ea0287cc83ba1b1200de00b2ce6df3f3017a",
+  "actual_job_and_official_thread_ids_returned": true,
+  "existing_selected_profile_used": true,
+  "permission_changes": false,
+  "created_at": "2026-10-14T04:10:47.192728Z",
+  "updated_at": "2026-10-14T04:11:13.9136282Z",
+  "state": "completed",
+  "code": "model_turn_completed",
+  "execution": "terminal",
+  "presentation": "background",
+  "verification": "unverified",
+  "result_status": "available",
+  "image_delivery_status": "not_required",
+  "command_evidence": {
+    "kind": "commandExecution",
+    "status": "completed",
+    "exit_code": 0,
+    "source": "unifiedExecStartup",
+    "output": "Microsoft Windows 10.0.26200 \r\nX64\r\n"
+  },
+  "command_text_present_in_execution_event": false,
+  "independently_queried_same_job_through_hosted_plugin": true,
+  "same_output_and_exit_code_received_by_source_dot": true,
+  "ssh_desktop_history_images_or_approvals_used": false,
+  "historical_jobs_replayed": false,
+  "user_mac_modified": false,
+  "scope": "One requested Windows OS/architecture command with actual command receipt. No Computer Use, SSH, image or user Mac execution acceptance. Runtime verification remains unverified; no receipt was rewritten."
+}

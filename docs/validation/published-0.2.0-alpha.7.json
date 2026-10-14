@@ -1,0 +1,180 @@
+{
+  "version": "0.2.0-alpha.7",
+  "date": "2026-10-14",
+  "source_commit": "3424e41a05b1858e12dc2137b3e0c3ceece078f0",
+  "release": "https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.7",
+  "source_ci": [
+    "https://github.com/VeraPyuyi/DotControl/actions/runs/38507418962",
+    "https://github.com/VeraPyuyi/DotControl/actions/runs/38507422366"
+  ],
+  "candidate_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38507429655",
+  "public_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38509150092",
+  "download": "fresh_unauthenticated_public_release_download",
+  "assets": [
+    {
+      "name": "DotControl-0.2.0-alpha.7-macos-amd64.dmg",
+      "sha256": "c5e9bc8def0d84bd741585e4398b0820d52c4f986225a572213831a487e88e45",
+      "bytes": 94161628,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.7-macos-amd64.dmg.sha256",
+      "sha256": "87150cb6dcb9981bae1e0ef97dfe2d2a45de43d9d88ee24b0535e2b7bd8eafc4",
+      "bytes": 107,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.7-macos-arm64.dmg",
+      "sha256": "48e18f48a58d22fd48a7ebfde7340fc01818d510e704d9a34ebc1609f75a8b43",
+      "bytes": 93448183,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.7-macos-arm64.dmg.sha256",
+      "sha256": "a43761cb92e77c7ad5223e2efca8b1d6e70734d30cded3b5920117210473b252",
+      "bytes": 107,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.7-windows-amd64-setup.exe",
+      "sha256": "3b6a3d330a5d355261e866de075e5c9ea2d1cafdbc3f71a3fccf96bdbe145cf0",
+      "bytes": 51200000,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.7-windows-amd64-setup.exe.sha256",
+      "sha256": "e18c11e351b80e86447469011459b52d126929e2e3e34e323d0132fa1f82d2c6",
+      "bytes": 116,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.7.zip",
+      "sha256": "4d4072475c2d2beece9720b4b6d40918f7b165b4c65d29ee377dd63d98f6aa59",
+      "bytes": 52432,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.7.zip.sha256",
+      "sha256": "7cb83ddee16ceed692e60183995965e104f271a6656e11316df3b4a470ffa169",
+      "bytes": 107,
+      "matches_candidate": true
+    },
+    {
+      "name": "LICENSE.txt",
+      "sha256": "2091f2991c6b41bad7c26d434ec331816b9aba8ac7d53b5a8b84d7aed69006db",
+      "bytes": 1080,
+      "matches_candidate": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "sha256": "b86088cc89b626789df36367e1658b55f55403a33ad2c1dbfc4d85bd28fc3776",
+      "bytes": 1075,
+      "matches_candidate": true
+    },
+    {
+      "name": "THIRD_PARTY_NOTICES.md",
+      "sha256": "c025a0374c0102d92fb71a9e22f6d3105d7e64fd6b5c06444a7c288ec6a901cd",
+      "bytes": 1839,
+      "matches_candidate": true
+    }
+  ],
+  "platforms": [
+    {
+      "sha256": "c5e9bc8def0d84bd741585e4398b0820d52c4f986225a572213831a487e88e45",
+      "bytes": 94161628,
+      "payload": {
+        "arch": "amd64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.7",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved",
+            "retained_state_uninstall_and_reinstall_without_legacy_binary",
+            "managed_missing_old_executable_repaired"
+          ],
+          "passed": 8,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "sha256": "48e18f48a58d22fd48a7ebfde7340fc01818d510e704d9a34ebc1609f75a8b43",
+      "bytes": 93448183,
+      "payload": {
+        "arch": "arm64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.7",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved",
+            "retained_state_uninstall_and_reinstall_without_legacy_binary",
+            "managed_missing_old_executable_repaired"
+          ],
+          "passed": 8,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    {
+      "sha256": "3b6a3d330a5d355261e866de075e5c9ea2d1cafdbc3f71a3fccf96bdbe145cf0",
+      "bytes": 51200000,
+      "payload": {
+        "arch": "amd64",
+        "files": 44,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.7",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved",
+            "retained_state_uninstall_and_reinstall_without_legacy_binary",
+            "managed_missing_old_executable_repaired"
+          ],
+          "passed": 8,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  ],
+  "public_intel_first_attempt": {
+    "result": "cleanup_pending",
+    "code": "startup_references_unavailable",
+    "old_manifest_retained": true,
+    "deletion_blocked_at_guard": true,
+    "earlier_verified_file_cleanup_may_have_completed": true,
+    "new_pointer_retained": true,
+    "single_failed_job_rerun": "passed_with_identical_published_bytes",
+    "root_cause": "not_determined",
+    "protective_guard_relaxed": false,
+    "log": "https://github.com/VeraPyuyi/DotControl/actions/runs/38509150092/job/115673413936"
+  },
+  "user_mac_modified": false,
+  "publisher_signing_notarization": false,
+  "historical_release_assets_overwritten": false,
+  "pr_merged": false
+}

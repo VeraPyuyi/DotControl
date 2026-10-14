@@ -7,8 +7,55 @@ alpha.6 之后的 [0.2 系列复盘与七项源码修复](REVIEW_0_2.md)单独�
 
 ## alpha.7 发布与验证
 
-当前处于候选开发与验证阶段，尚未公开发布或升级本机。完成后记录精确构建提交、三平台
-测试和下载校验、本机配置保留与后台管理、真实源端调用；不沿用旧版结果作为本版证据。
+`v0.2.0-alpha.7` 已从 `3424e41a05b1858e12dc2137b3e0c3ceece078f0` 构建并发布，
+Windows x64 EXE、Mac ARM／Intel DMG、安装助手、许可证及校验和共 11 个文件。全部
+公开文件已重新匿名下载，与候选字节一致。后续验收文档提交不改变 tag 或安装包。
+
+三平台完整 Go 测试、竞态检查、vet 和构建通过；原生后台生命周期均实际执行，验证异常
+退出恢复、正常退出保持停止及隔离启动项清理。Windows 本机还在嵌套子进程管理条件下重复
+通过隔离检查。每个平台的候选包和公开包均完成 8 项隔离安装／回滚／清理／保留配置检查，
+包括保留配置卸载后重装和缺失旧程序修复；固定依赖摘要与上游 Mac 应用签名检查通过。
+
+**Mac Intel 公开包首次清理检查曾阻塞**：返回 `startup_references_unavailable`，新版指针
+和旧 manifest 尚在，当次删除被保护检查阻止；此前清理阶段可能已删除部分已校验文件，
+不能声称旧文件全部保留。仅重试该失败 job 后，同一公开字节通过。首次失败的具体原因尚未确定，
+不能据此声称已修复；未放宽启动引用检查。系统服务枚举或读取无法完成时，清理仍可能保守
+地停在待完成状态。见[首次失败日志](https://github.com/VeraPyuyi/DotControl/actions/runs/38509150092/job/115673413936)。
+
+本机 Windows 已使用公开 EXE 升级至 alpha.7。升级前旧 alpha.6 代理和隧道已经不在运行，
+安装器再次确认退出后激活新版；健康检查成功后旧托管目录清理完成，无待清理项。当前代理、
+后台管理进程和隧道各一个。普通交互用户的登录计划任务指向新版，旧 Run 项移除。
+真实云端成功轮询和现有插件 devices 调用均通过；未以进程存在或启动项存在代替在线证据。
+
+设备、原隧道、凭据库命名空间、端口、终端权限绑定、暂停／撤销保持不变。白名单仍为
+allowlist、修订号 3、2 个会话。新验收任务提交前，共享、连接配置与历史记录原始字节一致，
+主配置只更新驱动和隧道程序路径；后续新作业正常追加记录。认证控制台刷新和新标签页正常，
+已保存的共享模式未被覆盖。没有重新启用或扩大权限。
+
+现有 Windows 插件通过官方“刷新工具”更新，目录为 13 项，devices 说明已包含先连接检查、
+连接请求不建任务和不支持离线唤醒的约束。源 Dot 首先完成仅连接请求，取得 alpha.7 和新
+nonce，未提交任务。随后按本次授权创建一个 Windows 官方 Codex 只读任务，收到真实线程
+编号和一条 commandExecution：退出码 0，原始输出为 `Microsoft Windows 10.0.26200`、
+`X64`。同一作业的独立托管插件查询一致，任务 completed、结果 available；verification
+原值仍为 unverified，命令文本没有单独出现在执行事件字段中。
+
+开始及结束均由源 Dot 确认 Mac connected／attached、Windows 未 attached，未切换电脑。
+本次通过限定的终端结果回传验收；不证明消息由 Mac 物理设备发送，不包含 SSH、桌面操作、
+图片或审批。后台呈现未主动打开任务窗口；没有续聊、重复提交或重放旧任务。
+
+用户 Mac 未修改；Mac 原生 runner 测试不等于用户 Mac 权限、执行端或云端验收。完全停止、
+休眠或离线的目标不能仅靠 @ 唤起。原生 Computer Use 仍关闭；发布者签名／公证尚未配置。
+未知任务恢复和真实 Windows 自卸载文件占用仍按既有保护处理，不通过扩大权限消除限制。
+PR #1 保持草稿未合并，历史发布资产与验收记录未覆盖。
+
+证据：[推送测试](https://github.com/VeraPyuyi/DotControl/actions/runs/38507418962)、
+[PR 测试](https://github.com/VeraPyuyi/DotControl/actions/runs/38507422366)、
+[原生候选包](https://github.com/VeraPyuyi/DotControl/actions/runs/38507429655)、
+[公开包复验](https://github.com/VeraPyuyi/DotControl/actions/runs/38509150092)、
+[发布摘要](validation/published-0.2.0-alpha.7.json)、
+[后台生命周期](validation/background-0.2.0-alpha.7.json)、
+[Windows 升级](validation/windows-upgrade-0.2.0-alpha.7.json)、
+[源 Dot 回传](validation/windows-public-dot-0.2.0-alpha.7.json)。
 
 ## alpha.6 历史发布验证
 
