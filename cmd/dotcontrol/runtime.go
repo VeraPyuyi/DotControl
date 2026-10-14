@@ -86,6 +86,13 @@ func (b observedBackend) Call(ctx context.Context, method string, r service.Requ
 	return v, err
 }
 func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
+	// Managed retries during an interrupted upgrade exit successfully before
+	// acquiring runtime/tunnel ownership. A manual diagnostic also respects it.
+	if suspended, e := desktop.RuntimeSuspended(dir); e != nil {
+		return e
+	} else if suspended {
+		return nil
+	}
 	if c.TerminalOnly {
 		if c.GatewayListen != "" {
 			return errors.New("terminal_gateway_unsupported")
@@ -109,14 +116,41 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	}
 	f := flags("serve")
 	noTunnel := f.Bool("no-tunnel", false, "Local diagnostics only")
+	managedStart := f.String("managed-start", "", "Internal OS lifecycle source")
 	if err := f.Parse(args); err != nil {
 		return err
 	}
+	if *managedStart != "" && *managedStart != "task-scheduler" && *managedStart != "launch-agent" {
+		return errors.New("managed_start_invalid")
+	}
+	executable, _ := os.Executable()
+	if len(args) == 0 {
+		if s, e := desktop.SnapshotStartup(); e == nil && s.Present() && s.BelongsToState(dir) && (s.TaskXML != "" || len(s.ManagedData) > 0) {
+			if e = desktop.StartManaged(executable, dir); e != nil {
+				return e
+			}
+			return waitLocal(ctx, dir, c, v)
+		}
+	}
 	listener, err := localapi.Listen(c.Listen)
 	if err != nil {
+		// A duplicate managed invocation is a successful no-op only after the
+		// authenticated existing runtime proves its exact identity.
+		if *managedStart != "" {
+			token, e := v.Get("admin-token")
+			if e == nil {
+				probe, cancel := context.WithTimeout(ctx, time.Second)
+				defer cancel()
+				b, e := (localapi.Client{Address: c.Listen, Token: token}).Post(probe, "/admin/status", map[string]any{})
+				if e == nil && installedStatusMatches(b, c.DeviceID, model.Version, executable) {
+					return nil
+				}
+			}
+		}
 		return errors.New("local_port_in_use")
 	}
 	defer listener.Close()
+	desktop.RefreshStartupStatus(executable, dir, *managedStart)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	monitor := newRuntimeMonitor(ctx, c)
@@ -443,7 +477,7 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	} else if err := o.eng.UpgradeReady(); err != nil {
 		upgradeReason = err.Error()
 	}
-	return map[string]any{"runtime": map[string]any{"pid": os.Getpid(), "executable": executable}, "upgrade": map[string]any{"ready": upgradeReason == "", "reason": upgradeReason}, "device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "network": o.cfg.Network, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
+	return map[string]any{"runtime": map[string]any{"pid": os.Getpid(), "executable": executable}, "background": desktop.CachedStartupStatus(), "upgrade": map[string]any{"ready": upgradeReason == "", "reason": upgradeReason}, "device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "network": o.cfg.Network, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	historyCap := model.HistoryCapability{State: "disabled", Code: "history_disabled"}
@@ -456,7 +490,7 @@ func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	d := o.eng.Device()
 	caps := o.bridge.Capabilities()
 	caps.CodexHistory = historyCap
-	return map[string]any{"schema": 1, "version": model.Version, "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "network_mode": o.cfg.Network.Mode, "plugin": o.proof, "codex_capabilities": caps}, nil
+	return map[string]any{"schema": 1, "version": model.Version, "background": desktop.CachedStartupStatus(), "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "network_mode": o.cfg.Network.Mode, "plugin": o.proof, "codex_capabilities": caps}, nil
 }
 func (o *runtimeOwner) maintain() {
 	ticker := time.NewTicker(10 * time.Second)

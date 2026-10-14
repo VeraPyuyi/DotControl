@@ -59,6 +59,9 @@ type installHooks struct {
 	autostart      func(string, string, bool) error
 	snapshot       func() (desktop.StartupSnapshot, error)
 	restore        func(desktop.StartupSnapshot) error
+	suspend        func(string) error
+	resume         func(string) error
+	prepareRestore func(string) error
 	health         func(context.Context, string, config.Config, string, string) error
 	restoredHealth func(context.Context, string, config.Config, string, string) error
 	waitPrograms   func(context.Context, []string) error
@@ -67,7 +70,23 @@ type installHooks struct {
 }
 
 func defaultInstallHooks() installHooks {
-	return installHooks{stopUpgrade: stopForUpgradeWithEvidence, stop: stopForUpgradeWithEvidence, globalLock: lockInstallationSettings, waitProcesses: desktop.WaitProcessIDs, checkBinary: checkInstalledBinary, legacy: verifyLegacyExecutable, start: desktop.StartDetached, autostart: desktop.Autostart, snapshot: desktop.SnapshotStartup, restore: desktop.RestoreStartup, health: waitInstalledLocal, restoredHealth: waitRestoredLocal, waitPrograms: desktop.WaitExecutableExit, guard: desktop.CheckProgramReferences, macComponents: installMacComponents}
+	return installHooks{stopUpgrade: stopForUpgradeWithEvidence, stop: stopForUpgradeWithEvidence, globalLock: lockInstallationSettings, waitProcesses: desktop.WaitProcessIDs, checkBinary: checkInstalledBinary, legacy: verifyLegacyExecutable, start: startRegisteredRuntime, autostart: desktop.ConfigureStartup, snapshot: desktop.SnapshotStartup, restore: desktop.RestoreStartup, suspend: desktop.SuspendStartup, resume: desktop.ResumeStartup, prepareRestore: desktop.PrepareStartupRestore, health: waitInstalledManagedLocal, restoredHealth: waitRestoredLocal, waitPrograms: desktop.WaitExecutableExit, guard: desktop.CheckProgramReferences, macComponents: installMacComponents}
+}
+
+func startRegisteredRuntime(exe string, args ...string) error {
+	if len(args) != 3 || args[0] != "--state" || args[2] != "serve" {
+		return errors.New("managed_start_arguments_invalid")
+	}
+	s, e := desktop.SnapshotStartup()
+	if e != nil {
+		return e
+	}
+	if s.TaskXML != "" && s.TaskEnabled || len(s.ManagedData) > 0 || s.Loaded {
+		return desktop.StartManaged(exe, args[1])
+	}
+	// Exact restoration of a legacy Run entry/unloaded old LaunchAgent keeps
+	// its original launch behavior. New installations always configure first.
+	return desktop.StartDetached(exe, args...)
 }
 
 func checkInstalledBinary(ctx context.Context, exe, version string) error {
@@ -249,15 +268,11 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 	}
 	defer unlock()
 	if r.NoStart {
-		engineLock := flock.New(filepath.Join(r.State, "engine.lock"))
-		defer engineLock.Close()
-		ok, e := engineLock.TryLock()
+		release, e := lockNoStartRuntime(r.State)
 		if e != nil {
 			return install.Result{}, e
 		}
-		if !ok {
-			return install.Result{}, errors.New("no_start_state_busy")
-		}
+		defer release()
 	} else {
 		release, e := h.globalLock(ctx)
 		if e != nil {
@@ -308,11 +323,19 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			_ = lock.Unlock()
 		} else {
 			if !s.NoStart {
+				if e = h.suspend(r.State); e != nil {
+					return e
+				}
 				if e = h.stop(ctx, r.State, func(ids []int) error { return recordActivationProcesses(journal, s, ids) }); e != nil {
 					return e
 				}
 				if e = h.waitProcesses(ctx, s.Processes, func(ids []int) error { return recordActivationProcesses(journal, s, ids) }); e != nil {
 					return e
+				}
+				if s.Target != "" {
+					if e = h.waitPrograms(ctx, append(snapshotProgramPaths(s), filepath.Join(s.Target, agentName()))); e != nil {
+						return e
+					}
 				}
 			}
 			if len(s.Config) > 0 {
@@ -324,21 +347,39 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 					return e
 				}
 			}
-			if !s.NoStart {
-				if e = h.restore(s.Startup); e != nil {
-					return e
+		}
+		if !s.NoStart {
+			// Validate old program bytes before restoring a registration that may
+			// start it immediately (launchd bootstrap).
+			if s.Previous != nil {
+				digest, de := regularExecutableDigest(s.Previous.Executable)
+				if de != nil || digest != s.Previous.SHA256 {
+					return errors.New("rollback_executable_changed")
 				}
+				if runtime.GOOS == "darwin" && previous != nil {
+					if e = h.macComponents(ctx, previous.Dir); e != nil {
+						return e
+					}
+				}
+			}
+			if e = h.prepareRestore(r.State); e != nil {
+				return e
+			}
+			if e = h.resume(r.State); e != nil {
+				return e
+			}
+			// launchd may bootstrap immediately during restoration. At this point
+			// candidate exit, old bytes/config and fixed helpers are all verified;
+			// release the interlock before bootstrap so the old agent cannot read
+			// it, exit zero and race the subsequent explicit start.
+			if e = h.restore(s.Startup); e != nil {
+				return errors.Join(e, h.suspend(r.State))
 			}
 		}
 		if s.Previous != nil && !s.NoStart {
 			digest, e := regularExecutableDigest(s.Previous.Executable)
 			if e != nil || digest != s.Previous.SHA256 {
 				return errors.New("rollback_executable_changed")
-			}
-			if runtime.GOOS == "darwin" && previous != nil {
-				if e = h.macComponents(ctx, previous.Dir); e != nil {
-					return e
-				}
 			}
 			if e = h.start(s.Previous.Executable, "--state", r.State, "serve"); e != nil {
 				return e
@@ -369,7 +410,7 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 			if s.Startup, e = h.snapshot(); e != nil {
 				return e
 			}
-			if s.Startup.Exists && !startupBelongsToState(s.Startup, r.State) {
+			if s.Startup.Present() && !startupBelongsToState(s.Startup, r.State) {
 				return errors.New("startup_instance_selection_required")
 			}
 		}
@@ -433,9 +474,24 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 		if r.NoStart {
 			return nil
 		}
+		if e = h.suspend(r.State); e != nil {
+			if re := h.restore(s.Startup); re != nil {
+				return errors.Join(e, re)
+			}
+			if re := h.resume(r.State); re != nil {
+				return errors.Join(e, re)
+			}
+			return errors.Join(e, removeActivation(journal))
+		}
 		if e = h.stopUpgrade(ctx, r.State, func(ids []int) error { return recordActivationProcesses(journal, &s, ids) }); e != nil {
 			if errors.Is(e, errUpgradeExitUncertain) {
 				return e
+			}
+			if re := h.restore(s.Startup); re != nil {
+				return errors.Join(e, re)
+			}
+			if re := h.resume(r.State); re != nil {
+				return errors.Join(e, re)
 			}
 			return errors.Join(e, removeActivation(journal))
 		}
@@ -493,10 +549,11 @@ func applyInstallation(ctx context.Context, r installationRequest, h installHook
 				return errors.New("credential_store_failed")
 			}
 		}
-		if len(s.Config) == 0 || s.Startup.Exists {
-			if e = h.autostart(exe, r.State, true); e != nil {
-				return errors.New("autostart_unavailable")
-			}
+		if e = h.autostart(exe, r.State, len(s.Config) == 0 || s.Startup.AutostartConfigured()); e != nil {
+			return errors.Join(errors.New("autostart_unavailable"), e)
+		}
+		if e = h.resume(r.State); e != nil {
+			return e
 		}
 		if e = h.start(exe, "--state", r.State, "serve"); e != nil {
 			return e
@@ -555,15 +612,24 @@ func installedStatusMatches(b []byte, id, version, exe string) bool {
 	return json.Unmarshal(b, &s) == nil && s.Device.ID == id && s.Device.Version == version && s.Runtime.PID > 0 && sameProgramPath(s.Runtime.Executable, exe)
 }
 func waitInstalledLocal(ctx context.Context, dir string, c config.Config, exe, version string) error {
-	return waitRuntimeLocal(ctx, dir, c, exe, version, false)
+	return waitRuntimeLocal(ctx, dir, c, exe, version, false, false)
+}
+func waitInstalledManagedLocal(ctx context.Context, dir string, c config.Config, exe, version string) error {
+	return waitRuntimeLocal(ctx, dir, c, exe, version, false, true)
+}
+func installedManagedStatusMatches(b []byte, id, version, exe string) bool {
+	var s struct {
+		Background desktop.StartupStatus `json:"background"`
+	}
+	return installedStatusMatches(b, id, version, exe) && json.Unmarshal(b, &s) == nil && s.Background.Managed && (s.Background.Mechanism == "task-scheduler" || s.Background.Mechanism == "launch-agent")
 }
 
 // Older agents lack runtime metadata. Restoration additionally verifies that
 // the explicitly recorded executable is running; new activation never uses it.
 func waitRestoredLocal(ctx context.Context, dir string, c config.Config, exe, version string) error {
-	return waitRuntimeLocal(ctx, dir, c, exe, version, true)
+	return waitRuntimeLocal(ctx, dir, c, exe, version, true, false)
 }
-func waitRuntimeLocal(ctx context.Context, dir string, c config.Config, exe, version string, legacy bool) error {
+func waitRuntimeLocal(ctx context.Context, dir string, c config.Config, exe, version string, legacy, managed bool) error {
 	token, e := vault.New(dir).Get("admin-token")
 	if e != nil {
 		return errors.New("local_credential_missing")
@@ -576,7 +642,7 @@ func waitRuntimeLocal(ctx context.Context, dir string, c config.Config, exe, ver
 		call, done := context.WithTimeout(probe, time.Second)
 		b, e := (localapi.Client{Address: c.Listen, Token: token}).Post(call, "/admin/status", map[string]any{})
 		done()
-		if e == nil && installedStatusMatches(b, c.DeviceID, version, exe) {
+		if e == nil && installedStatusMatches(b, c.DeviceID, version, exe) && (!managed || installedManagedStatusMatches(b, c.DeviceID, version, exe)) {
 			return nil
 		}
 		if e == nil && legacy {

@@ -35,6 +35,10 @@ jobs:
       - run: python scripts/test_release_verifier.py
       - run: go test -timeout 3m -count=1 ./...
       - run: go vet ./...
+      - name: Isolated native background lifecycle
+        env:
+          DOTCONTROL_STARTUP_NATIVE_SMOKE: '1'
+        run: go test ./internal/desktop -run '^TestNative(Windows|Darwin)StartupLifecycle$' -count=1 -v -timeout 5m
       - name: Build self-contained installer
         env:
           GH_TOKEN: ${{ github.token }}

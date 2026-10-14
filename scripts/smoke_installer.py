@@ -121,5 +121,34 @@ def run(setup):
         for name, value in retained.items():
             assert (state / name).read_bytes() == value, name
         checks.append('identity_tunnel_shared_scope_unknown_config_and_records_preserved')
+
+        # Use the extracted binary, never the installed executable being removed.
+        # --no-start must also isolate uninstall from OS startup and credentials.
+        command(agent, '--state', state, 'uninstall', '--program-root', root, '--no-start')
+        assert not (root / 'current.json').exists()
+        assert read(root / '.dotcontrol-install.json').get('retained_state')
+        command(setup, *install_args)
+        current = read(root / 'current.json')
+        assert current['version'] == m['version']
+        checks.append('retained_state_uninstall_and_reinstall_without_legacy_binary')
+
+        missing = root / 'versions' / 'fixture-missing'
+        Path(current['dir']).rename(missing)
+        missing_m = dict(m, version='0.2.0-fixture-missing')
+        write(missing / 'manifest.json', missing_m)
+        missing_digest = manifest_hash(missing_m)
+        write(root / 'current.json', dict(current, version=missing_m['version'],
+                                         dir=str(missing), manifest_sha256=missing_digest))
+        inventory = read(root / '.dotcontrol-install.json')
+        inventory['versions'] = [{'dir': missing.name, 'hash': missing_digest, 'manifest': missing_m}]
+        write(root / '.dotcontrol-install.json', inventory)
+        missing_exe = missing / agent.name
+        assert missing_exe.resolve().is_relative_to(base)
+        missing_exe.unlink()
+        command(setup, *install_args)
+        assert read(root / 'current.json')['version'] == m['version']
+        checks.append('managed_missing_old_executable_repaired')
+        for name, value in retained.items():
+            assert (state / name).read_bytes() == value, name
     return {'scope': 'isolated_no_start_synthetic_old_generation', 'checks': checks,
             'passed': len(checks), 'desktop_acceptance': 'not_tested'}

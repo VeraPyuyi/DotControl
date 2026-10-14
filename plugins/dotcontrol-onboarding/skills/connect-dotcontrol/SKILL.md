@@ -1,6 +1,6 @@
 ---
 name: connect-dotcontrol
-description: Use when the user asks to install, connect, repair, or diagnose DotControl on this Windows or Mac, or enable Dot cross-computer control.
+description: Use when the user asks to install, connect, repair, or diagnose DotControl, or mentions a target DotControl Windows or Mac plugin to connect or use that computer's Codex.
 ---
 
 # Install and connect DotControl
@@ -12,6 +12,9 @@ the protected local wizard for DotControl's own network mode; it does not change
 system settings.
 
 ## Discover and install
+
+For an already configured remote target, follow **Connect to a mentioned target**
+first. A remote mention is not a request to install on the source computer.
 
 1. Identify the local OS/architecture using normal local tools. Windows supports
    x64; macOS supports arm64 and x86_64. Do not switch Dot's attached computer.
@@ -26,10 +29,10 @@ system settings.
    `current.json` identifies the installed version directory. Verify the selected
    path stays beneath this root before executing.
 4. Otherwise download the appropriate asset and `.sha256` file from the fixed
-   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.6`.
-   Asset names: `DotControl-0.2.0-alpha.6-windows-amd64-setup.exe`,
-   `DotControl-0.2.0-alpha.6-macos-arm64.dmg`, or
-   `DotControl-0.2.0-alpha.6-macos-amd64.dmg`.
+   release `https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.7`.
+   Asset names: `DotControl-0.2.0-alpha.7-windows-amd64-setup.exe`,
+   `DotControl-0.2.0-alpha.7-macos-arm64.dmg`, or
+   `DotControl-0.2.0-alpha.7-macos-amd64.dmg`.
    Verify SHA-256 using built-in OS facilities before launching. Do not substitute
    another tag or ignore mismatched/missing assets. A checksum protects download
    integrity; these alpha installers are not publisher-signed/notarized.
@@ -37,6 +40,36 @@ system settings.
    mount the DMG and open `DotControl Setup.app`. The user must handle any OS
    confirmation. Never remove quarantine, disable Gatekeeper, re-sign CuaDriver,
    or override a signature failure. Report the specific gate instead.
+
+## Connect to a mentioned target
+
+When the user sends a message mentioning a target DotControl plugin, call that
+entry's `devices` first. Keep source Dot attached to its original computer;
+do not switch official attachment, create a target Dot conversation, or assume
+that equally named plugins share a device directory. Check the returned ID,
+fresh nonce, pause/revocation and relevant terminal/history/desktop capability.
+
+A connection-only request ends with that read-only result. It does not authorize
+a test task, window inspection, permission enabling or history-scope changes.
+For a requested task, first check that its required tools exist, then use the
+locally saved target permissions. Missing history access is not permission to
+read files through a terminal task. A missing terminal capability is not a reason
+to try `execute` or attach the target as the official source computer.
+
+On a transient connection error, at most one additional read-only `devices`
+check may be made after 5 seconds. No successful response means connection is
+unverified. `tunnel_client_not_seen`, offline, paused, revoked, missing login and
+unsupported capabilities are different blockers. Do not retry a refused action.
+After an uncertain submission, query the existing job using its stable identity;
+never create a replacement. Report exact returned evidence without exposing secrets.
+
+Mentioning a plugin is model guidance, not an OS wake hook. The target must be
+awake, logged in and running its agent/tunnel. Login startup and OS-managed crash
+recovery maintain this receiver. Closing the console leaves it running; explicit
+Quit keeps it stopped until local reopening or the next enabled login startup.
+If the target receiver is stopped, explain target-local startup is needed; never
+launch a source-computer agent and claim the target recovered. Remote calls cannot
+turn on, wake or log in a target. Repair/restart never expands permissions.
 
 ## Official webpage assistance
 
@@ -141,7 +174,7 @@ source conversation for the target plugin. Require `codex_submit`, `codex_job`,
 **Refresh tools** in the source host's official plugin settings, then start a new
 conversation and check again. Prompt for this refresh after upgrades. Local Codex
 readiness, `devices_seen`, a successful devices call and capability `available`
-do not verify the source tool catalog. Alpha.5 exposes 13 tools; the old review
+do not verify the source tool catalog. This release exposes 13 tools; the old review
 interface has been removed.
 
 Only after all four tools are present, call the same plugin's `devices`, verify

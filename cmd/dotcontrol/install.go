@@ -38,11 +38,62 @@ func installation(ctx context.Context, dir, command string, args []string) error
 		return errors.New("unexpected_install_arguments")
 	}
 	if command == "uninstall" {
-		err := install.Remove(ctx, install.RemoveOptions{Root: *root, StateDir: dir, BeforeRemove: func(ctx context.Context) error {
-			if e := stopLocal(ctx, dir); e != nil {
+		if e := install.ValidatePaths(*root, dir); e != nil {
+			return e
+		}
+		if *noStart {
+			if e := checkNoStartBusy(dir); e != nil {
 				return e
 			}
-			return desktop.Autostart("", dir, false)
+		}
+		release, e := lockInstallationState(ctx, dir)
+		if e != nil {
+			return e
+		}
+		defer release()
+		if *noStart {
+			release, e := lockNoStartRuntime(dir)
+			if e != nil {
+				return e
+			}
+			defer release()
+		} else {
+			release, e := lockInstallationSettings(ctx)
+			if e != nil {
+				return e
+			}
+			defer release()
+		}
+		err := install.Remove(ctx, install.RemoveOptions{Root: *root, StateDir: dir, BeforeRemove: func(ctx context.Context) error {
+			if *noStart {
+				return nil
+			}
+			s, e := desktop.SnapshotStartup()
+			if e != nil {
+				return e
+			}
+			if !s.BelongsToState(dir) {
+				return errors.New("startup_instance_selection_required")
+			}
+			if e = desktop.SuspendStartup(dir); e != nil {
+				return e
+			}
+			if e := stopLocalWithEvidence(ctx, dir); e != nil {
+				// A failed stop retains the interlock: restoration could otherwise
+				// restart a process whose exit has not been confirmed.
+				return e
+			}
+			if current, err := install.ReadCurrent(*root); err == nil {
+				if e = desktop.WaitExecutableExit(ctx, []string{filepath.Join(current.Dir, agentName())}); e != nil {
+					return e
+				}
+			} else if !os.IsNotExist(err) {
+				return err
+			}
+			if e = desktop.RemoveStartup(dir); e != nil {
+				return e
+			}
+			return desktop.ResumeStartup(dir)
 		}})
 		if err != nil {
 			return err
@@ -69,6 +120,55 @@ func installation(ctx context.Context, dir, command string, args []string) error
 		return nil
 	}
 	return err
+}
+func stopLocalWithEvidence(ctx context.Context, dir string) (resultErr error) {
+	c, e := config.Load(dir)
+	if os.IsNotExist(e) {
+		return nil
+	}
+	if e != nil {
+		return e
+	}
+	var tree *desktop.ProcessTree
+	if token, e := vault.New(dir).Get("admin-token"); e == nil {
+		probe, cancel := context.WithTimeout(ctx, 3*time.Second)
+		b, e := (localapi.Client{Address: c.Listen, Token: token}).Post(probe, "/admin/status", map[string]any{})
+		cancel()
+		var s struct {
+			Device struct {
+				ID string `json:"device_id"`
+			} `json:"device"`
+			Runtime struct {
+				PID int `json:"pid"`
+			} `json:"runtime"`
+		}
+		if e == nil && json.Unmarshal(b, &s) == nil && s.Device.ID == c.DeviceID && s.Runtime.PID > 0 {
+			tree, e = desktop.ObserveProcessTree(ctx, s.Runtime.PID)
+			if e != nil {
+				return e
+			}
+		}
+	}
+	if tree != nil {
+		watch, cancel := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		go func() { done <- tree.Watch(watch, nil) }()
+		defer func() {
+			cancel()
+			if e := <-done; e != nil {
+				resultErr = errors.Join(resultErr, e)
+			}
+		}()
+	}
+	if e = stopLocal(ctx, dir); e != nil {
+		return e
+	}
+	if tree != nil {
+		wait, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		return tree.Wait(wait)
+	}
+	return nil
 }
 func validInstalledVersion(output []byte, targetVersion string) bool {
 	return string(output) == targetVersion+"\n"
@@ -184,7 +284,7 @@ func ensureLocal(ctx context.Context, dir string, c config.Config, v vault.Vault
 		return nil
 	}
 	exe, _ := os.Executable()
-	if e = desktop.StartDetached(exe, "--state", dir, "serve"); e != nil {
+	if e = startRegisteredRuntime(exe, "--state", dir, "serve"); e != nil {
 		return e
 	}
 	return waitLocal(ctx, dir, c, v)

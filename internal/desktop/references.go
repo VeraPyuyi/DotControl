@@ -15,11 +15,19 @@ import (
 // StartupSnapshot retains the existing per-user registration exactly. Its
 // contents stay in the private installation journal, never progress output.
 type StartupSnapshot struct {
-	Exists bool   `json:"exists"`
-	Value  string `json:"value,omitempty"`
-	Kind   uint32 `json:"kind,omitempty"`
-	Data   []byte `json:"data,omitempty"`
-	Mode   uint32 `json:"mode,omitempty"`
+	Exists      bool   `json:"exists"`
+	Value       string `json:"value,omitempty"`
+	Kind        uint32 `json:"kind,omitempty"`
+	Data        []byte `json:"data,omitempty"`
+	Mode        uint32 `json:"mode,omitempty"`
+	TaskXML     string `json:"task_xml,omitempty"`
+	TaskEnabled bool   `json:"task_enabled,omitempty"`
+	TaskRunning bool   `json:"task_running,omitempty"`
+	ManagedData []byte `json:"managed_data,omitempty"`
+	ManagedMode uint32 `json:"managed_mode,omitempty"`
+	Loaded      bool   `json:"loaded,omitempty"`
+	Disabled    bool   `json:"disabled,omitempty"`
+	LoadedText  string `json:"loaded_text,omitempty"`
 }
 type programProcess struct {
 	PID, ParentPID   int

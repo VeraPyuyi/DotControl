@@ -17,6 +17,13 @@ for(const link of document.querySelectorAll('[data-view]'))link.addEventListener
 addEventListener('hashchange',()=>{const name=location.hash.slice(1);if(Object.hasOwn(viewNames,name))showView(name,false)});
 el('skip-content').addEventListener('click',e=>{e.preventDefault();el('content').focus()});
 function statusCard(id,text,kind){el(id).textContent=text;el(id).dataset.tone=kind}
+function backgroundLabel(s){
+ const b=s.background;
+ if(!b)return s.autostart?'已设置登录启动；异常恢复未确认':'当前运行；未确认后台启动';
+ if(b.reason&&b.reason!=='manual_start')return '后台设置需要本机检查';
+ if(b.managed)return b.configured?'登录启动与异常恢复已配置':'本次后台运行；登录启动已关闭';
+ return b.configured?'已设置登录启动；当前运行未受托管':'本次手动运行；登录启动已关闭';
+}
 function renderConsole(s){
  if(typeof historyRenderStatus==='function')historyRenderStatus(s);
  if(consoleView==='sharing')historyRefreshStatus();
@@ -26,6 +33,7 @@ function renderConsole(s){
  el('device-state').textContent=s.revoked?'访问已撤销':device.paused?'已暂停':'正在运行';
  el('device-state').dataset.tone=s.revoked?'danger':device.paused?'pending':'ok';
  statusCard('status-local','服务就绪','ok');
+ el('background-detail').textContent=backgroundLabel(s);
  statusCard('status-cloud',online?'已连接':s.tunnel?.configured||s.tunnel_id?'连接未确认':'尚未配置',online?'ok':'pending');
  el('cloud-detail').textContent=cloudLabel(s.tunnel);
  statusCard('status-source',s.plugin?.devices_seen?'已收到调用':'等待首次调用',s.plugin?.devices_seen?'ok':'pending');

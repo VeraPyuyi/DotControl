@@ -246,6 +246,26 @@ func installationMessage(stderr string) string {
 	}
 	code := strings.TrimSpace(strings.TrimPrefix(message, "DotControl:"))
 	lines := strings.Split(code, "\n")
+	startupReasons := map[string]string{
+		"task_scheduler_access_denied":       "系统拒绝为当前用户登记后台启动。请在本机检查计划任务策略；安装器不会申请管理员权限。",
+		"task_scheduler_service_unavailable": "Windows 计划任务服务当前不可用，无法确认后台启动配置。",
+		"task_scheduler_definition_invalid":  "Windows 未接受后台启动定义，安装尚未完成。",
+		"task_scheduler_timeout":             "检查或登记 Windows 后台启动超时，未确认配置成功。",
+		"launch_agent_unavailable":           "macOS 未接受用户后台启动设置，安装尚未完成。",
+		"launch_agent_status_unavailable":    "无法核实 macOS 用户后台服务状态，安装尚未完成。",
+	}
+	startupReason, onlyStartup := "", true
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if reason, ok := startupReasons[line]; ok {
+			startupReason = reason
+		} else if line != "autostart_unavailable" {
+			onlyStartup = false
+		}
+	}
+	if onlyStartup && startupReason != "" {
+		return startupReason + " 详情：" + code
+	}
 	code = strings.TrimSpace(lines[0])
 	for _, line := range lines[1:] {
 		if strings.TrimSpace(line) != code {

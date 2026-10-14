@@ -8,11 +8,9 @@ import (
 	"github.com/dotcontrol/dotcontrol/internal/desktop"
 	"github.com/dotcontrol/dotcontrol/internal/install"
 	"github.com/gofrs/flock"
-	"html"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -56,9 +54,16 @@ func lockInstallationState(ctx context.Context, state string) (func(), error) {
 }
 
 // An occupied state is rejected before any coordination file is created. The
-// later held engine lock closes the race with a concurrent runtime start.
+// later held background and engine locks close runtime-start/backoff races.
 func checkNoStartBusy(state string) error {
-	p := filepath.Join(state, "engine.lock")
+	for _, name := range []string{"background.lock", "engine.lock"} {
+		if e := checkNoStartLock(filepath.Join(state, name)); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+func checkNoStartLock(p string) error {
 	info, e := os.Lstat(p)
 	if os.IsNotExist(e) {
 		return nil
@@ -80,6 +85,28 @@ func checkNoStartBusy(state string) error {
 	}
 	return nil
 }
+func lockNoStartRuntime(state string) (func(), error) {
+	var locks []*flock.Flock
+	release := func() {
+		for i := len(locks) - 1; i >= 0; i-- {
+			_ = locks[i].Close()
+		}
+	}
+	for _, name := range []string{"background.lock", "engine.lock"} {
+		lock := flock.New(filepath.Join(state, name))
+		locks = append(locks, lock)
+		ok, e := lock.TryLock()
+		if e != nil {
+			release()
+			return nil, e
+		}
+		if !ok {
+			release()
+			return nil, errors.New("no_start_state_busy")
+		}
+	}
+	return release, nil
+}
 func lockInstallationSettings(ctx context.Context) (func(), error) {
 	base, e := os.UserConfigDir()
 	if e != nil {
@@ -88,15 +115,7 @@ func lockInstallationSettings(ctx context.Context) (func(), error) {
 	return installationLock(ctx, filepath.Join(base, "DotControl-install", "settings.lock"))
 }
 func startupBelongsToState(s desktop.StartupSnapshot, state string) bool {
-	if !s.Exists {
-		return true
-	}
-	if s.Value != "" {
-		return strings.Contains(s.Value, " --state "+desktop.QuotedWindows(state)+" serve")
-	}
-	// Autostart writes an XML plist. Whitespace between elements is immaterial.
-	value := strings.Join(strings.Fields(html.UnescapeString(string(s.Data))), " ")
-	return strings.Contains(value, "<string>--state</string><string>"+state+"</string>") || strings.Contains(value, "<string>--state</string> <string>"+state+"</string>")
+	return s.BelongsToState(state)
 }
 func snapshotProgramPaths(s *activationSnapshot) []string {
 	paths := []string{}

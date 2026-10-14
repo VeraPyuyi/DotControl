@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/activity"
@@ -62,7 +63,7 @@ func run(args []string) error {
 		usage()
 		return nil
 	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if args[0] == "version" {
 		fmt.Println(model.Version)
@@ -129,6 +130,15 @@ func run(args []string) error {
 		return repairLocal(ctx, *dir, c, v)
 	case "serve":
 		return serve(ctx, *dir, c, v, args[1:])
+	case "background-run":
+		if runtime.GOOS != "windows" || len(args) != 1 {
+			return errors.New("background_start_invalid")
+		}
+		exe, e := os.Executable()
+		if e != nil {
+			return e
+		}
+		return desktop.SuperviseRuntime(ctx, exe, *dir)
 	case "doctor":
 		return doctor(ctx, *dir, c, v, args[1:])
 	case "credential":
@@ -474,6 +484,9 @@ func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, arg
 		return e
 	}
 	checks := map[string]any{"os": runtime.GOOS, "arch": runtime.GOARCH, "supported_os": runtime.GOOS == "windows" || runtime.GOOS == "darwin", "device_id": c.DeviceID, "tunnel_id_configured": c.TunnelID != "", "official_dot_invocation": "not_verified", "mac_real_device": "not_verified"}
+	executable, _ := os.Executable()
+	desktop.RefreshStartupStatus(executable, dir, "")
+	checks["background"] = desktop.CachedStartupStatus()
 	version := func(path string) string {
 		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
@@ -514,6 +527,12 @@ func doctor(ctx context.Context, dir string, c config.Config, v vault.Vault, arg
 		data, e := (localapi.Client{Address: c.Listen, Token: token}).Post(ctx, "/admin/status", map[string]any{})
 		if e == nil {
 			checks["agent_status"] = json.RawMessage(data)
+			var status struct {
+				Background desktop.StartupStatus `json:"background"`
+			}
+			if json.Unmarshal(data, &status) == nil && status.Background.Mechanism != "" {
+				checks["background"] = status.Background
+			}
 		} else {
 			checks["agent_status"] = "not_running"
 		}

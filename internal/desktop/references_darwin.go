@@ -12,21 +12,6 @@ import (
 	"strings"
 )
 
-func SnapshotStartup() (StartupSnapshot, error) {
-	p := plistPath()
-	info, e := os.Lstat(p)
-	if os.IsNotExist(e) {
-		return StartupSnapshot{}, nil
-	}
-	if e != nil || !info.Mode().IsRegular() {
-		return StartupSnapshot{}, errors.New("autostart_snapshot_failed")
-	}
-	b, e := os.ReadFile(p)
-	if e != nil {
-		return StartupSnapshot{}, errors.New("autostart_snapshot_failed")
-	}
-	return StartupSnapshot{Exists: true, Data: b, Mode: uint32(info.Mode().Perm())}, nil
-}
 func startupReferenceText(ctx context.Context) (string, error) {
 	home, e := os.UserHomeDir()
 	if e != nil {
@@ -64,21 +49,48 @@ func startupReferenceText(ctx context.Context) (string, error) {
 			out.WriteByte('\n')
 		}
 	}
+	// Loaded definitions survive plist edits/removal. Inspect every job in both
+	// user domains before deleting an immutable program generation.
+	for _, domain := range []string{launchDomain(), "user/" + strconv.Itoa(os.Getuid())} {
+		b, e := launchCommand(ctx, "print", domain)
+		if e != nil {
+			return "", errors.New("startup_references_unavailable")
+		}
+		out.Write(b)
+		for _, label := range loadedServiceLabels(string(b)) {
+			data, e := launchCommand(ctx, "print", domain+"/"+label)
+			if e != nil {
+				return "", errors.New("startup_references_unavailable")
+			}
+			out.Write(data)
+		}
+	}
 	return out.String(), nil
 }
-func RestoreStartup(s StartupSnapshot) error {
-	p := plistPath()
-	if !s.Exists {
-		e := os.Remove(p)
-		if os.IsNotExist(e) {
-			return nil
+
+func loadedServiceLabels(data string) []string {
+	var out []string
+	inServices := false
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "services = {" {
+			inServices = true
+			continue
 		}
-		return e
+		if inServices && line == "}" {
+			break
+		}
+		if inServices {
+			fields := strings.Fields(line)
+			if len(fields) >= 3 {
+				label := fields[len(fields)-1]
+				if !strings.ContainsAny(label, "/{}\"=") {
+					out = append(out, label)
+				}
+			}
+		}
 	}
-	if e := os.MkdirAll(filepath.Dir(p), 0700); e != nil {
-		return e
-	}
-	return os.WriteFile(p, s.Data, os.FileMode(s.Mode))
+	return out
 }
 func listProgramProcesses(ctx context.Context) ([]programProcess, error) {
 	b, e := exec.CommandContext(ctx, "/bin/ps", "-ww", "-axo", "pid=,ppid=,comm=").Output()

@@ -53,10 +53,15 @@ func startupReferenceText(ctx context.Context) (string, error) {
 			k.Close()
 		}
 	}
+	tasks, e := taskOperation(ctx, taskRequest{Operation: "references"})
+	if e != nil {
+		return "", errors.New("startup_references_unavailable")
+	}
+	out.WriteString(tasks.References)
 	return out.String(), nil
 }
 
-func SnapshotStartup() (StartupSnapshot, error) {
+func snapshotLegacyRun() (StartupSnapshot, error) {
 	k, e := registry.OpenKey(registry.CURRENT_USER, startupRegistryPath, registry.QUERY_VALUE)
 	if e == registry.ErrNotExist {
 		return StartupSnapshot{}, nil
@@ -74,7 +79,7 @@ func SnapshotStartup() (StartupSnapshot, error) {
 	}
 	return StartupSnapshot{Exists: true, Value: value, Kind: kind}, nil
 }
-func RestoreStartup(s StartupSnapshot) error {
+func restoreLegacyRun(s StartupSnapshot) error {
 	k, _, e := registry.CreateKey(registry.CURRENT_USER, startupRegistryPath, registry.SET_VALUE)
 	if e != nil {
 		return errors.New("autostart_restore_failed")

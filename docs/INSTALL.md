@@ -4,11 +4,11 @@
 
 ## 1. 安装
 
-- Windows 11 x64：打开 DotControl-0.2.0-alpha.6-windows-amd64-setup.exe。
-- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.6-macos-arm64.dmg 内的 DotControl Setup.app。
-- Mac Intel：使用 DotControl-0.2.0-alpha.6-macos-amd64.dmg。
+- Windows 11 x64：打开 DotControl-0.2.0-alpha.7-windows-amd64-setup.exe。
+- Mac Apple Silicon：打开 DotControl-0.2.0-alpha.7-macos-arm64.dmg 内的 DotControl Setup.app。
+- Mac Intel：使用 DotControl-0.2.0-alpha.7-macos-amd64.dmg。
 
-alpha.6 [发布入口](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.6)，三个安装包及安装助手均附校验和；实际公开下载与包内验证结果见支持矩阵。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
+alpha.7 候选版的计划[发布入口](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.7)，计划提供三个安装包、安装助手及校验和；仅在实际发布后可下载，当前进度和包内验证结果见支持矩阵。各平台实际验证范围见[支持矩阵](RELEASE_SUPPORT.md)。缺少对应资产或摘要时停止，不替换为其他版本并声称完成本版安装。
 
 安装器自动校验随包组件、识别旧设备、安装到当前用户目录并启动本地向导。发现多个已有设备时选择要升级的设备，不删除状态目录重新安装。正常安装无需终端、Go、Python、Homebrew 或 Xcode。首次发布未配置发布者签名或公证，系统可能显示来源提示；上游 CuaDriver 签名校验失败则停止。
 
@@ -48,7 +48,7 @@ Windows 的终端任务可在本机独立启用，不要求 Cua Driver 或 SSH�
 
 ## 日常管理与恢复
 
-关闭网页不停止代理。通过 Windows 托盘或 Mac 菜单栏重新打开向导、暂停、继续、修复或退出。随用户登录启动，不作为系统后台桌面服务运行。修复保留身份、凭据、暂停/撤销状态和动作记录；连接失败退避重试，未知动作不重放。
+关闭网页不停止代理。通过 Windows 托盘或 Mac 菜单栏重新打开向导、暂停、继续、修复或退出。Windows 使用当前用户交互登录的计划任务启动受控后台进程；代理异常退出后等待 60 秒重试，连续失败最多重试 3 次。Mac 使用用户 LaunchAgent 并设置恢复节流；均不作为系统后台桌面服务运行。主动退出后保持停止，直到本机重新打开或下次启用的登录启动。修复保留身份、凭据、暂停/撤销状态和动作记录；连接失败退避重试，未知动作不重放。
 
 脱敏诊断按钮下载版本、阶段、错误类别和必要状态，不包含密钥、输入正文或截图。签名失败、密钥失效、DNS、TLS、权限未知和暂停分别显示；不要通过关闭 TLS 校验、重签 CuaDriver 或改系统安全策略解决。
 
@@ -73,8 +73,7 @@ Windows 的终端任务可在本机独立启用，不要求 Cua Driver 或 SSH�
 
 uninstall 只移除本项目管理的程序文件和登录启动设置，保留设备记录与凭据；不提供隐式清除。请勿手工删除账本以解决结果不确定。安装器的 --verify-payload 仅校验实际包内文件，不安装、不启用桌面任务。
 
-后续源码已修复“保留配置卸载后重装”与“旧主程序缺失时修复”的阻塞，尚未包含在 alpha.6
-安装包中。恢复安装需要此前成功安装与状态目录绑定的来源记录；来源不明或更旧的无绑定
+alpha.7 包含“保留配置卸载后重装”与“旧主程序缺失时修复”的修复。恢复安装需要此前成功安装与状态目录绑定的来源记录；来源不明或更旧的无绑定
 卸载记录仍需明确迁移。缺失旧程序时仍核实进程退出；新版失败保留配置并报告旧程序无法
 恢复，不伪称旧版已运行。新增绑定不支持旧安装器回读，勿用旧安装器管理新清单。
 Windows 运行中程序的自卸载占用仍待实际核实。详见 [源码复盘与限制](REVIEW_0_2.md)。
@@ -82,7 +81,7 @@ Windows 运行中程序的自卸载占用仍待实际核实。详见 [源码复�
 Windows 非托管开发版本迁入托管目录时，先等待任务结束并从原入口正常退出旧代理，再指定原程序的绝对路径：
 
 ```text
-DotControl-0.2.0-alpha.6-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
+DotControl-0.2.0-alpha.7-windows-amd64-setup.exe --install --state "<原设备目录绝对路径>" --program-root "<托管程序目录绝对路径>" --legacy-executable "<原 dotcontrol.exe 绝对路径>"
 ```
 
 安装器确认候选为普通无链接的 DotControl 程序，并记录 SHA-256；失败时可重新启动原程序。它不会自动删除非托管程序或其目录。非托管迁移仅支持 Windows；Mac 托管升级继续使用原设备目录。不能通过删除原设备目录绕过迁移选择。

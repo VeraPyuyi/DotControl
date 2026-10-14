@@ -1,11 +1,16 @@
 # 0.2 支持与验收
 
-[预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.6 说明](RELEASE_NOTES_0_2_ALPHA_6.md)
+[预发布列表](https://github.com/VeraPyuyi/DotControl/releases) · [安装指南](INSTALL.md) · [alpha.7 说明](RELEASE_NOTES_0_2_ALPHA_7.md)
 
 alpha.6 之后的 [0.2 系列复盘与七项源码修复](REVIEW_0_2.md)单独记录安装恢复、结果容量、
-退役记录、脱敏错误与会话共享竞争问题。本轮未发布安装包或升级设备；以下历史发布证据保持原样。
+退役记录、脱敏错误与会话共享竞争问题。修复源码纳入 alpha.7；以下历史发布证据保持原样。
 
-## alpha.6 当前发布验证
+## alpha.7 发布与验证
+
+当前处于候选开发与验证阶段，尚未公开发布或升级本机。完成后记录精确构建提交、三平台
+测试和下载校验、本机配置保留与后台管理、真实源端调用；不沿用旧版结果作为本版证据。
+
+## alpha.6 历史发布验证
 
 `v0.2.0-alpha.6` 已从 `e160c36912763c78cdfd84860a4b99f0ed4c6d6b` 构建并发布，
 包含 Windows x64 EXE、Mac ARM／Intel DMG、安装助手、许可证和校验和，共 11 个发布文件。

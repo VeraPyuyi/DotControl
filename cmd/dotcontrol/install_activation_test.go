@@ -58,6 +58,9 @@ func activationFixture(t *testing.T) (string, string, []byte, installHooks) {
 		return desktop.StartupSnapshot{Exists: true, Value: `"original startup" --state ` + desktop.QuotedWindows(state) + ` serve`}, nil
 	}
 	h.restore = func(desktop.StartupSnapshot) error { return nil }
+	h.suspend = func(string) error { return nil }
+	h.resume = func(string) error { return nil }
+	h.prepareRestore = func(string) error { return nil }
 	h.health = func(context.Context, string, config.Config, string, string) error { return nil }
 	h.restoredHealth = h.health
 	h.waitPrograms = func(context.Context, []string) error { return nil }
@@ -81,7 +84,7 @@ func TestActivationRefusalDoesNotStopOrRewriteExistingState(t *testing.T) {
 		t.Fatal("shutdown refusal accepted")
 	}
 	got, _ := os.ReadFile(filepath.Join(state, "config.json"))
-	if string(got) != string(original) || stops != 0 || restores != 0 {
+	if string(got) != string(original) || stops != 0 || restores != 1 {
 		t.Fatalf("refusal mutated state: stops=%d restores=%d", stops, restores)
 	}
 }
@@ -220,6 +223,9 @@ func TestNoStartPreservesUnknownConfigAndAvoidsStartupCredentials(t *testing.T) 
 	}
 	h.autostart = func(string, string, bool) error { t.Fatal("no-start changed startup"); return nil }
 	h.start = func(string, ...string) error { t.Fatal("no-start launched runtime"); return nil }
+	h.suspend = func(string) error { t.Fatal("no-start suspended startup"); return nil }
+	h.resume = func(string) error { t.Fatal("no-start resumed startup"); return nil }
+	h.prepareRestore = func(string) error { t.Fatal("no-start unloaded startup"); return nil }
 	h.stopUpgrade = func(context.Context, string, func([]int) error) error {
 		t.Fatal("no-start invoked shutdown")
 		return nil

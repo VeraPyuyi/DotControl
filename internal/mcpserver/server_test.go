@@ -139,6 +139,39 @@ func TestSDKToolCatalogAndExecuteObjectRoundTrip(t *testing.T) {
 	}
 }
 
+func TestConnectionDiscoveryDoesNotDispatchTasks(t *testing.T) {
+	for _, transport := range []string{"memory", "http"} {
+		t.Run(transport, func(t *testing.T) {
+			var reads atomic.Int32
+			ctx, cs := connect(t, backendFunc(func(_ context.Context, method string, _ service.Request) (any, error) {
+				if method != "devices" {
+					t.Errorf("connection check dispatched %s", method)
+					return nil, errors.New("unexpected_call")
+				}
+				return map[string]any{"nonce": reads.Add(1), "paused": true}, nil
+			}), transport)
+			if cs.InitializeResult().Instructions == "" {
+				t.Fatal("host received no connection guidance")
+			}
+			if _, err := cs.ListTools(ctx, nil); err != nil {
+				t.Fatal(err)
+			}
+			if reads.Load() != 0 {
+				t.Fatal("discovery unexpectedly called backend")
+			}
+			for i := 0; i < 2; i++ {
+				res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "devices", Arguments: map[string]any{}})
+				if err != nil || res.IsError {
+					t.Fatalf("devices: %v %+v", err, res)
+				}
+			}
+			if reads.Load() != 2 {
+				t.Fatal("connection reads were cached or duplicated")
+			}
+		})
+	}
+}
+
 func TestSDKObservationContainsImageOnceAndMetadataWithoutBase64(t *testing.T) {
 	data := []byte("unique fake image bytes for transport testing")
 	encoded := base64.StdEncoding.EncodeToString(data)
