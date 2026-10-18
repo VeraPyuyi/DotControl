@@ -211,6 +211,9 @@ func (d *Cua) call(ctx context.Context, name string, args map[string]any) (*mcp.
 	return r, nil
 }
 func payload(r *mcp.CallToolResult) (map[string]any, error) {
+	if r == nil {
+		return nil, errEmptyResponse
+	}
 	var obj map[string]any
 	if r.StructuredContent != nil {
 		b, e := json.Marshal(r.StructuredContent)
@@ -520,13 +523,21 @@ func outcome(r *mcp.CallToolResult) model.Outcome {
 	}
 	// ActionResult.effect is the documented evidence boundary. An accepted
 	// transport call, ok:true, or an unverified screenshot is not success.
-	if p["effect"] == "confirmed" {
-		return model.Outcome{State: "succeeded"}
+	effect, _ := p["effect"].(string)
+	switch effect {
+	case "confirmed":
+		return model.Outcome{State: "succeeded", Code: "effect_confirmed"}
+	case "none":
+		return model.Outcome{State: "failed", Code: "effect_none"}
+	case "refused":
+		return model.Outcome{State: "needs_user", Code: "effect_refused"}
+	case "partial":
+		return model.Outcome{State: "unknown", Code: "effect_partial"}
+	case "suspected_noop":
+		return model.Outcome{State: "unknown", Code: "effect_suspected_noop"}
+	default:
+		return model.Outcome{State: "unknown", Code: "effect_unknown"}
 	}
-	if p["effect"] == "none" {
-		return model.Outcome{State: "failed"}
-	}
-	return model.Outcome{State: "unknown"}
 }
 func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode string) model.Outcome {
 	d.mu.Lock()
@@ -601,7 +612,7 @@ func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode st
 	if ctx.Err() != nil {
 		return model.Outcome{State: "unknown"}
 	}
-	if result.State == "needs_user" || result.State == "failed" {
+	if result.State == "needs_user" || result.State == "failed" || result.Code == "effect_partial" || result.Code == "effect_suspected_noop" {
 		return result
 	}
 	if a.Expect != "" {
