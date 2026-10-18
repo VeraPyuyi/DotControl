@@ -411,6 +411,23 @@ var allowed = map[string]map[string]bool{
 }
 
 func validate(a model.Action, v model.View) (map[string]any, error) {
+	if len(a.Postconditions) > 16 {
+		return nil, errors.New("postcondition_invalid")
+	}
+	for _, c := range a.Postconditions {
+		if c.MaxWaitMillis < 1 || c.MaxWaitMillis > 2000 || len(c.Expected) > 4096 || len(c.Element) > 256 {
+			return nil, errors.New("postcondition_invalid")
+		}
+		switch c.Kind {
+		case "property", "changed":
+			if c.Element == "" || (c.Property != "value" && c.Property != "label" && c.Property != "role") {
+				return nil, errors.New("postcondition_invalid")
+			}
+		case "task_result", "text":
+		default:
+			return nil, errors.New("postcondition_invalid")
+		}
+	}
 	fields, ok := allowed[a.Kind]
 	if !ok {
 		return nil, errors.New("unsupported_action")
