@@ -4,6 +4,12 @@
 
 **0.2 系列：跨电脑终端任务与只读会话共享。** 页面分为概览、连接设置、Codex 和会话共享。内置 SSH／实验助手和旧审批转发已下线；用户原有配置、密钥及记录保留。[alpha.7](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.7) 已发布，包含[复盘中的七项修复](docs/REVIEW_0_2.md)和用户级后台恢复。安装包及实际验证范围见[发布支持矩阵](docs/RELEASE_SUPPORT.md)。
 
+## 版本状态
+
+默认分支 `main@a5d66d0` 保留 alpha.2 历史；公开安装包为 [alpha.7](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.7)，构建源 `3424e41`。本地改进基于 PR #1 最新发布分支 `971def0`，不是新的已发布安装包。PR #2 的原生失败脱敏分类已复用；旧 LaunchAgent 安装接口不能覆盖 alpha.7 的后台状态机。
+
+事实入口为 [发布支持记录](docs/RELEASE_SUPPORT.md)和其中的发布 JSON。运行 `python scripts/release_status.py` 从本地 tag 与记录生成可重复的分支／Release／资产／待验收表；`--api-json releases.json` 可读取保存的 GitHub releases API 响应，测试使用离线 fixture。13 个工具不等于 13 项均通过真机验收，终端回传不证明桌面、图片和 Mac 执行通过。新增能力及外部待验收见[诊断与验收边界](docs/RELEASE_DIAGNOSTICS.md)。
+
 ## 快速开始
 
 从 [GitHub Releases](https://github.com/VeraPyuyi/DotControl/releases) 下载对应安装包：

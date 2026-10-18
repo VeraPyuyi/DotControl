@@ -59,6 +59,7 @@ type runtimeOwner struct {
 	sup                      *tunnel.Supervisor
 	tunnelError, driverError string
 	driverDiagnostic         map[string]any
+	lastDriverFailure        any
 	permissions              permissionStatus
 	proof                    connectionProof
 	revoked, noTunnel        bool
@@ -117,8 +118,16 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	f := flags("serve")
 	noTunnel := f.Bool("no-tunnel", false, "Local diagnostics only")
 	managedStart := f.String("managed-start", "", "Internal OS lifecycle source")
+	failureLog := f.String("native-failure-log", "", "Private allowlisted native error journal")
 	if err := f.Parse(args); err != nil {
 		return err
+	}
+	if *failureLog != "" {
+		closeJournal, err := driver.OpenFailureJournal(*failureLog)
+		if err != nil {
+			return err
+		}
+		defer closeJournal()
 	}
 	if *managedStart != "" && *managedStart != "task-scheduler" && *managedStart != "launch-agent" {
 		return errors.New("managed_start_invalid")
@@ -477,7 +486,7 @@ func (o *runtimeOwner) Status(ctx context.Context) (any, error) {
 	} else if err := o.eng.UpgradeReady(); err != nil {
 		upgradeReason = err.Error()
 	}
-	return map[string]any{"runtime": map[string]any{"pid": os.Getpid(), "executable": executable}, "background": desktop.CachedStartupStatus(), "upgrade": map[string]any{"ready": upgradeReason == "", "reason": upgradeReason}, "device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "network": o.cfg.Network, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
+	return map[string]any{"runtime": map[string]any{"pid": os.Getpid(), "executable": executable}, "background": desktop.CachedStartupStatus(), "upgrade": map[string]any{"ready": upgradeReason == "", "reason": upgradeReason}, "device": d, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "terminal_profile_id": o.cfg.TerminalProfileID, "terminal_server_id": o.cfg.TerminalServerID, "driver_connected": ds["connected"], "driver_status": ds, "execution_progress": o.eng.Progress(), "driver_error": o.driverError, "permissions": o.permissions, "tunnel": ts, "tunnel_id": o.cfg.TunnelID, "network": o.cfg.Network, "revoked": o.revoked, "plugin": o.proof, "autostart": desktop.AutostartEnabled(), "codex": map[string]any{"available": caps.CodexDelegation.Available, "capabilities": caps, "reason": reason}}, nil
 }
 func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	historyCap := model.HistoryCapability{State: "disabled", Code: "history_disabled"}
@@ -490,7 +499,7 @@ func (o *runtimeOwner) Diagnostics(ctx context.Context) (any, error) {
 	d := o.eng.Device()
 	caps := o.bridge.Capabilities()
 	caps.CodexHistory = historyCap
-	return map[string]any{"schema": 1, "version": model.Version, "background": desktop.CachedStartupStatus(), "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "network_mode": o.cfg.Network.Mode, "plugin": o.proof, "codex_capabilities": caps}, nil
+	return map[string]any{"schema": 1, "version": model.Version, "background": desktop.CachedStartupStatus(), "os": runtime.GOOS, "arch": runtime.GOARCH, "time": time.Now().UTC(), "paused": d.Paused, "history_enabled": o.cfg.HistoryEnabled, "terminal_only": o.cfg.TerminalOnly, "terminal_enabled": o.cfg.TerminalEnabled, "revoked": o.revoked, "activity_available": d.Activity.Available, "locked": d.Activity.Locked, "driver": ds, "execution_progress": o.eng.Progress(), "failure_layers": map[string]string{"driver": diagnosticFailureLayer(o.driverError), "tunnel": diagnosticFailureLayer(o.sup.Status().Error), "source_dot": "unconfirmed"}, "driver_error": o.driverError, "permissions": o.permissions, "tunnel": o.sup.Status(), "tunnel_error": o.tunnelError, "network_mode": o.cfg.Network.Mode, "plugin": o.proof, "codex_capabilities": caps}, nil
 }
 func (o *runtimeOwner) maintain() {
 	ticker := time.NewTicker(10 * time.Second)
@@ -505,6 +514,7 @@ func (o *runtimeOwner) maintain() {
 		native := o.native
 		sup := o.sup
 		needDriver := native == nil || native.Diagnostic()["connected"] != true
+		o.driverStatus() // Preserve allowlisted failure before reconnect cleanup.
 		o.mu.Unlock()
 		if !c.TerminalOnly && !first && (force || !o.monitor.Snapshot().Available) {
 			o.monitor.Restart()

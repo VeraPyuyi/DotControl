@@ -1,0 +1,10 @@
+[
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_credentials_rejected"},"layer":"credential"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_permission_denied"},"layer":"credential"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"requires_local_proxy_auth"},"layer":"credential"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_dns_failed"},"layer":"network"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_tls_failed"},"layer":"network"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_network_timeout"},"layer":"network"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_http_failed"},"layer":"network"},
+  {"status":{"configured":true,"running":true,"ready":false,"local_ready":true,"cloud_state":"degraded","error":"tunnel_network_failed"},"layer":"network"}
+]

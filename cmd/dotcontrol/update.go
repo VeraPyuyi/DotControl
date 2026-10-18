@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/dotcontrol/dotcontrol/internal/model"
 	"io"
 	"net/http"
+	"runtime"
 	"time"
 )
 
@@ -30,17 +30,9 @@ func availableRelease(ctx context.Context) (any, error) {
 	if resp.StatusCode != 200 {
 		return nil, errors.New("update_check_failed")
 	}
-	var releases []struct {
-		Tag   string `json:"tag_name"`
-		Draft bool   `json:"draft"`
-	}
-	if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&releases) != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if err != nil {
 		return nil, errors.New("update_check_failed")
 	}
-	for _, r := range releases {
-		if !r.Draft && len(r.Tag) < 100 {
-			return map[string]string{"current": model.Version, "published": r.Tag}, nil
-		}
-	}
-	return map[string]string{"current": model.Version, "published": "尚无已发布安装包"}, nil
+	return selectRelease(body, model.Version, runtime.GOOS, runtime.GOARCH)
 }

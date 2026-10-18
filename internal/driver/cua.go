@@ -185,7 +185,19 @@ func (d *Cua) call(ctx context.Context, name string, args map[string]any) (*mcp.
 		d.sessionLabel = "dotcontrol-" + rand.Text()
 	}
 	args["session"] = d.sessionLabel
+	started := time.Now()
 	r, err := d.client.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	response, marshalErr := json.Marshal(r)
+	overBudget := len(response) > 4<<20 || marshalErr != nil
+	d.diagnosticMu.Lock()
+	d.diagnostic.callMillis = time.Since(started).Milliseconds()
+	d.diagnostic.responseBytes = len(response)
+	d.diagnostic.responseOverBudget = overBudget
+	d.diagnosticMu.Unlock()
+	if overBudget {
+		d.recordFailure(name, errEmptyResponse, true, false)
+		return nil, errors.New("driver_response_budget_exceeded")
+	}
 	if err != nil {
 		// Cancelling an observation cannot leave native input in flight. Keep
 		// the session available for a NEW read, without retrying this request.
@@ -204,13 +216,16 @@ func (d *Cua) call(ctx context.Context, name string, args map[string]any) (*mcp.
 		return nil, errors.New("driver_empty_response")
 	}
 	if r.IsError {
-		d.recordFailure(name, errToolResponse, true, false)
+		d.recordFailure(name, errToolResponse, true, false, safeNativeFailure(name, r))
 	} else {
 		d.recordSuccess()
 	}
 	return r, nil
 }
 func payload(r *mcp.CallToolResult) (map[string]any, error) {
+	if r == nil {
+		return nil, errEmptyResponse
+	}
 	var obj map[string]any
 	if r.StructuredContent != nil {
 		b, e := json.Marshal(r.StructuredContent)
@@ -396,6 +411,23 @@ var allowed = map[string]map[string]bool{
 }
 
 func validate(a model.Action, v model.View) (map[string]any, error) {
+	if len(a.Postconditions) > 16 {
+		return nil, errors.New("postcondition_invalid")
+	}
+	for _, c := range a.Postconditions {
+		if c.MaxWaitMillis < 1 || c.MaxWaitMillis > 2000 || len(c.Expected) > 4096 || len(c.Element) > 256 {
+			return nil, errors.New("postcondition_invalid")
+		}
+		switch c.Kind {
+		case "property", "changed":
+			if c.Element == "" || (c.Property != "value" && c.Property != "label" && c.Property != "role") {
+				return nil, errors.New("postcondition_invalid")
+			}
+		case "task_result", "text":
+		default:
+			return nil, errors.New("postcondition_invalid")
+		}
+	}
 	fields, ok := allowed[a.Kind]
 	if !ok {
 		return nil, errors.New("unsupported_action")
@@ -520,13 +552,21 @@ func outcome(r *mcp.CallToolResult) model.Outcome {
 	}
 	// ActionResult.effect is the documented evidence boundary. An accepted
 	// transport call, ok:true, or an unverified screenshot is not success.
-	if p["effect"] == "confirmed" {
-		return model.Outcome{State: "succeeded"}
+	effect, _ := p["effect"].(string)
+	switch effect {
+	case "confirmed":
+		return model.Outcome{State: "succeeded", Code: "effect_confirmed"}
+	case "none":
+		return model.Outcome{State: "failed", Code: "effect_none"}
+	case "refused":
+		return model.Outcome{State: "needs_user", Code: "effect_refused"}
+	case "partial":
+		return model.Outcome{State: "unknown", Code: "effect_partial"}
+	case "suspected_noop":
+		return model.Outcome{State: "unknown", Code: "effect_suspected_noop"}
+	default:
+		return model.Outcome{State: "unknown", Code: "effect_unknown"}
 	}
-	if p["effect"] == "none" {
-		return model.Outcome{State: "failed"}
-	}
-	return model.Outcome{State: "unknown"}
 }
 func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode string) model.Outcome {
 	d.mu.Lock()
@@ -601,11 +641,22 @@ func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode st
 	if ctx.Err() != nil {
 		return model.Outcome{State: "unknown"}
 	}
-	if result.State == "needs_user" || result.State == "failed" {
+	if result.State == "needs_user" || result.State == "failed" || result.Code == "effect_partial" || result.Code == "effect_suspected_noop" {
 		return result
 	}
+	if len(a.Postconditions) > 0 {
+		if result.State != "succeeded" {
+			return result
+		}
+		return d.verifyPostconditions(ctx, a, v)
+	}
 	if a.Expect != "" {
-		// A bounded fresh AX read confirms the caller's concrete expected content.
+		// Fresh visible text is weak evidence. It can constrain a confirmed
+		// effect, but even newly appearing text cannot confirm an unknown one.
+		unverified := result
+		if result.State == "succeeded" {
+			unverified = model.Outcome{State: "unknown", Code: "postcondition_unverified"}
+		}
 		verifyArgs, _ := targetArgs(a.Target)
 		verifyArgs["include_screenshot"] = false
 		if d.treeFormat {
@@ -613,18 +664,16 @@ func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode st
 		}
 		r, err := d.call(ctx, "get_window_state", verifyArgs)
 		if err != nil || r.IsError {
-			return model.Outcome{State: "unknown"}
+			return unverified
 		}
 		p, err := payload(r)
 		if err != nil {
-			return model.Outcome{State: "unknown"}
+			return unverified
 		}
-		var before map[string]any
-		_ = json.Unmarshal([]byte(v.Text), &before)
-		if containsVisibleText(p, a.Expect) && (result.State == "succeeded" || !containsVisibleText(before, a.Expect)) {
-			return model.Outcome{State: "succeeded"}
+		if containsVisibleText(p, a.Expect) {
+			return result
 		}
-		return model.Outcome{State: "unknown"}
+		return unverified
 	}
 	return result
 }

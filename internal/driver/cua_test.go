@@ -352,13 +352,18 @@ func TestExpectedTextCannotOverrideRefusalOrOldContent(t *testing.T) {
 }
 func TestCalculatorPostconditionPreservesDirectionalMarks(t *testing.T) {
 	for _, tc := range []struct {
-		name, expect, before, want string
+		name, effect, expect, before, want, code string
 	}{
-		{"omitted", "", "\u200e72", "unknown"},
-		{"plain_digits", "56", "\u200e72", "unknown"},
-		{"literal_escape", `\u200e56`, "\u200e72", "unknown"},
-		{"exact_ax_value", "\u200e56", "\u200e72", "succeeded"},
-		{"unchanged_ax_value", "\u200e56", "\u200e56", "unknown"},
+		{"omitted", "unverifiable", "", "\u200e72", "unknown", "effect_unknown"},
+		{"plain_digits", "unverifiable", "56", "\u200e72", "unknown", "effect_unknown"},
+		{"literal_escape", "unverifiable", `\u200e56`, "\u200e72", "unknown", "effect_unknown"},
+		{"exact_ax_value", "unverifiable", "\u200e56", "\u200e72", "unknown", "effect_unknown"},
+		{"unchanged_ax_value", "unverifiable", "\u200e56", "\u200e56", "unknown", "effect_unknown"},
+		{"confirmed_omitted", "confirmed", "", "\u200e72", "succeeded", "effect_confirmed"},
+		{"confirmed_plain_digits", "confirmed", "56", "\u200e72", "unknown", "postcondition_unverified"},
+		{"confirmed_literal_escape", "confirmed", `\u200e56`, "\u200e72", "unknown", "postcondition_unverified"},
+		{"confirmed_exact_ax_value", "confirmed", "\u200e56", "\u200e72", "succeeded", "effect_confirmed"},
+		{"confirmed_unchanged_ax_value", "confirmed", "\u200e56", "\u200e56", "succeeded", "effect_confirmed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, v := fixtureAction()
@@ -375,11 +380,11 @@ func TestCalculatorPostconditionPreservesDirectionalMarks(t *testing.T) {
 					}
 					return &mcp.CallToolResult{StructuredContent: map[string]any{"tree_markdown": "- AXStaticText = \"\u200e7\u200e×\u200e8\"\n- AXStaticText = \"\u200e56\""}}, nil
 				}
-				return &mcp.CallToolResult{StructuredContent: map[string]any{"effect": "unverifiable"}}, nil
+				return &mcp.CallToolResult{StructuredContent: map[string]any{"effect": tc.effect}}, nil
 			}}
 			d := &Cua{client: fake, goos: "darwin", treeFormat: true}
-			if got := d.Execute(context.Background(), a, v, "background"); got.State != tc.want {
-				t.Fatalf("postcondition %q: got %+v, want %s", tc.expect, got, tc.want)
+			if got := d.Execute(context.Background(), a, v, "background"); got.State != tc.want || got.Code != tc.code {
+				t.Fatalf("postcondition %q: got %+v, want %s/%s", tc.expect, got, tc.want, tc.code)
 			}
 			clicks := 0
 			for _, name := range fake.calls {
@@ -389,6 +394,13 @@ func TestCalculatorPostconditionPreservesDirectionalMarks(t *testing.T) {
 			}
 			if clicks != 1 {
 				t.Fatalf("action sent %d times", clicks)
+			}
+			wantCalls := 1
+			if tc.expect != "" {
+				wantCalls++
+			}
+			if len(fake.calls) != wantCalls {
+				t.Fatalf("expected bounded fresh text read: %v", fake.calls)
 			}
 		})
 	}

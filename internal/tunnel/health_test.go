@@ -76,6 +76,36 @@ func TestHealthRequiresCurrentSuccessfulCloudEvidence(t *testing.T) {
 	}
 }
 
+func TestHealthCredentialFailureCodes(t *testing.T) {
+	now := time.Now().UTC()
+	for _, tc := range []struct {
+		status int
+		code   string
+	}{
+		{401, "tunnel_credentials_rejected"},
+		{403, "tunnel_permission_denied"},
+		{407, "requires_local_proxy_auth"},
+	} {
+		t.Run(tc.code, func(t *testing.T) {
+			fixture := healthFixture(now)
+			component(fixture, "control-plane")["status"] = "degraded"
+			poll := details(fixture, "control-plane")
+			poll["consecutive_failures"] = 1
+			poll["http_status"] = tc.status
+			poll["failure_category"] = "http_error"
+			raw, err := json.Marshal(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			generation := healthGeneration{launchedAt: now.Add(-time.Minute)}
+			got := generation.observe(raw, now)
+			if got.Ready || got.CloudState != "degraded" || got.Error != tc.code {
+				t.Fatalf("credential failure misreported: %+v", got)
+			}
+		})
+	}
+}
+
 func TestOfficialHTTPErrorCategoryIsRecognized(t *testing.T) {
 	if got := pollError("http_error", "", 502); got != "tunnel_http_failed" {
 		t.Fatalf("http_error classified as %s", got)

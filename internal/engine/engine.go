@@ -61,6 +61,7 @@ type Engine struct {
 	activeCancel           context.CancelFunc
 	activeDone             chan struct{}
 	externalPending        string
+	progress               ExecutionProgress
 	syncFile               func(*os.File) error
 }
 
@@ -361,6 +362,7 @@ func (e *Engine) saveReceiptLocked(r model.Receipt) error {
 	return nil
 }
 func (e *Engine) Execute(ctx context.Context, input model.Action) (model.Receipt, error) {
+	queuedAt := time.Now()
 	a, hash, err := e.prepare(input)
 	if err != nil {
 		return model.Receipt{}, err
@@ -490,6 +492,7 @@ func (e *Engine) Execute(ctx context.Context, input model.Action) (model.Receipt
 	runCtx, cancel := context.WithTimeout(ctx, e.cfg.ActionTimeout)
 	e.activeCancel = cancel
 	e.activeTask = a.TaskID
+	e.progress = ExecutionProgress{TaskID: a.TaskID, ActionID: a.ActionID, NativePending: true, QueueMillis: time.Since(queuedAt).Milliseconds()}
 	e.activeDone = make(chan struct{})
 	done := make(chan runResult, 1)
 	activeDone := e.activeDone
@@ -507,6 +510,7 @@ type runResult struct {
 
 func (e *Engine) run(ctx context.Context, cancel context.CancelFunc, a model.Action, v model.View, expiresAt time.Time, initial model.Activity, r model.Receipt, done chan<- runResult, activeDone chan struct{}) {
 	defer cancel()
+	started := time.Now()
 	output := make(chan model.Outcome, 1)
 	go func() {
 		// Journal sync can outlast the observation or allow human activity to
@@ -548,6 +552,14 @@ loop:
 					state = "failed"
 					reason = "driver_failed"
 				}
+				if evidenceState, ok := publicDriverCauses[outcome.Code]; ok {
+					reason = outcome.Code
+					// Evidence codes never promote an outcome. Contradictory
+					// success claims are bounded by the weaker driver evidence.
+					if state == "succeeded" && evidenceState != "succeeded" {
+						state = evidenceState
+					}
+				}
 			}
 			break loop
 		case <-ctx.Done():
@@ -557,9 +569,6 @@ loop:
 				cancel()
 			}
 		}
-	}
-	if state == "unknown" {
-		cancel()
 	}
 	cleanupDone, clean := e.release()
 	if !clean {
@@ -587,6 +596,7 @@ loop:
 		r.Code = "storage_unavailable"
 		r.Message = ""
 	}
+	e.progress.State, e.progress.Code = r.State, r.Code
 	e.activeCancel = nil
 	e.activeTask = ""
 	e.activeDone = nil
@@ -601,7 +611,25 @@ loop:
 		<-later
 	}
 	<-cleanupDone
+	e.mu.Lock()
+	e.progress.NativePending = false
+	e.progress.ExecutionMillis = time.Since(started).Milliseconds()
+	e.mu.Unlock()
 	e.unlock()
+}
+
+// Reviewed content-free causes only; arbitrary driver codes/messages stay private.
+// The value is the strongest state each piece of evidence can support.
+var publicDriverCauses = map[string]string{
+	"effect_confirmed":         "succeeded",
+	"effect_none":              "failed",
+	"effect_partial":           "unknown",
+	"effect_refused":           "needs_user",
+	"effect_suspected_noop":    "unknown",
+	"effect_unknown":           "unknown",
+	"postcondition_verified":   "succeeded",
+	"postcondition_unverified": "unknown",
+	"postcondition_invalid":    "unknown",
 }
 
 var publicDriverHints = map[string]string{
