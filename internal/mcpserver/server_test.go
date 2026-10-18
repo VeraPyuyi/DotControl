@@ -102,6 +102,14 @@ func TestSDKToolCatalogAndExecuteObjectRoundTrip(t *testing.T) {
 					if args["type"] != "object" {
 						t.Fatalf("execute args schema=%s", encoded)
 					}
+					conditions, ok := props["postconditions"].(map[string]any)
+					if !ok || conditions["type"] != "array" {
+						t.Fatalf("execute lacks structured postconditions: %s", encoded)
+					}
+					items, ok := conditions["items"].(map[string]any)
+					if !ok || items["type"] != "object" {
+						t.Fatalf("postconditions must contain structured objects: %s", encoded)
+					}
 				}
 			}
 			sort.Strings(names)
