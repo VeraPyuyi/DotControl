@@ -20,7 +20,7 @@ func TestConsoleNavigation(t *testing.T) {
 	if err != nil {
 		t.Skip("Node.js required")
 	}
-	for _, name := range []string{"console", "history"} {
+	for _, name := range []string{"console", "history", "progress"} {
 		if out, err := exec.Command(node, "testdata/"+name+".test.cjs", "web/"+name+".js").CombinedOutput(); err != nil {
 			t.Fatalf("%s: %v\n%s", name, err, out)
 		}

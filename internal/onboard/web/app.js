@@ -78,6 +78,11 @@ function cloudLabel(t){
  if(t?.error)return messages[t.error]||'连接尚未成功：'+t.error;
  return ({unconfirmed:'连接未确认',busy:'正在处理请求，连接状态单独核实',backpressured:'正在处理积压请求',offline:'云端未连接',stopped:'隧道未运行',unavailable:'连接未确认',degraded:'云端连接异常',proxy_blocked:'代理设置需要本机处理',connecting:'正在连接云端',starting:'正在连接云端'}[t?.cloud_state]||'等待云端连接');
 }
+function executionLabel(p){
+ if(p?.native_pending)return (p.cancel_registered?'取消已登记；':'')+'原生调用未结束，请等待';
+ if(p?.can_observe)return '可重新观察';
+ return '等待本机就绪';
+}
 function renderState(s){
  const first=!state;state=s;const terminal=!!s.terminal_only,online=cloudOnline(s.tunnel);if(first&&online)el('account-settings').open=false;
  for(const button of document.querySelectorAll('[data-action^=permissions]'))button.hidden=terminal||s.device.os!=='darwin';
@@ -88,7 +93,7 @@ function renderState(s){
  const cap=s.codex?.capabilities?.codex_terminal;
  const terminalStatus=cap?.available?'已连接本机 Codex':({terminal_disabled:'等待点击连接 Codex',device_paused:'已暂停',runtime_acceptance_required:'此系统尚未开放',terminal_configuration_changed:'配置已变更，请重新连接'}[cap?.code]||(cap?.code?'需要在本机检查配置':'等待本机配置'));
  const validation=terminal?[['本机 Codex',terminalStatus,!!cap?.available],['源端工具目录','尚未验证；请在源 Dot 核对实际工具列表',false],...(cap?.code?[['Codex 诊断代码',cap.code,false]]:[]),['任务状态',s.device.paused?'已暂停':'已启用',!s.device.paused]]:[['窗口图片',s.plugin?.image_seen?'MCP 已返回图片':'等待源 Dot 观察窗口',s.plugin?.image_seen],['图片交付',s.plugin?.image_confirmed?'你已确认源 Dot 显示图片':'尚未确认源 Dot 实际显示',s.plugin?.image_confirmed],['桌面任务',s.device.paused?'已暂停，等待本机启用':'已启用',!s.device.paused]];
- rows('validation',[['本地服务','就绪',true],['云端隧道',cloudLabel(s.tunnel),online],['源 Dot 调用',s.plugin?.devices_seen?'已收到 MCP 设备查询；请在源 Dot 核对本次结果':'等待源 Dot 调用',!!s.plugin?.devices_seen],...validation]);
+ rows('validation',[['执行状态',executionLabel(s.execution_progress),!!s.execution_progress?.can_observe],['驱动样本',s.driver_status?.stale_reason||s.driver_status?.sample_time||'尚未采样',!s.driver_status?.stale_reason],['本地服务','就绪',true],['云端隧道',cloudLabel(s.tunnel),online],['源 Dot 调用',s.plugin?.devices_seen?'已收到 MCP 设备查询；请在源 Dot 核对本次结果':'等待源 Dot 调用',!!s.plugin?.devices_seen],...validation]);
  if(!networkEditing){el('network-mode').value=s.network?.mode||'auto';el('network-proxy').value=s.network?.proxy_url||'';el('network-proxy-row').hidden=el('network-mode').value!=='manual'}
  const source=({system:'系统代理',environment:'进程代理',manual:'手动代理',direct:'直连',none:'直连',bypass:'按绕过规则直连'}[s.tunnel?.proxy_source]||s.tunnel?.proxy_source||'尚未确认');
  el('network-summary').textContent='当前连接方式：'+source+'；'+cloudLabel(s.tunnel)+(s.tunnel?.network_change_pending?'；新设置等待隧道下次启动':'')+(s.tunnel?.network_change_error?'；新设置需要处理：'+(messages[s.tunnel.network_change_error]||s.tunnel.network_change_error):'');
