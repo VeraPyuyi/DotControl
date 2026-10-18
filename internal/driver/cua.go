@@ -651,7 +651,12 @@ func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode st
 		return d.verifyPostconditions(ctx, a, v)
 	}
 	if a.Expect != "" {
-		// A bounded fresh AX read confirms the caller's concrete expected content.
+		// Fresh visible text is weak evidence. It can constrain a confirmed
+		// effect, but even newly appearing text cannot confirm an unknown one.
+		unverified := result
+		if result.State == "succeeded" {
+			unverified = model.Outcome{State: "unknown", Code: "postcondition_unverified"}
+		}
 		verifyArgs, _ := targetArgs(a.Target)
 		verifyArgs["include_screenshot"] = false
 		if d.treeFormat {
@@ -659,18 +664,16 @@ func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode st
 		}
 		r, err := d.call(ctx, "get_window_state", verifyArgs)
 		if err != nil || r.IsError {
-			return model.Outcome{State: "unknown"}
+			return unverified
 		}
 		p, err := payload(r)
 		if err != nil {
-			return model.Outcome{State: "unknown"}
+			return unverified
 		}
-		var before map[string]any
-		_ = json.Unmarshal([]byte(v.Text), &before)
-		if containsVisibleText(p, a.Expect) && (result.State == "succeeded" || !containsVisibleText(before, a.Expect)) {
-			return model.Outcome{State: "succeeded"}
+		if containsVisibleText(p, a.Expect) {
+			return result
 		}
-		return model.Outcome{State: "unknown"}
+		return unverified
 	}
 	return result
 }
