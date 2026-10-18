@@ -61,6 +61,7 @@ type Engine struct {
 	activeCancel           context.CancelFunc
 	activeDone             chan struct{}
 	externalPending        string
+	progress               ExecutionProgress
 	syncFile               func(*os.File) error
 }
 
@@ -361,6 +362,7 @@ func (e *Engine) saveReceiptLocked(r model.Receipt) error {
 	return nil
 }
 func (e *Engine) Execute(ctx context.Context, input model.Action) (model.Receipt, error) {
+	queuedAt := time.Now()
 	a, hash, err := e.prepare(input)
 	if err != nil {
 		return model.Receipt{}, err
@@ -490,6 +492,7 @@ func (e *Engine) Execute(ctx context.Context, input model.Action) (model.Receipt
 	runCtx, cancel := context.WithTimeout(ctx, e.cfg.ActionTimeout)
 	e.activeCancel = cancel
 	e.activeTask = a.TaskID
+	e.progress = ExecutionProgress{TaskID: a.TaskID, ActionID: a.ActionID, NativePending: true, QueueMillis: time.Since(queuedAt).Milliseconds()}
 	e.activeDone = make(chan struct{})
 	done := make(chan runResult, 1)
 	activeDone := e.activeDone
@@ -507,6 +510,7 @@ type runResult struct {
 
 func (e *Engine) run(ctx context.Context, cancel context.CancelFunc, a model.Action, v model.View, expiresAt time.Time, initial model.Activity, r model.Receipt, done chan<- runResult, activeDone chan struct{}) {
 	defer cancel()
+	started := time.Now()
 	output := make(chan model.Outcome, 1)
 	go func() {
 		// Journal sync can outlast the observation or allow human activity to
@@ -601,6 +605,10 @@ loop:
 		<-later
 	}
 	<-cleanupDone
+	e.mu.Lock()
+	e.progress.NativePending = false
+	e.progress.ExecutionMillis = time.Since(started).Milliseconds()
+	e.mu.Unlock()
 	e.unlock()
 }
 

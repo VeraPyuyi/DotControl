@@ -25,6 +25,7 @@ type diagnosticState struct {
 	closed               bool
 	reconnectionRequired bool
 	lastFailure          *callFailure
+	sampleTime           time.Time
 }
 
 // Diagnostic reports the last known transport state, not a live GUI probe.
@@ -33,8 +34,16 @@ type diagnosticState struct {
 func (d *Cua) Diagnostic() map[string]any {
 	d.diagnosticMu.Lock()
 	defer d.diagnosticMu.Unlock()
+	expires := d.diagnostic.sampleTime.Add(30 * time.Second)
+	stale := ""
+	if d.diagnostic.sampleTime.IsZero() {
+		stale = "not_sampled"
+	} else if !time.Now().Before(expires) {
+		stale = "sample_expired"
+	}
 	status := map[string]any{
-		"connected":             d.diagnostic.connected && !d.diagnostic.closed,
+		"sample_time": d.diagnostic.sampleTime, "expires_at": expires, "stale_reason": stale,
+		"connected":             d.diagnostic.connected && !d.diagnostic.closed && stale == "",
 		"reconnection_required": d.diagnostic.reconnectionRequired || d.diagnostic.closed,
 	}
 	if d.diagnostic.lastFailure != nil {
@@ -48,6 +57,7 @@ func (d *Cua) recordSuccess() {
 	defer d.diagnosticMu.Unlock()
 	if !d.diagnostic.reconnectionRequired && !d.diagnostic.closed {
 		d.diagnostic.connected = true
+		d.diagnostic.sampleTime = time.Now().UTC()
 	}
 }
 
