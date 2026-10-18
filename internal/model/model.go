@@ -51,8 +51,9 @@ type Action struct {
 	Kind          string          `json:"kind"`
 	Args          json.RawMessage `json:"args"`
 	// Mode is auto, background, or foreground. Foreground requires local idleness.
-	Mode   string `json:"mode"`
-	Expect string `json:"expect,omitempty"`
+	Mode           string          `json:"mode"`
+	Expect         string          `json:"expect,omitempty"`
+	Postconditions []Postcondition `json:"postconditions,omitempty"`
 }
 type Receipt struct {
 	DeviceID  string    `json:"device_id"`

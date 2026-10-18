@@ -615,6 +615,12 @@ func (d *Cua) Execute(ctx context.Context, a model.Action, v model.View, mode st
 	if result.State == "needs_user" || result.State == "failed" || result.Code == "effect_partial" || result.Code == "effect_suspected_noop" {
 		return result
 	}
+	if len(a.Postconditions) > 0 {
+		if result.State != "succeeded" {
+			return result
+		}
+		return d.verifyPostconditions(ctx, a, v)
+	}
 	if a.Expect != "" {
 		// A bounded fresh AX read confirms the caller's concrete expected content.
 		verifyArgs, _ := targetArgs(a.Target)
