@@ -552,6 +552,14 @@ loop:
 					state = "failed"
 					reason = "driver_failed"
 				}
+				if evidenceState, ok := publicDriverCauses[outcome.Code]; ok {
+					reason = outcome.Code
+					// Evidence codes never promote an outcome. Contradictory
+					// success claims are bounded by the weaker driver evidence.
+					if state == "succeeded" && evidenceState != "succeeded" {
+						state = evidenceState
+					}
+				}
 			}
 			break loop
 		case <-ctx.Done():
@@ -561,9 +569,6 @@ loop:
 				cancel()
 			}
 		}
-	}
-	if state == "unknown" {
-		cancel()
 	}
 	cleanupDone, clean := e.release()
 	if !clean {
@@ -591,6 +596,7 @@ loop:
 		r.Code = "storage_unavailable"
 		r.Message = ""
 	}
+	e.progress.State, e.progress.Code = r.State, r.Code
 	e.activeCancel = nil
 	e.activeTask = ""
 	e.activeDone = nil
@@ -610,6 +616,20 @@ loop:
 	e.progress.ExecutionMillis = time.Since(started).Milliseconds()
 	e.mu.Unlock()
 	e.unlock()
+}
+
+// Reviewed content-free causes only; arbitrary driver codes/messages stay private.
+// The value is the strongest state each piece of evidence can support.
+var publicDriverCauses = map[string]string{
+	"effect_confirmed":         "succeeded",
+	"effect_none":              "failed",
+	"effect_partial":           "unknown",
+	"effect_refused":           "needs_user",
+	"effect_suspected_noop":    "unknown",
+	"effect_unknown":           "unknown",
+	"postcondition_verified":   "succeeded",
+	"postcondition_unverified": "unknown",
+	"postcondition_invalid":    "unknown",
 }
 
 var publicDriverHints = map[string]string{

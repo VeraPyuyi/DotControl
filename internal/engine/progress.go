@@ -7,6 +7,8 @@ import "time"
 type ExecutionProgress struct {
 	TaskID           string    `json:"task_id,omitempty"`
 	ActionID         string    `json:"action_id,omitempty"`
+	State            string    `json:"state,omitempty"`
+	Code             string    `json:"code,omitempty"`
 	CancelRegistered bool      `json:"cancel_registered"`
 	NativePending    bool      `json:"native_pending"`
 	CanObserve       bool      `json:"can_observe"`
