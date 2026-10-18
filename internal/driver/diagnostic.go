@@ -29,6 +29,9 @@ type diagnosticState struct {
 	lastFailure          *callFailure
 	sampleTime           time.Time
 	origin               string
+	callMillis           int64
+	responseBytes        int
+	responseOverBudget   bool
 }
 
 // Diagnostic reports the last known transport state, not a live GUI probe.
@@ -50,6 +53,10 @@ func (d *Cua) Diagnostic() map[string]any {
 		"diagnostic_build":      NativeDiagnosticBuild,
 		"reconnection_required": d.diagnostic.reconnectionRequired || d.diagnostic.closed,
 	}
+	status["call_ms"] = d.diagnostic.callMillis
+	status["response_bytes"] = d.diagnostic.responseBytes
+	status["response_budget_bytes"] = 4 << 20
+	status["response_over_budget"] = d.diagnostic.responseOverBudget
 	status["failure_journal_enabled"], status["failure_journal_write_failed"] = failureJournalStatus()
 	if d.diagnostic.lastFailure != nil {
 		status["last_failure"] = *d.diagnostic.lastFailure

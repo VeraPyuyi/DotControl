@@ -185,7 +185,19 @@ func (d *Cua) call(ctx context.Context, name string, args map[string]any) (*mcp.
 		d.sessionLabel = "dotcontrol-" + rand.Text()
 	}
 	args["session"] = d.sessionLabel
+	started := time.Now()
 	r, err := d.client.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	response, marshalErr := json.Marshal(r)
+	overBudget := len(response) > 4<<20 || marshalErr != nil
+	d.diagnosticMu.Lock()
+	d.diagnostic.callMillis = time.Since(started).Milliseconds()
+	d.diagnostic.responseBytes = len(response)
+	d.diagnostic.responseOverBudget = overBudget
+	d.diagnosticMu.Unlock()
+	if overBudget {
+		d.recordFailure(name, errEmptyResponse, true, false)
+		return nil, errors.New("driver_response_budget_exceeded")
+	}
 	if err != nil {
 		// Cancelling an observation cannot leave native input in flight. Keep
 		// the session available for a NEW read, without retrying this request.
