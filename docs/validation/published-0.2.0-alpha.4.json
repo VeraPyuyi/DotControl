@@ -1,0 +1,252 @@
+{
+  "version": "0.2.0-alpha.4",
+  "date": "2026-10-13",
+  "source_commit": "728d152430fb6a800b570e78c1f74e6d3700aee4",
+  "release_url": "https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.4",
+  "pr_merged": false,
+  "previous_release_assets_replaced": false,
+  "native_test_race_vet_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38366303456",
+  "native_build_and_candidate_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38366305748",
+  "public_native_verification_run": "https://github.com/VeraPyuyi/DotControl/actions/runs/38368202657",
+  "all_three_native_published_verifications": "passed",
+  "candidate_native_reports": {
+    "windows-amd64": {
+      "sha256": "08e8220c1f83d9293eaddccf825da4e761b4e8df593dc1defa347ac7017625c2",
+      "bytes": 51183616,
+      "payload": {
+        "arch": "amd64",
+        "files": 44,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.4",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    "darwin-arm64": {
+      "sha256": "80ee5aa115c9e6f7cbf7473d50a0e3e8ebc06b0af454629a74beded1b2a29985",
+      "bytes": 93451614,
+      "payload": {
+        "arch": "arm64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.4",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    "darwin-amd64": {
+      "sha256": "57b530e5f459e40547f738cd87f18dd22efaeaec4e98b333bae9776f42eb840c",
+      "bytes": 94161235,
+      "payload": {
+        "arch": "amd64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.4",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  },
+  "published_native_reports": {
+    "windows-amd64": {
+      "sha256": "08e8220c1f83d9293eaddccf825da4e761b4e8df593dc1defa347ac7017625c2",
+      "bytes": 51183616,
+      "payload": {
+        "arch": "amd64",
+        "files": 44,
+        "os": "windows",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.4",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    "macos-arm64": {
+      "sha256": "80ee5aa115c9e6f7cbf7473d50a0e3e8ebc06b0af454629a74beded1b2a29985",
+      "bytes": 93451614,
+      "payload": {
+        "arch": "arm64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.4",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    },
+    "macos-amd64": {
+      "sha256": "57b530e5f459e40547f738cd87f18dd22efaeaec4e98b333bae9776f42eb840c",
+      "bytes": 94161235,
+      "payload": {
+        "arch": "amd64",
+        "files": 47,
+        "os": "darwin",
+        "payload_verified": true,
+        "version": "0.2.0-alpha.4",
+        "isolated_install": {
+          "scope": "isolated_no_start_synthetic_old_generation",
+          "checks": [
+            "actual_embedded_install_without_runtime_or_credentials",
+            "repeat_install",
+            "failed_health_restores_previous_pointer_and_config",
+            "changed_owned_file_preserved_new_version_retained",
+            "cleanup_retry_removes_only_owned_old_files",
+            "identity_tunnel_shared_scope_unknown_config_and_records_preserved"
+          ],
+          "passed": 6,
+          "desktop_acceptance": "not_tested"
+        }
+      },
+      "desktop_acceptance": "not_verified"
+    }
+  },
+  "assets": [
+    {
+      "name": "DotControl-0.2.0-alpha.4-macos-amd64.dmg",
+      "bytes": 94161235,
+      "sha256": "57b530e5f459e40547f738cd87f18dd22efaeaec4e98b333bae9776f42eb840c",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.4-macos-amd64.dmg.sha256",
+      "bytes": 107,
+      "sha256": "25470edff0e7bdf4c154d7f0425cd00ee50f5969b82e1f3a06064a64da745a7c",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.4-macos-arm64.dmg",
+      "bytes": 93451614,
+      "sha256": "80ee5aa115c9e6f7cbf7473d50a0e3e8ebc06b0af454629a74beded1b2a29985",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.4-macos-arm64.dmg.sha256",
+      "bytes": 107,
+      "sha256": "b3ca442ea27b3719b872bec53cf304a15853d034b146b636804d573b628c01f8",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.4-windows-amd64-setup.exe",
+      "bytes": 51183616,
+      "sha256": "08e8220c1f83d9293eaddccf825da4e761b4e8df593dc1defa347ac7017625c2",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-0.2.0-alpha.4-windows-amd64-setup.exe.sha256",
+      "bytes": 116,
+      "sha256": "df107d6926113962cb48063ad757eafea3e4be5398abae017a117ee3bba7a2ca",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.4.zip",
+      "bytes": 50746,
+      "sha256": "8ef9ccb6173940a1ee86fb6e3978782c8917bcd339ea2b87d7e29af3c1cfc868",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "DotControl-onboarding-0.2.0-alpha.4.zip.sha256",
+      "bytes": 107,
+      "sha256": "6e4d25bb6ad2c5534cb553c7e8ac12ef31d0b44e50dcdf32bf3e77aee785ab0a",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "LICENSE.txt",
+      "bytes": 1080,
+      "sha256": "2091f2991c6b41bad7c26d434ec331816b9aba8ac7d53b5a8b84d7aed69006db",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 608,
+      "sha256": "0b613defe4271fbcb70cd5b44f97ced0ce0fc258792c092eda5ccfa340abad52",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    },
+    {
+      "name": "THIRD_PARTY_NOTICES.md",
+      "bytes": 1839,
+      "sha256": "c025a0374c0102d92fb71a9e22f6d3105d7e64fd6b5c06444a7c288ec6a901cd",
+      "public_unauthenticated_download": true,
+      "matches_candidate": true
+    }
+  ],
+  "first_party_publisher_signature": "not_configured",
+  "first_party_notarization": "not_configured",
+  "upstream_cua_macos_signature": "verified_on_both_native_runners_without_resigning",
+  "user_mac_modified": false,
+  "mac_user_device_cloud_acceptance": "not_verified",
+  "cloud_connection": "windows_installed_public_bytes_successful_poll_and_hosted_devices_verified",
+  "proxy_change_limit": "pending_until_next_client_start_no_lossless_drain_in_pinned_upstream"
+}

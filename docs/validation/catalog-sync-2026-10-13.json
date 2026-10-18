@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-13",
+  "scope": "Refresh the existing Windows plugin catalog and verify read-only terminal delegation from source Mac Dot",
+  "agent_version": "0.2.0-alpha.3-dev",
+  "official_refresh": {
+    "method": "Refresh tools in the existing official plugin settings",
+    "plugin_identity_preserved": true,
+    "tunnel_device_credentials_preserved": true,
+    "permissions_unchanged": true,
+    "duplicate_plugin_created": false,
+    "private_web_api_used": false
+  },
+  "catalogs": {
+    "running_local_mcp_tool_count": 11,
+    "official_plugin_details_tool_count": 11,
+    "official_plugin_details_groups": {"read": 5, "write": 6},
+    "fresh_mac_task_tool_count": 11,
+    "codex_tools": ["codex_submit", "codex_job", "codex_continue", "codex_cancel", "codex_review"],
+    "propagation_observation": "Initial fresh Mac task and its continuation still exposed six tools; after source Dot saw the new catalog, a later fresh Mac task exposed all eleven. No fixed propagation duration is claimed."
+  },
+  "source_mac": {
+    "official_attachment_before": "mac",
+    "official_attachment_after": "mac_confirmed_by_source_dot_official_environment_query",
+    "windows_attached": false,
+    "devices_call": "passed_target_windows_unpaused_terminal_ready_saved_profile_present",
+    "submit_and_same_request_retry": "passed_identical_arguments_same_job_request_hash_prompt_hash_and_created_at",
+    "same_thread_continue": "passed_same_official_thread_new_turn",
+    "results_returned_to_source_dot": "displayed_both_turns_exit_codes_and_outputs_in_source_dot_conversation",
+    "terminal_cross_computer_acceptance": "passed_this_read_only_system_information_and_same_thread_continuation_scenario"
+  },
+  "windows_official_thread": {
+    "readback": "both_turns_and_all_three_actual_commands_confirmed_via_official_host_read_thread",
+    "first_command": "CIM operating-system properties",
+    "first_command_exit_code": 1,
+    "first_command_error": "access_denied",
+    "fallback_command": "Read OSDescription and OSArchitecture through local .NET RuntimeInformation",
+    "fallback_command_exit_code": 0,
+    "result": {"OSVersion": "Microsoft Windows 10.0.26200", "OSArchitecture": "X64"},
+    "continuation_command": "$PSVersionTable.PSVersion.ToString()",
+    "continuation_exit_code": 0,
+    "continuation_output": "7.6.5",
+    "source_mac_received": "structured_commandExecution_exit_codes_and_outputs_for_both_turns",
+    "evidence_limit": "MCP evidence does not contain command text; exact commands were separately checked through official thread readback. Model runtime text alone is not independent command proof.",
+    "generic_job_verification": "unverified_preserved_no_history_rewritten",
+    "approval_requests": 0
+  },
+  "excluded": {
+    "ssh": "not_used",
+    "experiment_deployment": "not_used",
+    "computer_use": "not_used",
+    "legacy_window_execute": "not_used",
+    "images_and_library": "not_required",
+    "remote_approval": "not_exercised_catalog_presence_is_not_acceptance",
+    "cancel_execution": "not_exercised_interface_discovery_only"
+  },
+  "onboarding": {
+    "local_ready_distinct_from_source_catalog": true,
+    "upgrade_guidance": "official_refresh_then_new_conversation_and_actual_tool_list_check",
+    "missing_core_tool": "stop_before_devices_or_submission",
+    "live_candidate_ui": "updated_after_both_turns_and_source_delivery_completed",
+    "live_candidate_configuration": "unchanged_hash_identity_pause_profile_and_ready_tunnel_preserved",
+    "live_candidate_sha256": "c64297eee88871581029e0e960f036f93b26218acc2a5cc39b5c5354df663cb5"
+  },
+  "checks": {
+    "go_test_internal_onboard": "passed_with_node",
+    "go_test_internal_mcpserver": "passed",
+    "windows_gui_candidate_build": "passed",
+    "spec_review": "passed",
+    "quality_review": "passed",
+    "git_diff_check": "passed"
+  },
+  "privacy": "Public record omits device, tunnel, job and thread IDs, nonces, private paths and raw task artifacts."
+}

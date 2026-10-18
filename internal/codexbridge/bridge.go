@@ -22,7 +22,10 @@ import (
 	"github.com/gofrs/flock"
 )
 
-type Config struct{ DeviceID, StateDir string }
+type Config struct {
+	DeviceID, StateDir string
+	Runtime            *RuntimeConfig
+}
 type Bridge struct {
 	mu             sync.Mutex
 	deviceID       string
@@ -33,6 +36,7 @@ type Bridge struct {
 	jobs           map[string]model.CodexJob
 	requests       map[string]string
 	closed, broken bool
+	runtime        *runtimeState
 }
 type record struct {
 	Job      model.CodexJob `json:"job"`
@@ -63,6 +67,11 @@ func New(cfg Config) (*Bridge, error) {
 		if b.file != nil {
 			b.file.Close()
 		}
+		l.Unlock()
+		return nil, err
+	}
+	if err := b.openRuntime(cfg); err != nil {
+		b.file.Close()
 		l.Unlock()
 		return nil, err
 	}
@@ -181,6 +190,9 @@ func (b *Bridge) healthy() error {
 	return nil
 }
 func (b *Bridge) Submit(ctx context.Context, r model.CodexSubmit) (model.CodexJob, error) {
+	if r.ProfileID != "" {
+		return b.submitRuntime(ctx, r)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if err := b.healthy(); err != nil {
@@ -194,6 +206,9 @@ func (b *Bridge) Submit(ctx context.Context, r model.CodexSubmit) (model.CodexJo
 	}
 	value, _ := json.Marshal(r)
 	hash := b.hash("request", value)
+	if _, ok := b.runtime.requests[r.RequestID]; ok {
+		return model.CodexJob{}, failure("request_id_conflict")
+	}
 	if id, ok := b.requests[r.RequestID]; ok {
 		j := b.jobs[id]
 		if j.RequestHash != hash {
@@ -201,10 +216,13 @@ func (b *Bridge) Submit(ctx context.Context, r model.CodexSubmit) (model.CodexJo
 		}
 		return j, nil
 	}
+	if r.RetiredFieldsPresent || r.ServerProfileID != "" || r.ExperimentID != "" {
+		return model.CodexJob{}, failure("feature_retired")
+	}
 	if err := ctx.Err(); err != nil {
 		return model.CodexJob{}, failure("cancelled")
 	}
-	state, code, message := "blocked", "official_cu_acceptance_required", "Official native Computer Use execution is not enabled: image delivery, delegated action, local human approval, and interruption acceptance are pending."
+	state, code, message := "blocked", "official_cu_acceptance_required", "Official native Computer Use execution is not enabled: image delivery, delegated action, and interruption acceptance are pending."
 	if reason := validate(r); reason != "" {
 		state, code, message = "rejected", reason, "The delegation request is invalid; no Codex thread or desktop action was started."
 	}
@@ -243,8 +261,12 @@ func validate(r model.CodexSubmit) string {
 }
 func (b *Bridge) Job(deviceID, jobID string) (model.CodexJob, error) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.job(deviceID, jobID)
+	j, err := b.job(deviceID, jobID)
+	b.mu.Unlock()
+	if err != nil {
+		return j, err
+	}
+	return j, nil
 }
 func (b *Bridge) job(deviceID, jobID string) (model.CodexJob, error) {
 	if err := b.healthy(); err != nil {
@@ -252,6 +274,9 @@ func (b *Bridge) job(deviceID, jobID string) (model.CodexJob, error) {
 	}
 	if deviceID != b.deviceID {
 		return model.CodexJob{}, failure("wrong_device")
+	}
+	if j, ok := b.runtime.jobs[jobID]; ok {
+		return cloneJob(j.entry.Job), nil
 	}
 	j, ok := b.jobs[jobID]
 	if !ok {
@@ -269,6 +294,9 @@ func (b *Bridge) Cancel(deviceID, jobID string) (model.CodexJob, error) {
 	if j.CancelRequested {
 		return j, nil
 	}
+	if _, ok := b.runtime.jobs[jobID]; ok {
+		return b.cancelRuntimeLocked(jobID)
+	}
 	j.CancelRequested, j.UpdatedAt = true, time.Now().UTC()
 	// Blocked/rejected are terminal. Cancellation records intent, not a fictitious
 	// native interruption, and never contacts a foreign or user-created thread.
@@ -278,10 +306,11 @@ func (b *Bridge) Cancel(deviceID, jobID string) (model.CodexJob, error) {
 	return j, nil
 }
 func DisabledCapabilities() model.CodexCapabilities {
-	return model.CodexCapabilities{Base: model.Capability{State: "not_probed", Code: "driver_not_probed"}, CodexConnection: model.Capability{State: "not_probed", Code: "codex_not_probed"}, OfficialComputerUse: model.Capability{State: "not_verified", Code: "official_cu_acceptance_required"}, CodexDelegation: model.Capability{State: "blocked", Code: "official_cu_acceptance_required"}}
+	return model.CodexCapabilities{Base: model.Capability{State: "not_probed", Code: "driver_not_probed"}, CodexConnection: model.Capability{State: "not_probed", Code: "codex_not_probed"}, CodexTerminal: model.Capability{State: "disabled", Code: "codex_bridge_not_configured"}, OfficialComputerUse: model.Capability{State: "not_verified", Code: "official_cu_acceptance_required"}, CodexDelegation: model.Capability{State: "blocked", Code: "official_cu_acceptance_required"}}
 }
-func (b *Bridge) Capabilities() model.CodexCapabilities { return DisabledCapabilities() }
+func (b *Bridge) Capabilities() model.CodexCapabilities { return b.runtimeCapabilities() }
 func (b *Bridge) Close() error {
+	b.closeRuntime()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {

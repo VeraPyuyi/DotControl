@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.0-alpha.2"
+const Version = "0.2.0-alpha.7"
 
 type Target struct {
 	PID      int    `json:"pid"`
@@ -83,14 +83,28 @@ type Driver interface {
 	Release(context.Context) error
 }
 type Device struct {
-	ID           string             `json:"device_id"`
-	Name         string             `json:"name"`
-	OS           string             `json:"os"`
-	Version      string             `json:"version"`
-	Paused       bool               `json:"paused"`
-	Activity     Activity           `json:"activity"`
-	Nonce        string             `json:"nonce"`
-	Capabilities DeviceCapabilities `json:"capabilities"`
+	ID            string               `json:"device_id"`
+	Name          string               `json:"name"`
+	OS            string               `json:"os"`
+	Version       string               `json:"version"`
+	Paused        bool                 `json:"paused"`
+	Activity      Activity             `json:"activity"`
+	Nonce         string               `json:"nonce"`
+	Capabilities  DeviceCapabilities   `json:"capabilities"`
+	CodexProfiles *CodexProfileCatalog `json:"codex_profiles,omitempty"`
+}
+
+// Only the target user's deliberately configured choices are discoverable.
+// Paths, SSH endpoints, identity files and deployment commands stay local.
+type CodexProfileCatalog struct {
+	Execution []CodexProfileSummary `json:"execution"`
+	Servers   []CodexProfileSummary `json:"servers,omitempty"`
+}
+type CodexProfileSummary struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Execution    string `json:"execution,omitempty"`
+	Presentation string `json:"presentation,omitempty"`
 }
 
 // Capability separates a live connection from acceptance of desktop execution.
@@ -101,35 +115,119 @@ type Capability struct {
 	Code      string `json:"code,omitempty"`
 }
 type DeviceCapabilities struct {
-	Base                Capability `json:"base"`
-	CodexConnection     Capability `json:"codex_connection"`
-	OfficialComputerUse Capability `json:"official_computer_use"`
-	CodexDelegation     Capability `json:"codex_delegation"`
+	CodexHistory        HistoryCapability `json:"codex_history"`
+	Base                Capability        `json:"base"`
+	CodexConnection     Capability        `json:"codex_connection"`
+	CodexTerminal       Capability        `json:"codex_terminal"`
+	OfficialComputerUse Capability        `json:"official_computer_use"`
+	CodexDelegation     Capability        `json:"codex_delegation"`
+}
+
+type HistoryCapability struct {
+	Available bool   `json:"available"`
+	State     string `json:"state"`
+	Code      string `json:"code,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Revision  uint64 `json:"revision,omitempty"`
 }
 type CodexCapabilities = DeviceCapabilities
 
 type CodexSubmit struct {
-	DeviceID    string   `json:"device_id"`
-	RequestID   string   `json:"request_id"`
-	Prompt      string   `json:"prompt"`
-	AllowedApps []string `json:"allowed_apps"`
-	WorkingDirs []string `json:"working_dirs"`
+	RetiredFieldsPresent bool     `json:"-"`
+	DeviceID             string   `json:"device_id"`
+	RequestID            string   `json:"request_id"`
+	Prompt               string   `json:"prompt"`
+	AllowedApps          []string `json:"allowed_apps"`
+	WorkingDirs          []string `json:"working_dirs"`
+	ProfileID            string   `json:"profile_id,omitempty"`
+	ServerProfileID      string   `json:"server_profile_id,omitempty"`
+	ExperimentID         string   `json:"experiment_id,omitempty"`
+	Presentation         string   `json:"presentation,omitempty"`
 }
 
-// CodexJob never contains prompts, app names, paths, screenshots, or model text.
-// Hashes use a random per-store HMAC key; they are not unsalted prompt digests.
+type CodexContinue struct {
+	DeviceID  string `json:"device_id"`
+	JobID     string `json:"job_id"`
+	RequestID string `json:"request_id"`
+	Prompt    string `json:"prompt"`
+}
+
+// Legacy CodexJob records contain only fixed status and keyed hashes. Optional
+// Runtime carries bounded owned results in memory; the runtime journal strips
+// all result text, images, evidence and human-review details before persistence.
 type CodexJob struct {
-	JobID           string    `json:"job_id"`
-	DeviceID        string    `json:"device_id"`
-	RequestID       string    `json:"request_id"`
-	State           string    `json:"state"`
-	Code            string    `json:"code"`
-	Message         string    `json:"message"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	PromptHash      string    `json:"prompt_hash"`
-	RequestHash     string    `json:"request_hash"`
-	CancelRequested bool      `json:"cancel_requested"`
+	JobID           string            `json:"job_id"`
+	DeviceID        string            `json:"device_id"`
+	RequestID       string            `json:"request_id"`
+	State           string            `json:"state"`
+	Code            string            `json:"code"`
+	Message         string            `json:"message"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	PromptHash      string            `json:"prompt_hash"`
+	RequestHash     string            `json:"request_hash"`
+	CancelRequested bool              `json:"cancel_requested"`
+	ProfileID       string            `json:"profile_id,omitempty"`
+	ServerProfileID string            `json:"server_profile_id,omitempty"`
+	ExperimentID    string            `json:"experiment_id,omitempty"`
+	ThreadID        string            `json:"thread_id,omitempty"`
+	TurnID          string            `json:"turn_id,omitempty"`
+	Runtime         *CodexRuntimeInfo `json:"runtime,omitempty"`
+}
+
+// Runtime payloads are bounded and returned only to the owning caller. They are
+// never written to the general job journal; restart explicitly loses results.
+type CodexRuntimeInfo struct {
+	Execution         string `json:"execution"`
+	Presentation      string `json:"presentation"`
+	PresentationState string `json:"presentation_state"`
+	TurnState         string `json:"turn_state,omitempty"`
+	Verification      string `json:"verification"`
+	ResultStatus      string `json:"result_status"`
+	// These are observed transport/review routes, never proof of remote display.
+	ImageDeliveryStatus string               `json:"image_delivery_status,omitempty"`
+	ReviewLocation      string               `json:"review_location,omitempty"`
+	Text                string               `json:"text,omitempty"`
+	Images              []Image              `json:"images,omitempty"`
+	Evidence            []CodexEvidence      `json:"evidence,omitempty"`
+	Approvals           []CodexApproval      `json:"approvals,omitempty"`
+	Experiment          *CodexExperimentInfo `json:"experiment,omitempty"`
+	TextTruncated       bool                 `json:"text_truncated,omitempty"`
+	EvidenceTruncated   bool                 `json:"evidence_truncated,omitempty"`
+}
+
+// Experiment evidence comes from an independent helper status read, never model
+// text. It is ephemeral, just like other owned result evidence.
+type CodexExperimentInfo struct {
+	ExperimentID string `json:"experiment_id"`
+	State        string `json:"state"`
+	Code         string `json:"code,omitempty"`
+	Fixture      string `json:"fixture"`
+	ExitCode     *int   `json:"exit_code,omitempty"`
+	Result       string `json:"result,omitempty"`
+	ResultSHA256 string `json:"result_sha256,omitempty"`
+	Expected     bool   `json:"expected_check"`
+}
+
+type CodexEvidence struct {
+	Kind            string `json:"kind"`
+	ItemID          string `json:"item_id"`
+	Status          string `json:"status"`
+	ExitCode        *int   `json:"exit_code,omitempty"`
+	Source          string `json:"source,omitempty"`
+	Output          string `json:"output,omitempty"`
+	OutputTruncated bool   `json:"output_truncated,omitempty"`
+}
+
+// Approval summaries contain no command, file contents, secret or raw schema.
+// Exact operation details are supplied only to a trusted human review callback.
+type CodexApproval struct {
+	ApprovalID string    `json:"approval_id"`
+	Kind       string    `json:"kind"`
+	Operation  string    `json:"operation"`
+	Scope      string    `json:"scope"`
+	State      string    `json:"state"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 type CodexUnsupported struct {

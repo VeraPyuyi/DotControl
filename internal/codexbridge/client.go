@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -22,7 +24,31 @@ type TransportError struct {
 
 func (e *TransportError) Error() string { return e.Code }
 
-type RPCError struct{ Code int }
+type RPCError struct {
+	Code          int
+	LocalTakeover bool   `json:"-"`
+	Reason        string `json:"-"`
+}
+
+var activeWriterError = regexp.MustCompile(`^thread [A-Za-z0-9-]+ already has an active writer$`)
+
+func (e *RPCError) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	e.Code = wire.Code
+	e.LocalTakeover = wire.Code == -32600 && activeWriterError.MatchString(wire.Message)
+	e.Reason = ""
+	message := strings.ToLower(wire.Message)
+	if strings.Contains(message, "cannot enforce split writable root sets") || strings.Contains(message, "cannot enforce split writable roots") {
+		e.Reason = "terminal_sandbox_layout_unsupported"
+	}
+	return nil // raw upstream text is deliberately discarded
+}
 
 func (e *RPCError) Error() string { return fmt.Sprintf("codex_rpc_error_%d", e.Code) }
 
@@ -115,8 +141,7 @@ func (c *Client) read() {
 		}
 		if m.Method != "" {
 			if len(m.ID) > 0 && string(m.ID) != "null" {
-				// Approval/elicitation/tool/user-input requests stay pending. This
-				// release has deliberately no response/approval API or auto-accept.
+				// Requests remain pending so the runtime can interrupt without answering.
 				c.mu.Lock()
 				if len(c.serverRequests) >= 64 {
 					c.mu.Unlock()
@@ -126,6 +151,8 @@ func (c *Client) read() {
 				c.serverRequests[string(m.ID)] = ServerRequest{ID: m.ID, Method: m.Method, Params: m.Params}
 				c.mu.Unlock()
 			} else {
+				// Retain every unhandled request for the interruption guard.
+				// A fast resolved notification must not hide unexpected input.
 				select {
 				case c.notifications <- Notification{Method: m.Method, Params: m.Params}:
 				default:
@@ -193,24 +220,32 @@ func (c *Client) write(ctx context.Context, data []byte) error {
 		}
 		result <- err
 	}()
+	var err error
 	select {
-	case err := <-result:
-		if err != nil {
-			e := &TransportError{Code: "codex_connection_lost", OutcomeUnknown: true}
+	case err = <-result:
+	case <-ctx.Done():
+		// A completed write may race cancellation. Preserve the connection
+		// for an official interrupt when its successful result is already
+		// available; genuinely unresolved writes still close with uncertainty.
+		select {
+		case err = <-result:
+		default:
+			e := &TransportError{Code: "codex_request_timeout", OutcomeUnknown: true}
 			c.shutdown(e)
 			return e
 		}
-		return nil
-	case <-ctx.Done():
-		e := &TransportError{Code: "codex_request_timeout", OutcomeUnknown: true}
-		c.shutdown(e)
-		return e
 	case <-c.done:
 		c.mu.Lock()
 		err := c.terminal
 		c.mu.Unlock()
 		return err
 	}
+	if err != nil {
+		e := &TransportError{Code: "codex_connection_lost", OutcomeUnknown: true}
+		c.shutdown(e)
+		return e
+	}
+	return nil
 }
 
 // Call sends exactly one public protocol request. It never retries. It is an
@@ -282,6 +317,7 @@ func (c *Client) PendingRequests() []ServerRequest {
 	sort.Slice(out, func(i, j int) bool { return string(out[i].ID) < string(out[j].ID) })
 	return out
 }
+
 func (c *Client) Close() error {
 	c.shutdown(&TransportError{Code: "codex_connection_closed", OutcomeUnknown: true})
 	return nil

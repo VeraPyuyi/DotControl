@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0-alpha.6",
+  "date": "2026-10-13",
+  "change_commit": "d1ffdd01abbf3aaa5e4744f5e8fb966dfa63d96f",
+  "build_source_commit": "e160c36912763c78cdfd84860a4b99f0ed4c6d6b",
+  "independent_review": {
+    "blocking_findings": 0,
+    "minor_version_specific_guidance": "fixed_before_final_build",
+    "scope": "Sharing UI, related history backend, regressions and release version consistency."
+  },
+  "javascript_interaction_tests_passed": 19,
+  "reviewer_focused_go_packages_passed": ["historyaccess", "onboard", "codexhistory", "mcpserver", "gateway"],
+  "browser_checks": {
+    "environment": "isolated fixture using real embedded web assets and synthetic history",
+    "widths_px": [1280, 640, 360],
+    "horizontal_overflow": false,
+    "checks": ["initial_all_default", "native_keyboard_radios", "explicit_empty_allowlist", "preview_then_confirm", "saved_allowlist_on_reload", "candidate_pagination", "mode_and_candidate_draft_retention", "external_revision_invalidates_preview", "polling_retains_search_and_focus", "multiple_tabs"]
+  },
+  "permission_writes_during_browser_tests": "synthetic_fixture_only",
+  "backend_or_mcp_schema_changed": false,
+  "mcp_tool_count": 13,
+  "public_installer_and_live_upgrade_evidence": "recorded_separately"
+}

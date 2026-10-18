@@ -1,0 +1,127 @@
+{
+  "version": "0.2.0-alpha.4",
+  "date": "2026-10-13",
+  "installer_source": "fresh_unauthenticated_public_release_download",
+  "installer_sha256": "08e8220c1f83d9293eaddccf825da4e761b4e8df593dc1defa347ac7017625c2",
+  "installed": true,
+  "runtime_health_verified_before_cleanup": true,
+  "old_agent_and_tunnel_exit_confirmed": true,
+  "force_termination": false,
+  "locks_deleted": false,
+  "preservation_checks": {
+    "file_hashes_preserved": {
+      "history_access.initialized": true,
+      "ledger.key": true,
+      "codex-jobs.key": true,
+      "history_access.json": true,
+      "config.json": false,
+      "codex-runtime-v1.jsonl": true,
+      "ledger.jsonl": true,
+      "codex-jobs.jsonl": true
+    },
+    "changed_config_fields": [
+      "driver_path",
+      "tunnel_path"
+    ],
+    "device_identity_preserved": true,
+    "tunnel_preserved": true,
+    "pause_preserved": true,
+    "revoke_preserved": true,
+    "state_path_and_port_preserved": true,
+    "history_mode": "allowlist",
+    "history_revision": 2,
+    "history_count": 1,
+    "agent_count": 1,
+    "tunnel_count": 1,
+    "autostart_points_to_new_exe": true
+  },
+  "credential_store": "original_namespace_retained_runtime_key_present_no_secret_export",
+  "cleanup": {
+    "managed_alpha3_directory_removed": true,
+    "pending": false,
+    "candidate_files": {
+      "state_and_logs_preserved": true,
+      "process_and_startup_checked": true,
+      "explicit_files": 2,
+      "hashes_checked": true,
+      "removed": 2,
+      "pending": 0
+    }
+  },
+  "normal_restart": {
+    "old_tree_exit_confirmed": true,
+    "all_monitored_file_hashes_preserved": true,
+    "agent_count": 1,
+    "tunnel_count": 1,
+    "current_process_cloud": {
+      "configured": true,
+      "running": true,
+      "ready": true,
+      "local_ready": true,
+      "cloud_state": "online",
+      "last_successful_poll_at": "2026-10-13T08:24:31.4923977Z",
+      "proxy_source": "system",
+      "network_change_pending": false
+    },
+    "hosted_devices_after_restart": true,
+    "fresh_nonce_and_original_device": true
+  },
+  "doctor_online": {
+    "exit_code": 0,
+    "configuration_check": "configuration_validated",
+    "runtime_cloud": {
+      "configured": true,
+      "running": true,
+      "ready": true,
+      "local_ready": true,
+      "cloud_state": "online",
+      "last_successful_poll_at": "2026-10-13T08:24:31.4923977Z",
+      "proxy_source": "system",
+      "network_change_pending": false
+    },
+    "runtime_key_in_os_vault": true
+  },
+  "mcp": {
+    "authenticated_local_tool_count": 14,
+    "hosted_devices": "succeeded"
+  },
+  "wizard": {
+    "launch_ticket_hidden": true,
+    "scope": "live server HTTP contract; browser rendering not asserted",
+    "checks": [
+      {
+        "scenario": "first_load",
+        "version": "0.2.0-alpha.4",
+        "terminal_ready": true,
+        "authenticated": true,
+        "autostart": true
+      },
+      {
+        "scenario": "reload",
+        "version": "0.2.0-alpha.4",
+        "terminal_ready": true,
+        "authenticated": true,
+        "autostart": true
+      },
+      {
+        "scenario": "second_tab",
+        "version": "0.2.0-alpha.4",
+        "terminal_ready": true,
+        "authenticated": true,
+        "autostart": true
+      },
+      {
+        "scenario": "first_tab_after_second",
+        "version": "0.2.0-alpha.4",
+        "terminal_ready": true,
+        "authenticated": true,
+        "autostart": true
+      }
+    ],
+    "sharing_unmodified": true
+  },
+  "wizard_browser_rendering": "authenticated_page_refresh_and_second_tab_verified_after_restart",
+  "remote_tasks_replayed": false,
+  "desktop_input_sent": false,
+  "user_mac_modified": false
+}

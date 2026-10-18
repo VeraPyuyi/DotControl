@@ -166,6 +166,21 @@ func (e *Engine) openLedger() error {
 }
 func (e *Engine) replay(event ledgerEvent) error {
 	switch event.Type {
+	case "delegation_start", "delegation_stopped":
+		if !validID.MatchString(event.TaskID) || event.Receipt != nil || event.Paused != nil || event.DeviceID != "" {
+			return fail("ledger_corrupt")
+		}
+		if event.Type == "delegation_start" {
+			if e.externalPending != "" {
+				return fail("ledger_corrupt")
+			}
+			e.externalPending = event.TaskID
+		} else {
+			if e.externalPending != event.TaskID {
+				return fail("ledger_corrupt")
+			}
+			e.externalPending = ""
+		}
 	case "init":
 		if event.Receipt != nil || event.TaskID != "" {
 			return fail("ledger_corrupt")

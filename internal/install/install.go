@@ -39,6 +39,10 @@ type Options struct {
 	BundleDir      string
 	BeforeActivate func(context.Context, Current) error
 	Health         func(context.Context, Current) error
+	// CleanupOldVersions removes owned obsolete payloads only after health is
+	// committed. BeforeCleanup must reject running or referenced generations.
+	CleanupOldVersions bool
+	BeforeCleanup      func(context.Context, Current) error
 	// Rollback is called after the previous pointer is restored, for example to
 	// restart its service. A nil pointer means this was the first installation.
 	Rollback func(context.Context, *Current) error
@@ -48,7 +52,14 @@ type Result struct {
 	Current  Current
 	Previous *Current
 	Reused   bool
+	// CleanupPending leaves Current healthy and active; retry Apply or Repair.
+	CleanupPending bool
 }
+
+// ErrCleanupPending means activation committed, but obsolete owned files still
+// need cleanup. The caller must keep the new runtime active, not roll it back.
+var ErrCleanupPending = errors.New("cleanup_pending")
+
 type RemoveOptions struct {
 	Root         string
 	StateDir     string
@@ -60,8 +71,10 @@ type ownedVersion struct {
 	Manifest Manifest `json:"manifest"`
 }
 type ownership struct {
-	Schema   int            `json:"schema"`
-	Versions []ownedVersion `json:"versions"`
+	Schema        int            `json:"schema"`
+	Versions      []ownedVersion `json:"versions"`
+	RetainedState string         `json:"retained_state,omitempty"`
+	StateDir      string         `json:"state_dir,omitempty"`
 }
 
 const ownerName = ".dotcontrol-install.json"
@@ -81,6 +94,16 @@ func DefaultRoot() (string, error) {
 	}
 	return filepath.Join(home, "Library", "Application Support", "DotControl", "program"), nil
 }
+
+// ValidatePaths performs the same read-only namespace, ancestry, and containment
+// checks used by Apply before callers create their state-level coordination lock.
+func ValidatePaths(root, state string) error { _, err := preparePaths(root, state); return err }
+
+// CanonicalPath reuses the installer's strict namespace/link checks, including
+// only Darwin's verified system aliases. It does not create files. Callers must
+// retain the original state spelling for existing runtime/vault namespaces.
+func CanonicalPath(path string) (string, error) { return canonicalInstallPath(path) }
+
 func preparePaths(root, state string) (string, error) {
 	if root == "" || state == "" {
 		return "", errors.New("install root and separate state directory are required")
@@ -269,6 +292,9 @@ func loadOwnership(root string) (ownership, error) {
 	if own.Schema != 1 {
 		return own, errors.New("unsupported install ownership schema")
 	}
+	if (own.StateDir != "" && !filepath.IsAbs(own.StateDir)) || (own.RetainedState != "" && (own.StateDir == "" || own.RetainedState != own.StateDir)) {
+		return own, errors.New("invalid managed state binding")
+	}
 	seen := map[string]bool{}
 	for _, v := range own.Versions {
 		if !safeRelative(v.Dir) || strings.Contains(v.Dir, "/") || seen[strings.ToLower(v.Dir)] {
@@ -283,6 +309,83 @@ func loadOwnership(root string) (ownership, error) {
 		}
 	}
 	return own, nil
+}
+
+// RetainedStateMatches proves that a prior completed managed uninstall retained this
+// exact state directory. Empty/older ownership records are not such a proof.
+func RetainedStateMatches(root, state string) (bool, error) {
+	root, e := preparePaths(root, state)
+	if e != nil {
+		return false, e
+	}
+	own, e := loadOwnership(root)
+	if e != nil || own.RetainedState == "" {
+		return false, e
+	}
+	saved, e := canonicalInstallPath(own.RetainedState)
+	if e != nil {
+		return false, e
+	}
+	state, e = canonicalInstallPath(state)
+	return e == nil && sameManagedPath(saved, state), e
+}
+
+// An exact canonical path or filesystem identity can grant ownership. Case
+// folding alone cannot: even Windows directories may be case-sensitive.
+func sameManagedPath(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ai, ae := os.Stat(a)
+	bi, be := os.Stat(b)
+	return ae == nil && be == nil && os.SameFile(ai, bi)
+}
+func validateManagedState(own ownership, state string) error {
+	if own.StateDir == "" {
+		return nil
+	} // Older installs acquire a binding after health succeeds.
+	saved, e := canonicalInstallPath(own.StateDir)
+	if e != nil {
+		return e
+	}
+	selected, e := canonicalInstallPath(state)
+	if e != nil {
+		return e
+	}
+	if !sameManagedPath(saved, selected) {
+		return errors.New("install_state_binding_mismatch")
+	}
+	return nil
+}
+
+// OwnedFile validates a current pointer against its recorded installation
+// manifest, even if a payload was removed by quarantine or interrupted cleanup.
+func OwnedFile(root string, current Current, relative string) (File, error) {
+	root, e := canonicalInstallPath(root)
+	if e != nil {
+		return File{}, e
+	}
+	if e = validateCurrent(root, current); e != nil {
+		return File{}, e
+	}
+	own, e := loadOwnership(root)
+	if e != nil {
+		return File{}, e
+	}
+	for _, v := range own.Versions {
+		recorded, err := canonicalInstallPath(filepath.Join(root, "versions", v.Dir))
+		if err != nil {
+			return File{}, err
+		}
+		if v.Hash == current.ManifestSHA256 && sameManagedPath(recorded, current.Dir) && v.Manifest.Version == current.Version {
+			for _, f := range v.Manifest.Files {
+				if f.Path == relative {
+					return f, nil
+				}
+			}
+		}
+	}
+	return File{}, errors.New("previous_program_not_owned")
 }
 func restore(root string, previous *Current) error {
 	if previous != nil {
@@ -353,6 +456,9 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	if e != nil {
 		return result, e
 	}
+	if e = validateManagedState(own, o.StateDir); e != nil {
+		return result, e
+	}
 	if e = atomicJSON(filepath.Join(root, ownerName), own); e != nil {
 		return result, e
 	}
@@ -360,11 +466,15 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 		return result, e
 	}
 	p := Progress{}
+	committed := false
 	report := func(phase string) error {
 		p.Phase = phase
 		p.UpdatedAt = time.Now().UTC()
 		if e := atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
 			return e
+		}
+		if phase == "cleaning_old_versions" {
+			committed = true
 		}
 		if o.Progress != nil {
 			o.Progress(p)
@@ -373,13 +483,20 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	}
 	defer func() {
 		if err != nil {
-			if p.RecoveryNeeded {
-				rollbackErr := rollbackActivation(ctx, root, result.Previous, o.Rollback)
-				p.RecoveryNeeded = rollbackErr != nil
-				err = errors.Join(err, rollbackErr)
+			if committed {
+				result.CleanupPending = true
+				p.RecoveryNeeded = false
+				err = errors.Join(ErrCleanupPending, err)
+				p.Phase = "cleanup_pending"
+			} else {
+				if p.RecoveryNeeded {
+					rollbackErr := rollbackActivation(ctx, root, result.Previous, o.Rollback)
+					p.RecoveryNeeded = rollbackErr != nil
+					err = errors.Join(err, rollbackErr)
+				}
+				result.Current = Current{}
+				p.Phase = "failed"
 			}
-			result.Current = Current{}
-			p.Phase = "failed"
 			p.Error = err.Error()
 			p.UpdatedAt = time.Now().UTC()
 			if e := atomicJSON(filepath.Join(root, "transaction.json"), p); e != nil {
@@ -390,6 +507,40 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 			}
 		}
 	}()
+	// A committed cleanup is irreversible: resume it before inspecting a new
+	// bundle, and never feed its previous (possibly partial) payload to rollback.
+	prior, pe := ReadProgress(root)
+	if pe != nil && !os.IsNotExist(pe) {
+		return result, pe
+	}
+	if pe == nil && (prior.Phase == "cleaning_old_versions" || prior.Phase == "cleanup_pending") {
+		p = prior
+		committed = true
+		if p.Target == nil || p.RecoveryNeeded {
+			return result, errors.New("invalid committed cleanup journal")
+		}
+		result = Result{Current: *p.Target, Previous: p.Previous, Reused: true}
+		if err = cleanupCurrentMatches(root, result.Current); err != nil {
+			return result, err
+		}
+		p.Error = ""
+		if err = report("cleaning_old_versions"); err != nil {
+			return result, err
+		}
+		if err = cleanupOldVersions(ctx, root, &own, result.Current, o.BeforeCleanup); err != nil {
+			return result, err
+		}
+		if err = report("complete"); err != nil {
+			return result, err
+		}
+		if o.BundleDir == "" {
+			return result, nil
+		}
+		p, result, committed = Progress{}, Result{}, false
+	}
+	if o.CleanupOldVersions && o.Health == nil {
+		return result, errors.New("cleanup requires a health check")
+	}
 	if err = report("download"); err != nil {
 		return result, err
 	}
@@ -484,6 +635,11 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 		p.RecoveryNeeded = false
 		return result, e
 	}
+	if o.BeforeActivate != nil || o.CleanupOldVersions {
+		if err = report("waiting_for_exit"); err != nil {
+			return result, err
+		}
+	}
 	if o.BeforeActivate != nil {
 		if e = o.BeforeActivate(ctx, target); e != nil {
 			return result, e
@@ -501,10 +657,36 @@ func apply(ctx context.Context, o Options, repair bool) (result Result, err erro
 	if e != nil {
 		return result, e
 	}
+	// Only a verified activation establishes state provenance. Staging or a
+	// failed install must not mint a retained-state reinstall authorization.
+	bound, e := canonicalInstallPath(o.StateDir)
+	if e != nil {
+		return result, e
+	}
+	if own.StateDir == "" {
+		own.StateDir = bound
+	}
+	// A prior uninstall receipt is provenance, not a one-shot token. Keep it
+	// through activation/rollback so a crash before commit cannot strand a
+	// retained configuration with no previous executable to restart.
+	if e = atomicJSON(filepath.Join(root, ownerName), own); e != nil {
+		return result, e
+	}
 	p.RecoveryNeeded = false
 	result.Current = target
+	if o.CleanupOldVersions {
+		if err = report("cleaning_old_versions"); err != nil {
+			if !committed {
+				p.RecoveryNeeded = true
+			}
+			return result, err
+		}
+		if err = cleanupOldVersions(ctx, root, &own, target, o.BeforeCleanup); err != nil {
+			return result, err
+		}
+	}
 	if err = report("complete"); err != nil {
-		p.RecoveryNeeded = true
+		p.RecoveryNeeded = !committed
 		return result, err
 	}
 	return result, nil
@@ -634,6 +816,9 @@ func Remove(ctx context.Context, o RemoveOptions) error {
 	if e != nil {
 		return e
 	}
+	if e = validateManagedState(own, o.StateDir); e != nil {
+		return e
+	}
 	if o.BeforeRemove != nil {
 		if e = o.BeforeRemove(ctx); e != nil {
 			return e
@@ -698,5 +883,5 @@ func Remove(ctx context.Context, o RemoveOptions) error {
 	// Keep an empty ownership marker alongside the lock. User-created files can
 	// legitimately keep a version directory present after uninstall; retaining
 	// this marker makes uninstall idempotent without claiming those files.
-	return atomicJSON(filepath.Join(root, ownerName), ownership{Schema: 1})
+	return atomicJSON(filepath.Join(root, ownerName), ownership{Schema: 1, StateDir: own.StateDir, RetainedState: own.StateDir})
 }

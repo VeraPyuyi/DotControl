@@ -1,5 +1,8 @@
 # DotControl 0.2 implementation and release gates
 
+This is the early alpha.1 implementation record. See the [0.2 series review](REVIEW_0_2.md)
+for later failures, seven source fixes after alpha.6, regression coverage and remaining limits.
+
 Approved scope: Windows 11 x64 and macOS 14+ arm64/amd64 user installers,
 one shared install engine and local onboarding UI, a Codex onboarding plugin,
 independent official tunnels, and capability-gated target Codex delegation.

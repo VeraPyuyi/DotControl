@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "version": "0.2.0-alpha.5",
+  "source_commit": "14586337ce70b092bbe83fadcbee8a86a13afee1",
+  "date": "2026-10-13",
+  "runtime": "installed_from_public_windows_release",
+  "source": "official Dot conversation with Mac attached, sent via existing browser",
+  "physical_sender_device_not_claimed": "Mac",
+  "official_plugin_refresh": "13 tools: Write 5 and Read 8; codex_review absent",
+  "actual_source_dot_tool_count": 13,
+  "actual_source_dot_codex_review_present": false,
+  "local_authenticated_mcp_tool_count": 13,
+  "task_dispatched": true,
+  "cross_computer_task_acceptance": "passed_scoped_read_only_terminal_task",
+  "job_or_thread_id_returned": true,
+  "command_evidence": {
+    "kind": "commandExecution",
+    "status": "completed",
+    "exit_code": 0,
+    "source": "unifiedExecStartup",
+    "output": "Microsoft Windows 10.0.26200\r\nX64\r\n"
+  },
+  "independent_hosted_devices_check": {
+    "succeeded": true,
+    "original_device_and_fresh_nonce_returned": true,
+    "version": "0.2.0-alpha.5",
+    "codex_terminal": "ready",
+    "codex_history_mode": "allowlist",
+    "codex_history_revision": 3
+  },
+  "historical_jobs_replayed": false,
+  "ssh_desktop_history_images_or_approvals_used": false,
+  "scope": "Fresh official Windows Codex terminal task, thread ID, command exit code and output returned to official source Dot with Mac confirmed connected and attached before and after, without switching computers. Independently queried the same completed job through the hosted Windows plugin. The command event has no command-text field and verification remains unverified. No GUI, image, SSH, user Mac executor or physical sender Mac acceptance is claimed.",
+  "request_id": "alpha5-public-systeminfo-20261013-01",
+  "previous_attempt": {
+    "source_dot_precondition": {
+      "mac_attached": true,
+      "mac_connected": false,
+      "mac_status": "offline",
+      "windows_attached": false,
+      "windows_connected": true,
+      "observed_at": "2026-10-13T18:50:00+08:00"
+    },
+    "task_dispatched": false,
+    "outcome": "blocked_source_mac_offline",
+    "reserved_request_not_submitted": true
+  },
+  "official_computer_status_before_and_after": {
+    "source": "official source Dot report",
+    "mac_connected": true,
+    "mac_attached": true,
+    "windows_attached": false,
+    "computer_connection_switched": false
+  },
+  "official_thread_id_returned": true,
+  "job_id_sha256": "57861ceb1e0690595db32ab44716e5f874d399a404a182cf633f8f1d4282d2c2",
+  "created_at": "2026-10-13T11:18:23.7136514Z",
+  "updated_at": "2026-10-13T11:19:01.5808291Z",
+  "state": "completed",
+  "code": "model_turn_completed",
+  "profile_id": "terminal-default",
+  "execution": "terminal",
+  "presentation": "background",
+  "verification": "unverified",
+  "result_status": "available",
+  "image_delivery_status": "not_required",
+  "command_text_present_in_execution_event": false,
+  "independently_queried_through_hosted_plugin": true,
+  "submitted_once": true,
+  "continued_or_recreated": false
+}

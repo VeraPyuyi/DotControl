@@ -10,14 +10,29 @@ MCP Streamable HTTP 位于本机 `/mcp`，由官方 Go SDK 处理协商、初始
 | execute | 下述 Action | 一条持久回执 |
 | task | device_id、task_id | 该任务的动作回执 |
 | cancel | device_id、task_id | 永久阻止该任务后续动作，并请求取消当前动作 |
-| codex_submit | device_id、request_id、prompt、allowed_apps、working_dirs | 持久作业编号；本版返回 blocked / official_cu_acceptance_required |
+| codex_submit | device_id、request_id、prompt、profile_id；可选 presentation | 持久作业编号；平台验收未通过时返回 blocked，不启动任务 |
 | codex_job | device_id、job_id | 仅查询本入口创建的作业 |
 | codex_cancel | device_id、job_id | 记录取消意图；不虚构已运行或已停止的原生任务 |
+| codex_continue | device_id、job_id、request_id、prompt | 向本入口创建的官方任务追加轮次，稳定编号去重 |
+| codex_projects | device_id、limit、cursor | 共享范围内有官方项目归属的项目；不猜测未归属会话 |
+| codex_threads | device_id、search、cwd、project_id、archived、limit、cursor | 仅允许共享的会话元数据及分页凭据 |
+| codex_read_thread | device_id、thread_id、limit、cursor | 默认最近 5 轮、最多 20 轮用户/助手正文；省略推理、工具日志与附件正文 |
+
+历史接口须先在本机启用，独立于终端委派。`devices.capabilities.codex_history` 报告状态、共享模式和修订号。远程不能修改权限；暂停、撤销、清单损坏及旧分页会被拒绝。仅读取不授予其他会话的续聊或取消权限。详细契约见 [HISTORY_SHARING](HISTORY_SHARING.md)。
 
 `capabilities` 分别报告基础桌面、Codex 连接、官方 Computer Use 和原生委派状态。
+`codex_profiles` 仅列出本机配置的名称、编号、执行方式和呈现方式；只返回 execution 配置，不再暴露服务器配置。
+`presentation` 为 visible（默认）或 background，与 execution 的 terminal/computer_use 独立。visible 返回 open_requested 仅表示发出了官方任务打开请求。
+新委派记录支持 queued、running、awaiting_review、awaiting_target、completed、failed、cancelled、blocked、rejected、local_takeover、outcome_unknown 等状态；具体以实际回执为准，未知状态不得当成成功。
+`completed` 表示官方轮次完成，实际任务 verification 仍须核验。图片使用 MCP ImageContent，源 Dot 显示情况单独记录。
+旧无 profile_id 请求和旧 blocked/unknown 记录保持原契约；不能通过升级或重新编号将未知效果变成可重放操作。
 原生能力未通过平台验收时不提交执行轮次，也没有可绕过的启用配置。契约、去重与实际限制见 [Codex 委派](CODEX_DELEGATION.md)。
 
 `target` 是 `{"pid":1234,"window_id":"5678"}`，必须来自该设备发现结果。window_id 使用字符串避免整数精度丢失。名字不作为路由键。独立入口遇到其他 device_id 会拒绝，不猜测目的设备。
+
+## alpha.5 下线兼容
+
+MCP 共 13 个工具。新请求包含 server_profile_id 或 experiment_id（包括空/null）时明确拒绝；同一旧请求仍返回原记录，不重放。旧实验和审批任务可查询及取消，不能远程续跑。旧审批配置需本机重新配置；新任务遇到额外人工要求会中断并报告 needs_local_setup，停止未确认保留不确定状态。
 
 ## Action
 

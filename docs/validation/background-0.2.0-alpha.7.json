@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0-alpha.7",
+  "source_commit": "3424e41a05b1858e12dc2137b3e0c3ceece078f0",
+  "date": "2026-10-14",
+  "scope": "Isolated native background lifecycle; not real user Mac acceptance",
+  "ci": "https://github.com/VeraPyuyi/DotControl/actions/runs/38507418962",
+  "native_results": {
+    "windows_amd64": {"passed": true, "seconds": 138.31},
+    "macos_arm64": {"passed": true, "seconds": 130.21},
+    "macos_amd64": {"passed": true, "seconds": 130.24}
+  },
+  "checks": [
+    "Unique isolated startup definition registered under current interactive user",
+    "Abnormal child exit caused a second start",
+    "Normal exit remained stopped beyond the recovery interval",
+    "Fixture startup definition removed after verification"
+  ],
+  "windows_local_repeat": {
+    "passed": true,
+    "seconds": 138.92,
+    "nested_child_process_ownership": true,
+    "interactive_identity": true,
+    "normal_exit_last_result": 0,
+    "nested_scheduler_retries": false,
+    "production_registration_modified": false
+  },
+  "implementation_limits": {
+    "windows_restart_delay_seconds": 60,
+    "windows_maximum_retries": 3,
+    "macos_throttle_seconds": 60,
+    "at_mention_wake_hook": false,
+    "offline_device_remote_wakeup": false,
+    "task_replay_on_recovery": false,
+    "native_computer_use_enabled": false
+  },
+  "regression_checks": [
+    "Disabled login and explicit quit preserved",
+    "Upgrade interlock prevents old relaunch",
+    "No-start checks both engine and supervisor ownership",
+    "Rollback waits for candidate process tree and supervisor",
+    "Mac old components restored before old bootstrap",
+    "Uninstall waits for real process exit",
+    "Unknown exit keeps recovery protection"
+  ],
+  "independent_review": "Spec and quality review completed; confirmed findings corrected",
+  "local_full_go_tests": "passed",
+  "local_race_tests": "passed",
+  "local_vet": "passed",
+  "user_mac_modified": false
+}

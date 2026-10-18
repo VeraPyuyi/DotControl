@@ -1,0 +1,106 @@
+{
+  "version": "0.2.0-alpha.3",
+  "date": "2026-10-13",
+  "installer_source": "fresh_unauthenticated_public_release_download",
+  "installer_sha256": "c5203ce0ee50f54217b87d8d3d82f3f268c7eba514232f19dafbdc8130a52f56",
+  "old_agent_and_observed_tunnel_child_exit": "confirmed_normal_exit",
+  "force_termination": false,
+  "locks_deleted": false,
+  "runtime_health_verified_before_cleanup": true,
+  "preservation_checks": {
+    "file_hashes_preserved": {
+      "ledger.jsonl": true,
+      "codex-jobs.jsonl": true,
+      "config.json": false,
+      "ledger.key": true,
+      "codex-jobs.key": true,
+      "codex-runtime-v1.jsonl": true,
+      "history_access.json": true,
+      "history_access.initialized": true
+    },
+    "revoke_preserved": true,
+    "history_mode": "allowlist",
+    "pause_preserved": true,
+    "tunnel_count": 1,
+    "device_identity_preserved": true,
+    "history_revision": 2,
+    "history_count": 1,
+    "changed_config_fields": [
+      "driver_path",
+      "tunnel_path"
+    ],
+    "processes_under_current_generation": true,
+    "autostart_points_to_new_exe": true,
+    "state_path_preserved": true,
+    "version": "0.2.0-alpha.3",
+    "agent_count": 1
+  },
+  "credential_store": "original_namespace_retained_runtime_key_present_no_secret_export",
+  "legacy_cleanup": {
+    "explicit_inventory_files": 9,
+    "removed": 9,
+    "pending": 0,
+    "hashes_checked": true,
+    "process_references_checked": true,
+    "unlisted_files_preserved": 10,
+    "shared_dependencies_deleted": false
+  },
+  "mcp": {
+    "authenticated_local_tool_count": 14,
+    "protocol": "2025-06-18",
+    "hosted_call": "failed",
+    "http_status": 404,
+    "server_code": "tunnel_client_not_seen"
+  },
+  "wizard": {
+    "launch_ticket_hidden": true,
+    "checks": [
+      {
+        "authenticated": true,
+        "version": "0.2.0-alpha.3",
+        "autostart": true,
+        "terminal_ready": true,
+        "scenario": "first_load"
+      },
+      {
+        "authenticated": true,
+        "version": "0.2.0-alpha.3",
+        "autostart": true,
+        "terminal_ready": true,
+        "scenario": "reload"
+      },
+      {
+        "authenticated": true,
+        "version": "0.2.0-alpha.3",
+        "autostart": true,
+        "terminal_ready": true,
+        "scenario": "second_tab"
+      },
+      {
+        "authenticated": true,
+        "version": "0.2.0-alpha.3",
+        "autostart": true,
+        "terminal_ready": true,
+        "scenario": "first_tab_after_second"
+      }
+    ],
+    "sharing_unmodified": true,
+    "scope": "live server HTTP contract; browser rendering not asserted"
+  },
+  "wizard_browser_rendering": "not_verified_host_panel_open_queued_default_browser_launch_exit_zero",
+  "tunnel": {
+    "process_running": true,
+    "local_readyz_http_status": 200,
+    "successful_control_plane_poll": false,
+    "health_with_required_poll": "failed",
+    "reason_code": "network_error"
+  },
+  "network": {
+    "direct_control_plane_request": "connect_timeout",
+    "existing_system_proxy_request": "http_response_received_not_equivalent_to_successful_poll",
+    "configuration_changed": false
+  },
+  "remote_tasks_replayed": false,
+  "desktop_input_sent": false,
+  "user_mac_modified": false
+}

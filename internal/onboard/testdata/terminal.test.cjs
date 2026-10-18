@@ -1,0 +1,45 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const nodes=new Map(),copied=[];function node(){return {children:[],dataset:{},addEventListener(){},replaceChildren(){this.children=[]},append(...x){this.children.push(...x)},value:''}}
+const get=id=>{if(!nodes.has(id))nodes.set(id,node());return nodes.get(id)};
+const buttons=['permissions','permissions_screen','permissions_activity','resume','confirm_image'].map(action=>Object.assign(node(),{dataset:{action}}));
+const sandbox={document:{getElementById:get,createElement:node,querySelectorAll:q=>q.includes('^=permissions')?buttons.slice(0,3):buttons},location:{hash:'',pathname:'/onboard/'},history:{replaceState(){}},fetch:async()=>({ok:false,status:401,json:async()=>({error:'expired'})}),setInterval(){},setTimeout(){},navigator:{clipboard:{writeText:async text=>{copied.push(text)}}}};
+vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),sandbox);
+async function run(){
+sandbox.payload={terminal_only:true,terminal_enabled:true,device:{os:'windows',name:'test',device_id:'device_test',paused:false,activity:{available:false,locked:true}},permissions:{state:'unknown'},tunnel:{ready:true},plugin:{devices_seen:true},codex:{capabilities:{codex_terminal:{state:'ready',available:true}}}};
+vm.runInContext('renderState(payload)',sandbox);
+const text=id=>get(id).children.map(n=>n.textContent).join(' ');
+assert.doesNotMatch(text('checks'),/等待输入监控|等待驱动/);
+assert.match(text('checks'),/本模式不需要/);
+assert.doesNotMatch(text('validation'),/等待源 Dot 观察|尚未确认源 Dot 实际显示/);
+assert.match(text('validation'),/已收到 MCP 设备查询/);
+assert.match(text('validation'),/源端工具目录 尚未验证/);
+const catalogRow=get('validation').children.findIndex(n=>n.textContent==='源端工具目录');
+assert.equal(get('validation').children[catalogRow+1].className,'pending');
+assert.match(get('codex').textContent,/本机 Codex 已就绪；源端工具目录尚未验证/);
+assert.doesNotMatch(get('codex').textContent,/可以接收终端任务/);
+assert.match(get('verify-note').textContent,/升级后.*官方插件设置.*Refresh tools.*新建会话/);
+assert.match(buttons[3].textContent,/恢复访问/);assert.equal(buttons[4].hidden,true);
+await get('copy-test').onclick();
+const terminalCopy=copied.at(-1),catalogGate=terminalCopy.indexOf('工具齐全后'),deviceCall=terminalCopy.indexOf('调用 devices');
+assert.match(terminalCopy,/^先检查当前源端会话实际可用的 test 插件工具列表/);
+for(const tool of ['codex_submit','codex_job','codex_continue','codex_cancel'])assert.ok(terminalCopy.indexOf(tool)>0&&terminalCopy.indexOf(tool)<catalogGate,tool+' must be required before devices');
+assert.match(terminalCopy.slice(0,catalogGate),/缺少任一工具就停止测试.*官方插件设置.*Refresh tools.*新建会话.*重新检查/);
+assert.match(terminalCopy.slice(0,catalogGate),/不要根据 devices 查询成功或 codex_terminal.available 推断工具已加载/);
+assert.doesNotMatch(terminalCopy,/codex_review/);assert.match(terminalCopy,/13 个工具/);
+assert.ok(catalogGate>0&&deviceCall>catalogGate);
+assert.ok(terminalCopy.indexOf('capabilities.codex_terminal')>deviceCall);
+assert.ok(terminalCopy.indexOf('codex_profiles.execution')>deviceCall);
+assert.ok(terminalCopy.indexOf('调用 codex_submit')>terminalCopy.indexOf('codex_profiles.execution'));
+assert.match(terminalCopy,/device_id 为 device_test/);
+assert.match(terminalCopy,/不连接 SSH 或部署实验/);
+assert.match(terminalCopy,/不要把 apps、observe 或桌面工具作为前置条件.*不要把终端命令放入 execute/);
+sandbox.payload.terminal_only=false;sandbox.payload.device.os='darwin';vm.runInContext('renderState(payload)',sandbox);
+assert.match(text('checks'),/等待输入监控/);assert.equal(buttons[0].hidden,false);assert.equal(buttons[4].hidden,false);
+assert.doesNotMatch(text('validation'),/源端工具目录/);
+await get('copy-test').onclick();
+assert.match(copied.at(-1),/通过 test 的 DotControl 插件调用 devices.*device_id 为 device_test/);
+assert.match(copied.at(-1),/观察一个已打开的无害窗口.*MCP 原始图片回传/);
+assert.doesNotMatch(copied.at(-1),/codex_submit|Refresh tools/);
+console.log('Terminal and legacy onboarding checks passed');
+}
+run().catch(error=>{console.error(error);process.exitCode=1});
