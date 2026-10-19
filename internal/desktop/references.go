@@ -32,6 +32,7 @@ type StartupSnapshot struct {
 type programProcess struct {
 	PID, ParentPID   int
 	Name, Executable string
+	Created          uint64 // Windows creation FILETIME; zero means unavailable.
 }
 
 func pathInside(root, p string) bool {
@@ -137,15 +138,16 @@ func WaitExecutableExit(ctx context.Context, paths []string) error {
 // ProcessTree remembers the agent and every observed descendant. Keeping the
 // PIDs until absent is conservative under PID reuse and cannot stop another app.
 type ProcessTree struct {
-	mu  sync.Mutex
-	ids map[int]bool
+	mu      sync.Mutex
+	ids     map[int]bool
+	created map[int]uint64 // nil for persisted PID evidence with unknown original ages.
 }
 
 func ObserveProcessTree(ctx context.Context, pid int) (*ProcessTree, error) {
 	if pid <= 0 {
 		return nil, errors.New("agent_process_identity_unverified")
 	}
-	tree := &ProcessTree{ids: map[int]bool{pid: true}}
+	tree := &ProcessTree{ids: map[int]bool{pid: true}, created: map[int]uint64{}}
 	if _, err := tree.remaining(ctx); err != nil {
 		return nil, err
 	}
@@ -158,21 +160,41 @@ func (t *ProcessTree) remaining(ctx context.Context) (bool, error) {
 	if err != nil {
 		return true, err
 	}
+	return t.remainingProcesses(processes), nil
+}
+
+// remainingProcesses is called with t.mu held.
+func (t *ProcessTree) remainingProcesses(processes []programProcess) bool {
+	for _, p := range processes {
+		if t.created != nil && t.ids[p.PID] && t.created[p.PID] == 0 && p.Created != 0 {
+			t.created[p.PID] = p.Created
+		}
+	}
 	for changed := true; changed; {
 		changed = false
 		for _, p := range processes {
 			if t.ids[p.ParentPID] && !t.ids[p.PID] {
+				// Windows retains a child's original parent PID even after that
+				// parent exits and its PID is reused. A child older than the
+				// observed parent cannot belong to it. Retain creation evidence
+				// across polls so the stale relationship stays excluded after exit.
+				if parent := t.created[p.ParentPID]; parent != 0 && p.Created != 0 && p.Created < parent {
+					continue
+				}
 				t.ids[p.PID] = true
+				if t.created != nil {
+					t.created[p.PID] = p.Created
+				}
 				changed = true
 			}
 		}
 	}
 	for _, p := range processes {
 		if t.ids[p.PID] {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // Watch records descendants throughout draining, including children created by
