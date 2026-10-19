@@ -62,8 +62,8 @@ func testProbeReplay(t *testing.T, mode string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.state.Clients[id].proof(mode).Verified.Equal(past) {
-		t.Fatal("first verification timestamp replaced")
+	if got := s.state.Clients[id].proof(mode); got != proof {
+		t.Fatalf("completion replay changed persisted proof: got %#v, want %#v", got, proof)
 	}
 }
 

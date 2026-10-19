@@ -223,8 +223,16 @@ func TestTaskModeHTTPIndependentProofs(t *testing.T) {
 	c = f.claim(t, job.JobID)
 	f.complete(t, c, dotqueue.Result{Text: "fixture result", Artifacts: []dotqueue.Artifact{{URL: "https://example.com/result", Label: "fixture artifact"}}})
 	code, raw = f.request(t, "GET", "/dot-bridge/v1/jobs/"+job.JobID, nil)
-	if code != 200 || !bytes.Contains(raw, []byte("fixture artifact")) {
+	var completed dotbridge.JobDTO
+	if code != 200 || json.Unmarshal(raw, &completed) != nil {
 		t.Fatalf("task result: %d %s", code, raw)
+	}
+	if completed.Version != 1 || completed.JobID != job.JobID || completed.RequestID != job.RequestID || completed.RequestDigest != job.RequestDigest || completed.SessionID != job.SessionID || completed.Mode != "task" || completed.State != "completed" || completed.Result == nil {
+		t.Fatalf("completed result identity/state mismatch: %#v", completed)
+	}
+	result := completed.Result
+	if result.Text != "fixture result" || result.ErrorCode != "" || result.Cancelled || len(result.Artifacts) != 1 || result.Artifacts[0].URL != "https://example.com/result" || result.Artifacts[0].Label != "fixture artifact" {
+		t.Fatalf("completed result payload mismatch: %#v", result)
 	}
 	// A queued cancellation is terminal; a claimed cancellation remains intent
 	// until the consumer explicitly acknowledges it.
