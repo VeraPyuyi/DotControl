@@ -5,6 +5,7 @@ package dotevents
 import (
 	"os"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
@@ -59,7 +60,17 @@ func replaceFile(from, to string) error {
 	if err != nil {
 		return err
 	}
-	return windows.MoveFileEx(source, target, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+	// Directory ACL propagation and other Windows readers can briefly deny
+	// delete sharing, even while we hold the store lock. Keep the sealed source
+	// and retry only these transient errors, as the queue store does.
+	deadline := time.Now().Add(time.Second)
+	for {
+		err := windows.MoveFileEx(source, target, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+		if err == nil || err != windows.ERROR_ACCESS_DENIED && err != windows.ERROR_SHARING_VIOLATION || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func syncDirectory(string) error { return nil }
