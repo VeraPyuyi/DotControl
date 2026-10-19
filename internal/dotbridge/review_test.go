@@ -59,13 +59,12 @@ func TestReviewProbeCannotUndoRevoke(t *testing.T) {
 	}
 }
 func TestReviewReadRechecksPause(t *testing.T) {
-	s, _, id := openTestBridge(t)
+	var paused atomic.Bool
+	s, _, id := openTestBridgeWithPause(t, paused.Load)
 	p, e := s.StartProbe(id)
 	if e != nil {
 		t.Fatal(e)
 	}
-	var paused atomic.Bool
-	s.paused = paused.Load
 	s.queue = interceptQueue{QueueAPI: s.queue, after: func() { paused.Store(true) }}
 	if _, e := s.getJob(ClientPolicy{ClientID: id}, p.JobID); e == nil {
 		t.Fatal("read succeeded after pause during I/O")

@@ -91,9 +91,8 @@ func TestListAPIOwnerMetadata(t *testing.T) {
 func TestListAPIGates(t *testing.T) {
 	for _, condition := range []string{"missing_auth", "bad_auth", "revoked", "disabled", "paused", "paused_after", "disabled_after", "revoked_after"} {
 		t.Run(condition, func(t *testing.T) {
-			s, token, id := openTestBridge(t)
 			var paused atomic.Bool
-			s.paused = paused.Load
+			s, token, id := openTestBridgeWithPause(t, paused.Load)
 			var calls atomic.Int32
 			alter := func() {
 				switch strings.TrimSuffix(condition, "_after") {

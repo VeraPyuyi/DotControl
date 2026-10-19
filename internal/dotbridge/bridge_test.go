@@ -21,6 +21,17 @@ func (noopBackend) Call(context.Context, string, service.Request) (any, error) {
 
 func openTestBridge(t *testing.T) (*Service, string, string) {
 	t.Helper()
+	return openTestBridgeWithPause(t, func() bool { return false })
+}
+
+// Set lifecycle callbacks before Open starts the background worker.
+func openTestBridgeWithPause(t *testing.T, paused func() bool) (*Service, string, string) {
+	t.Helper()
+	return openTestBridgeWithGates(t, paused, func() bool { return false })
+}
+
+func openTestBridgeWithGates(t *testing.T, paused, revoked func() bool) (*Service, string, string) {
+	t.Helper()
 	root := t.TempDir()
 	vault := NewFakeVault()
 	if err := EnsureStateKey(vault); err != nil {
@@ -36,8 +47,8 @@ func openTestBridge(t *testing.T) (*Service, string, string) {
 		Vault:          vault,
 		MCPQueue:       "client.a",
 		EventsDelivery: delivery,
-		Paused:         func() bool { return false },
-		Revoked:        func() bool { return false },
+		Paused:         paused,
+		Revoked:        revoked,
 	})
 	if err != nil {
 		t.Fatal(err)

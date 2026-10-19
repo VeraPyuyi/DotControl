@@ -192,12 +192,11 @@ func (q *writeAfterAccessQueue) Submit(clientID string, sub dotqueue.Submission)
 // TestWriteAfterPauseStaysConservative proves a durable write followed by a
 // pause is never reported accepted and the original job survives unchanged.
 func TestWriteAfterPauseStaysConservative(t *testing.T) {
-	s, token, id := openTestBridge(t)
+	var paused atomic.Bool
+	s, token, id := openTestBridgeWithPause(t, paused.Load)
 	readyHTTPClient(t, s, id)
 	api := httptest.NewServer(s.Handler())
 	defer api.Close()
-	var paused atomic.Bool
-	s.paused = paused.Load
 	s.queue = &writeAfterAccessQueue{QueueAPI: s.queue, mutate: func() { paused.Store(true) }}
 	code, raw, _ := submitReceipt(t, api, token, []byte(`{"request_id":"write.pause","mode":"answer","session_id":"chat","messages":[{"role":"user","content":"hello"}]}`))
 	if code == http.StatusAccepted || bytes.Contains(raw, []byte("accepted")) {
@@ -249,12 +248,11 @@ func TestListErrorPrivacyAndGatePrecedence(t *testing.T) {
 	const secret = "vault-secret-material"
 	for _, condition := range []string{"gate_after", "gate_before"} {
 		t.Run(condition, func(t *testing.T) {
-			s, token, id := openTestBridge(t)
+			var paused atomic.Bool
+			s, token, id := openTestBridgeWithPause(t, paused.Load)
 			if _, err := s.queue.Submit(id, dotqueue.Submission{RequestID: "leak.probe", Mode: dotqueue.ModeAnswer, Messages: []dotqueue.Message{{Role: "user", Content: "private prompt"}}}); err != nil {
 				t.Fatal(err)
 			}
-			var paused atomic.Bool
-			s.paused = paused.Load
 			s.queue = &listErrorQueue{QueueAPI: s.queue, secret: secret, mutate: func() { paused.Store(true) }}
 			if condition == "gate_before" {
 				paused.Store(true)

@@ -132,10 +132,8 @@ func TestCapacityPublicationAccessChanges(t *testing.T) {
 	for _, admin := range []bool{false, true} {
 		for _, change := range []string{"none", "disabled_before", "disable", "disable_enable", "revoke", "pause", "access_revoke"} {
 			t.Run(fmt.Sprintf("admin=%v/%s", admin, change), func(t *testing.T) {
-				s, _, id := openTestBridge(t)
 				var paused, revoked atomic.Bool
-				s.paused = paused.Load
-				s.revoked = revoked.Load
+				s, _, id := openTestBridgeWithGates(t, paused.Load, revoked.Load)
 				q := &capacityInterceptQueue{QueueAPI: s.queue}
 				s.queue = q
 				q.after = func() {
