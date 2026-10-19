@@ -87,6 +87,29 @@ func validateResult(r Result) error {
 	}
 	return nil
 }
+
+// endsInIPv4Number implements the numeric final-label distinction used by
+// WHATWG hosts without parsing into a bounded integer (overflow must not turn
+// an alias into a DNS name). The caller already removed one trailing dot and
+// lowercased the host. All-decimal labels include octal-looking/invalid octal
+// forms; a 0x prefix with only hex digits includes the empty-digit zero form.
+func endsInIPv4Number(host string) bool {
+	last := host[strings.LastIndexByte(host, '.')+1:]
+	if last == "" {
+		return false
+	}
+	digits, alphabet := last, "0123456789"
+	if strings.HasPrefix(last, "0x") {
+		digits, alphabet = last[2:], "0123456789abcdef"
+	}
+	for _, c := range digits {
+		if !strings.ContainsRune(alphabet, c) {
+			return false
+		}
+	}
+	return true
+}
+
 func validateArtifact(a Artifact) error {
 	if len(a.Label) > maxLabelBytes || !utf8.ValidString(a.Label) || len(a.URL) > maxURLBytes || !utf8.ValidString(a.URL) || strings.Contains(a.URL, "\\") {
 		return errf("unknown")
@@ -103,19 +126,19 @@ func validateArtifact(a Artifact) error {
 	}
 	h := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if ip, e := netip.ParseAddr(h); e == nil {
-		ip = ip.Unmap()
+		// Reject mapped and scoped forms outright rather than letting consumers
+		// interpret an IPv4 destination through an IPv6 spelling.
+		if ip.Is4In6() || ip.Zone() != "" {
+			return errf("unknown")
+		}
 		if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() || ip.Zone() != "" || netip.MustParsePrefix("100.64.0.0/10").Contains(ip) {
 			return errf("unknown")
 		}
 	} else {
-		// Reject browser-style abbreviated/numeric IPv4 aliases as hostnames.
-		numeric := true
-		for _, c := range h {
-			if c != '.' && (c < '0' || c > '9') {
-				numeric = false
-			}
-		}
-		if numeric {
+		// WHATWG treats a domain ending in a number as IPv4 input, including
+		// hex, octal, shortened and integer spellings. Only canonical IPs may
+		// reach the address-policy branch above; never accept aliases as DNS.
+		if endsInIPv4Number(h) {
 			return errf("unknown")
 		}
 		if !hostPattern.MatchString(h) || !strings.Contains(h, ".") || strings.HasSuffix(h, ".localhost") || h == "localhost" || strings.HasSuffix(h, ".local") || strings.Contains(h, "..") {
