@@ -23,7 +23,7 @@ func TestCacheExpiryFailureAndRevocation(t *testing.T) {
 	})
 	defer stop()
 	p := testParams("alice")
-	first, e := m.Subscribe(context.Background(), "alice", p)
+	_, e := m.Subscribe(context.Background(), "alice", p)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -31,7 +31,8 @@ func TestCacheExpiryFailureAndRevocation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = reopened.Subscribe(context.Background(), "alice", p); e != nil {
+	latest, e := reopened.Subscribe(context.Background(), "alice", p)
+	if e != nil {
 		t.Fatal(e)
 	}
 	if challenges.Load() != 1 {
@@ -52,7 +53,7 @@ func TestCacheExpiryFailureAndRevocation(t *testing.T) {
 		t.Fatal("failed refresh destroyed accepted subscription")
 	}
 	_ = m.store.withLock(false, false, func(st *persistenceState) error {
-		if st.Subscriptions[first.ID].ExpiresAt.After(first.ExpiresAt.Add(time.Second)) {
+		if !st.Subscriptions[latest.ID].ExpiresAt.Equal(latest.ExpiresAt) {
 			t.Error("failed refresh extended TTL")
 		}
 		return nil

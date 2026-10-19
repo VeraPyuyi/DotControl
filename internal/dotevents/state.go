@@ -80,6 +80,13 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 		return nil, errf("corrupt")
 	}
 	for id, sub := range st.Subscriptions {
+		if sub != nil && !sub.VerifiedUntil.IsZero() {
+			// Zero is valid for legacy records and invalidated caches. Older
+			// records stamped UpdatedAt before the bounded verification I/O.
+			if !sub.CallbackVerified || sub.VerifiedUntil.Year() < 1 || sub.VerifiedUntil.Year() > 9999 || sub.VerifiedUntil.After(sub.UpdatedAt.Add(5*time.Minute+maxHTTPTimeout)) {
+				return nil, errf("corrupt")
+			}
+		}
 		if sub == nil || sub.ID != id || sub.ID != subscriptionID(sub.Principal, sub.Params) || validateID(sub.Principal) != nil || validateParams(sub.Principal, sub.Params) != nil || validateSecret(sub.Secret) != nil || sub.Secret != sub.Params.Delivery.Secret || (sub.PreviousSecret != "" && validateSecret(sub.PreviousSecret) != nil) {
 			return nil, errf("corrupt")
 		}

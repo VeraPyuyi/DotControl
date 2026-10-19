@@ -51,6 +51,9 @@ func checkAncestors(dir string, create bool) error {
 				return errf("unknown")
 			}
 			info, e = os.Lstat(p)
+			if e != nil || !info.IsDir() || rejectLink(info) != nil || privatePath(p, true) != nil {
+				return errf("unknown")
+			}
 		}
 		if e != nil || !info.IsDir() || rejectLink(info) != nil {
 			return errf("unknown")

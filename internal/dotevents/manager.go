@@ -102,8 +102,16 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 		// the generation race. Never extend its TTL or cache after failure.
 		restoreErr := m.store.withLock(false, true, func(st *persistenceState) error {
 			current := st.Subscriptions[id]
-			if !st.Enabled || current == nil || current.Generation != gen {
+			if !st.Enabled {
+				return errf("disabled")
+			}
+			if current == nil || !current.CallbackVerified && current.Generation == "" {
 				return errf("stale")
+			}
+			if current.Generation != gen {
+				// Another refresh owns this record. Preserve its state and the
+				// original callback failure unless authorization was revoked.
+				return nil
 			}
 			if previous != nil && previous.CallbackVerified && previous.ExpiresAt.After(time.Now()) {
 				st.Subscriptions[id] = previous
@@ -124,7 +132,8 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 			return errf("stale")
 		}
 		s.CallbackVerified = true
-		s.VerifiedUntil = time.Now().Add(5 * time.Minute)
+		s.UpdatedAt = time.Now().UTC()
+		s.VerifiedUntil = s.UpdatedAt.Add(5 * time.Minute)
 		return nil
 	})
 	if e != nil {

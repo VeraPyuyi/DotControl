@@ -29,6 +29,42 @@ func TestWindowsStoreBoundary(t *testing.T) {
 		t.Fatal("junction ancestor accepted")
 	}
 }
+func TestMinorWindowsCreatedAncestors(t *testing.T) {
+	base := t.TempDir()
+	before, e := windows.GetNamedSecurityInfo(base, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if e != nil {
+		t.Fatal(e)
+	}
+	dir := filepath.Join(base, "created", "intermediate", "events")
+	if _, e = Open(dir, testKey, nil); e != nil {
+		t.Fatal(e)
+	}
+	after, e := windows.GetNamedSecurityInfo(base, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if before.String() != after.String() {
+		t.Fatal("existing parent ACL changed")
+	}
+	user, e := windows.GetCurrentProcessToken().GetTokenUser()
+	if e != nil {
+		t.Fatal(e)
+	}
+	for p := dir; p != base; p = filepath.Dir(p) {
+		sd, e := windows.GetNamedSecurityInfo(p, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+		if e != nil {
+			t.Fatal(e)
+		}
+		acl, _, e := sd.DACL()
+		if e != nil {
+			t.Fatal(e)
+		}
+		if acl.AceCount != 1 || !strings.Contains(sd.String(), "D:P") || !strings.Contains(sd.String(), user.User.Sid.String()) {
+			t.Errorf("new ancestor lacks protected current-user ACL: %s %s", p, sd.String())
+		}
+	}
+}
+
 func TestWindowsPrivacyEveryTransaction(t *testing.T) {
 	m, dir := openTestManager(t)
 	paths := []string{dir, filepath.Join(dir, stateFileName), filepath.Join(dir, markerName), filepath.Join(dir, lockName)}
