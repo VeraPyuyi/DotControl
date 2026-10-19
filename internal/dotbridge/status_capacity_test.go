@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -132,9 +133,9 @@ func TestCapacityPublicationAccessChanges(t *testing.T) {
 		for _, change := range []string{"none", "disabled_before", "disable", "disable_enable", "revoke", "pause", "access_revoke"} {
 			t.Run(fmt.Sprintf("admin=%v/%s", admin, change), func(t *testing.T) {
 				s, _, id := openTestBridge(t)
-				var paused, revoked bool
-				s.paused = func() bool { return paused }
-				s.revoked = func() bool { return revoked }
+				var paused, revoked atomic.Bool
+				s.paused = paused.Load
+				s.revoked = revoked.Load
 				q := &capacityInterceptQueue{QueueAPI: s.queue}
 				s.queue = q
 				q.after = func() {
@@ -153,9 +154,9 @@ func TestCapacityPublicationAccessChanges(t *testing.T) {
 							t.Fatal(err)
 						}
 					case "pause":
-						paused = true
+						paused.Store(true)
 					case "access_revoke":
-						revoked = true
+						revoked.Store(true)
 					}
 				}
 				if change == "disabled_before" {
