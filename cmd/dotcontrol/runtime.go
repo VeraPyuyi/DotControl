@@ -335,6 +335,7 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		case "/admin/bridge/probe":
 			var input struct {
 				ClientID string `json:"client_id"`
+				Mode     string `json:"mode"`
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 			d := json.NewDecoder(r.Body)
@@ -344,7 +345,10 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 			} else if d.Decode(&input) != nil || input.ClientID == "" {
 				e = errors.New("invalid_request")
 			} else {
-				out, e = owner.dotBridge.StartProbe(input.ClientID)
+				if input.Mode == "" {
+					input.Mode = "answer"
+				}
+				out, e = owner.dotBridge.StartProbeMode(input.ClientID, input.Mode)
 			}
 		default:
 			http.NotFound(w, r)
