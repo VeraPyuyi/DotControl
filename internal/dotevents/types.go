@@ -37,10 +37,11 @@ type Definition struct {
 }
 
 type Notice struct {
-	EventID string
-	QueueID string
-	JobID   string
-	Mode    string
+	OccurredAt time.Time
+	EventID    string
+	QueueID    string
+	JobID      string
+	Mode       string
 }
 
 type Status struct {

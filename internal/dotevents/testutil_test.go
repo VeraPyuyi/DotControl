@@ -22,6 +22,9 @@ func openTestManager(t *testing.T) (*Manager, string) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	if e = m.SetEnabled(true); e != nil {
+		t.Fatal(e)
+	}
 	return m, dir
 }
 func testSecret() string {
@@ -50,6 +53,9 @@ func withFixtureServerURL(t *testing.T, h http.HandlerFunc) (*Manager, string, f
 	dir := t.TempDir()
 	m, e := Open(dir, testKey, &Delivery{client: &http.Client{Timeout: maxHTTPTimeout, Transport: tr, CheckRedirect: noRedirect}})
 	if e != nil {
+		t.Fatal(e)
+	}
+	if e = m.SetEnabled(true); e != nil {
 		t.Fatal(e)
 	}
 	return m, dir, s.Close, fixtureCallbackURL

@@ -16,6 +16,7 @@ const (
 )
 
 type subscriptionRecord struct {
+	VerifiedUntil    time.Time `json:"verified_until"`
 	Generation       string    `json:"generation"`
 	ID               string    `json:"id"`
 	Principal        string    `json:"principal"`
@@ -60,7 +61,7 @@ type persistenceState struct {
 func newPersistenceState() *persistenceState {
 	return &persistenceState{
 		StateVersion:  stateVersion,
-		Enabled:       true,
+		Enabled:       false,
 		Subscriptions: map[string]*subscriptionRecord{},
 		Deliveries:    map[string]*deliveryRecord{},
 		QueueStatus:   map[string]*queueStatus{},

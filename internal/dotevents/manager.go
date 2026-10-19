@@ -31,6 +31,7 @@ func (m *Manager) SetEnabled(enabled bool) error {
 		if !enabled {
 			for _, s := range st.Subscriptions {
 				s.CallbackVerified = false
+				s.VerifiedUntil = time.Time{}
 				s.Generation = ""
 			}
 		}
@@ -48,6 +49,8 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 		return Subscription{}, e
 	}
 	now := time.Now().UTC()
+	var previous *subscriptionRecord
+	var cached bool
 	rec := &subscriptionRecord{ID: id, Generation: gen, Principal: principal, Params: p, Secret: p.Delivery.Secret, ExpiresAt: now.Add(time.Duration(ttl) * time.Millisecond), CreatedAt: now, UpdatedAt: now}
 	if e = m.store.withLock(false, true, func(st *persistenceState) error {
 		if !st.Enabled {
@@ -59,6 +62,20 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 			}
 		}
 		old := st.Subscriptions[id]
+		if old != nil {
+			cp := *old
+			previous = &cp
+		}
+		// Cache is scoped to authenticated principal plus exact URL and bounded
+		// by both verification lifetime and subscription expiry.
+		for _, s := range st.Subscriptions {
+			if s.Principal == principal && s.Params.Delivery.URL == p.Delivery.URL && s.CallbackVerified && s.VerifiedUntil.After(now) && s.ExpiresAt.After(now) {
+				cached = true
+				rec.CallbackVerified = true
+				rec.VerifiedUntil = s.VerifiedUntil
+				break
+			}
+		}
 		if old == nil && len(st.Subscriptions) >= maxActiveSubs {
 			return errf("capacity")
 		}
@@ -77,7 +94,25 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 	}); e != nil {
 		return Subscription{}, e
 	}
+	if cached {
+		return Subscription{ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
+	}
 	if e = m.delivery.verify(ctx, rec); e != nil {
+		// Restore a previously accepted refresh only if no revoke/refresh won
+		// the generation race. Never extend its TTL or cache after failure.
+		restoreErr := m.store.withLock(false, true, func(st *persistenceState) error {
+			current := st.Subscriptions[id]
+			if !st.Enabled || current == nil || current.Generation != gen {
+				return errf("stale")
+			}
+			if previous != nil && previous.CallbackVerified && previous.ExpiresAt.After(time.Now()) {
+				st.Subscriptions[id] = previous
+			}
+			return nil
+		})
+		if restoreErr != nil {
+			return Subscription{}, restoreErr
+		}
 		return Subscription{}, e
 	}
 	e = m.store.withLock(false, true, func(st *persistenceState) error {
@@ -89,6 +124,7 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 			return errf("stale")
 		}
 		s.CallbackVerified = true
+		s.VerifiedUntil = time.Now().Add(5 * time.Minute)
 		return nil
 	})
 	if e != nil {
@@ -103,7 +139,15 @@ func (m *Manager) Unsubscribe(ctx context.Context, principal string, p Params) e
 	if validateID(principal) != nil || p.Arguments.QueueID != principal || p.Name != EventName || p.Delivery.Mode != "webhook" || validateCallbackURL(p.Delivery.URL) != nil {
 		return errf("unknown")
 	}
-	return m.store.withLock(false, true, func(st *persistenceState) error { delete(st.Subscriptions, subscriptionID(principal, p)); return nil })
+	return m.store.withLock(false, true, func(st *persistenceState) error {
+		delete(st.Subscriptions, subscriptionID(principal, p))
+		for _, s := range st.Subscriptions {
+			if s.Principal == principal && s.Params.Delivery.URL == p.Delivery.URL {
+				s.VerifiedUntil = time.Time{}
+			}
+		}
+		return nil
+	})
 }
 func (m *Manager) List(principal string) []Definition {
 	if validateID(principal) != nil {
@@ -112,7 +156,7 @@ func (m *Manager) List(principal string) []Definition {
 	return []Definition{{Name: EventName, Description: "A queued task is available; retrieve it using authorized queue tools."}}
 }
 func (m *Manager) Deliver(ctx context.Context, principal, queueID string, n Notice) error {
-	if validateID(principal) != nil || principal != queueID || n.QueueID != queueID || validateID(n.EventID) != nil || validateID(n.JobID) != nil || (n.Mode != "answer" && n.Mode != "task") {
+	if n.OccurredAt.IsZero() || n.OccurredAt.Year() < 1 || n.OccurredAt.Year() > 9999 || validateID(principal) != nil || principal != queueID || n.QueueID != queueID || validateID(n.EventID) != nil || validateID(n.JobID) != nil || (n.Mode != "answer" && n.Mode != "task") {
 		return errf("unknown")
 	}
 	var ids []string

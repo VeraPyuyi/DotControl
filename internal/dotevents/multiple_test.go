@@ -42,7 +42,7 @@ func TestMultipleSubscriptionsAndRevokeDuringDelivery(t *testing.T) {
 	if _, e := m.Subscribe(context.Background(), "alice", second); e != nil {
 		t.Fatal(e)
 	}
-	if e := m.Deliver(context.Background(), "alice", "alice", Notice{"evt.multi", "alice", "job.multi", "answer"}); e != nil {
+	if e := m.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.multi", QueueID: "alice", JobID: "job.multi", Mode: "answer", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}); e != nil {
 		t.Fatal(e)
 	}
 	if sends.Load() != 2 {
@@ -54,7 +54,7 @@ func TestMultipleSubscriptionsAndRevokeDuringDelivery(t *testing.T) {
 	block.Store(true)
 	done := make(chan error, 1)
 	go func() {
-		done <- m.Deliver(context.Background(), "alice", "alice", Notice{"evt.block", "alice", "job.multi", "task"})
+		done <- m.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.block", QueueID: "alice", JobID: "job.multi", Mode: "task", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)})
 	}()
 	<-entered
 	if e := m.SetEnabled(false); e != nil {

@@ -103,7 +103,7 @@ func TestRetriesPersistOneAttemptAndTerminal(t *testing.T) {
 			if _, e := m.Subscribe(context.Background(), "alice", testParams("alice")); e != nil {
 				t.Fatal(e)
 			}
-			n := Notice{"evt.retry", "alice", "job.retry", "answer"}
+			n := Notice{EventID: "evt.retry", QueueID: "alice", JobID: "job.retry", Mode: "answer", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}
 			e := m.Deliver(context.Background(), "alice", "alice", n)
 			if e == nil || sends.Load() != 1 {
 				t.Fatalf("attempt %v %d", e, sends.Load())
@@ -142,7 +142,7 @@ func TestRetriesPersistOneAttemptAndTerminal(t *testing.T) {
 				t.Fatalf("unbounded sends %d", sends.Load())
 			}
 			for i := range ids {
-				if ids[i] != deliveryID(subscriptionID("alice", testParams("alice")), n.EventID) || !bytes.Equal(bodies[0], bodies[i]) {
+				if ids[i] != n.EventID || !bytes.Equal(bodies[0], bodies[i]) {
 					t.Fatal("retry changed identity or body")
 				}
 			}
@@ -181,7 +181,7 @@ func TestUnsubscribeExpiryEncryptionAndSignatures(t *testing.T) {
 	if time.Until(sub.ExpiresAt) > time.Hour {
 		t.Fatal("unbounded null ttl")
 	}
-	if e = m.Deliver(context.Background(), "alice", "alice", Notice{"evt.signed", "alice", "job.signed", "task"}); e != nil {
+	if e = m.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.signed", QueueID: "alice", JobID: "job.signed", Mode: "task", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}); e != nil {
 		t.Fatal(e)
 	}
 	if !checked.Load() {
@@ -197,7 +197,7 @@ func TestUnsubscribeExpiryEncryptionAndSignatures(t *testing.T) {
 		}
 		return nil
 	})
-	if e = m.Deliver(context.Background(), "alice", "alice", Notice{"evt.expired", "alice", "job.signed", "task"}); e == nil {
+	if e = m.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.expired", QueueID: "alice", JobID: "job.signed", Mode: "task", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}); e == nil {
 		t.Fatal("expired sent")
 	}
 	p.Delivery.Secret = ""

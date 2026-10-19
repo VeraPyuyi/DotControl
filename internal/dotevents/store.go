@@ -6,9 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+
 	"time"
-	"unicode"
 
 	"github.com/gofrs/flock"
 )
@@ -22,7 +21,7 @@ func openStore(dir string, key []byte) (*store, error) {
 	if len(key) != 32 {
 		return nil, errf("unknown")
 	}
-	if !filepath.IsAbs(dir) || len(dir) > 32768 || strings.ContainsFunc(dir, unicode.IsControl) {
+	if validateStorePath(dir) != nil {
 		return nil, errf("unknown")
 	}
 	return &store{dir: dir, key: append([]byte(nil), key...)}, nil
@@ -56,6 +55,14 @@ func (s *store) withLock(allowCreate bool, mutate bool, fn func(*persistenceStat
 		return errf("unknown")
 	}
 	defer lock.Unlock()
+	if e := s.checkDir(false); e != nil {
+		return e
+	}
+	for _, name := range []string{stateFileName, markerName, lockName} {
+		if e := protectFile(filepath.Join(s.dir, name), false); e != nil {
+			return e
+		}
+	}
 
 	st, err := s.loadState(allowCreate)
 	if err != nil {
@@ -88,6 +95,15 @@ func (s *store) loadState(allowCreate bool) (*persistenceState, error) {
 		if os.IsNotExist(stateErr) && markerErr == nil {
 			return nil, errf("corrupt")
 		}
+		return nil, errf("corrupt")
+	}
+	markerFile, e := os.Open(marker)
+	if e != nil {
+		return nil, errf("corrupt")
+	}
+	markerData, e := io.ReadAll(io.LimitReader(markerFile, 3))
+	closeErr := markerFile.Close()
+	if e != nil || closeErr != nil || string(markerData) != "1\n" {
 		return nil, errf("corrupt")
 	}
 	if err := regularFile(statePath); err != nil {
@@ -191,27 +207,7 @@ func (s *store) ensureMarker() error {
 	return nil
 }
 
-func (s *store) checkDir(create bool) error {
-	if !filepath.IsAbs(s.dir) || len(s.dir) > 32768 || strings.ContainsFunc(s.dir, unicode.IsControl) {
-		return errf("unknown")
-	}
-	if create {
-		if os.MkdirAll(s.dir, 0700) != nil {
-			return errf("unknown")
-		}
-	}
-	info, err := os.Lstat(s.dir)
-	if os.IsNotExist(err) {
-		return errf("corrupt")
-	}
-	if err != nil || !info.IsDir() || rejectLink(info) != nil {
-		return errf("unknown")
-	}
-	if create && privatePath(s.dir, true) != nil {
-		return errf("unknown")
-	}
-	return nil
-}
+func (s *store) checkDir(create bool) error { return checkAncestors(s.dir, create) }
 
 func regularFile(path string) error {
 	info, err := os.Lstat(path)

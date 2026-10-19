@@ -132,7 +132,7 @@ func (d *Delivery) verify(ctx context.Context, sub *subscriptionRecord) error {
 	return nil
 }
 func (d *Delivery) deliverBytes(ctx context.Context, sub *subscriptionRecord, id string, body []byte) (string, error) {
-	resp, e := d.post(ctx, sub, deliveryID(sub.ID, id), body)
+	resp, e := d.post(ctx, sub, id, body)
 	if e != nil {
 		return "network", errf("network")
 	}
@@ -164,7 +164,7 @@ func eventBodyBytes(n Notice) []byte {
 			Mode    string `json:"mode"`
 		} `json:"data"`
 		Cursor any `json:"cursor"`
-	}{EventID: n.EventID, Name: EventName, Timestamp: time.Now().UTC(), Data: struct {
+	}{EventID: n.EventID, Name: EventName, Timestamp: n.OccurredAt, Data: struct {
 		QueueID string `json:"queue_id"`
 		JobID   string `json:"job_id"`
 		Mode    string `json:"mode"`

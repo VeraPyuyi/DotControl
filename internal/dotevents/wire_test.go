@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestOfficialWireOccurrence(t *testing.T) {
@@ -30,7 +31,7 @@ func TestOfficialWireOccurrence(t *testing.T) {
 	if _, e := m.Subscribe(context.Background(), "alice", testParams("alice")); e != nil {
 		t.Fatal(e)
 	}
-	if e := m.Deliver(context.Background(), "alice", "alice", Notice{"evt.official", "alice", "job.official", "answer"}); e != nil {
+	if e := m.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.official", QueueID: "alice", JobID: "job.official", Mode: "answer", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}); e != nil {
 		t.Fatal(e)
 	}
 	for _, k := range []string{"eventId", "name", "timestamp", "data", "cursor"} {

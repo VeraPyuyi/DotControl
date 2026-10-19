@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestInvalidSubscriptions(t *testing.T) {
@@ -34,7 +35,7 @@ func TestInvalidSubscriptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mgr, _ := openTestManager(t)
-			p := testParams(tt.principal)
+			p := testParams("alice")
 			tt.mutate(&p)
 			if _, err := mgr.Subscribe(context.Background(), tt.principal, p); err == nil {
 				t.Fatal("accepted invalid subscription")
@@ -82,7 +83,7 @@ func TestSubscribeVerifyDeliverAndPersist(t *testing.T) {
 	if err != nil || !status.Subscribed || !status.CallbackVerified || status.DotReady {
 		t.Fatalf("unexpected status %#v", status)
 	}
-	notice := Notice{EventID: "evt.1", QueueID: "alice", JobID: "job.1", Mode: "answer"}
+	notice := Notice{OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), EventID: "evt.1", QueueID: "alice", JobID: "job.1", Mode: "answer"}
 	if err := mgr.Deliver(context.Background(), "alice", "alice", notice); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestDuplicateEventAck(t *testing.T) {
 	if _, err := mgr.Subscribe(context.Background(), "alice", testParams("alice")); err != nil {
 		t.Fatal(err)
 	}
-	notice := Notice{EventID: "evt.dup", QueueID: "alice", JobID: "job.1", Mode: "task"}
+	notice := Notice{OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), EventID: "evt.dup", QueueID: "alice", JobID: "job.1", Mode: "task"}
 	if err := mgr.Deliver(context.Background(), "alice", "alice", notice); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestSecretRotationGrace(t *testing.T) {
 	if _, err := mgr.Subscribe(context.Background(), "alice", second); err != nil {
 		t.Fatal(err)
 	}
-	notice := Notice{EventID: "evt.rotate", QueueID: "alice", JobID: "job.2", Mode: "answer"}
+	notice := Notice{OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), EventID: "evt.rotate", QueueID: "alice", JobID: "job.2", Mode: "answer"}
 	if err := mgr.Deliver(context.Background(), "alice", "alice", notice); err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestDisabledBlocksDelivery(t *testing.T) {
 	if err := mgr.SetEnabled(false); err != nil {
 		t.Fatal(err)
 	}
-	if err := mgr.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.off", QueueID: "alice", JobID: "job.1", Mode: "answer"}); asEventsError(err).Code != "disabled" {
+	if err := mgr.Deliver(context.Background(), "alice", "alice", Notice{OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), EventID: "evt.off", QueueID: "alice", JobID: "job.1", Mode: "answer"}); asEventsError(err).Code != "disabled" {
 		t.Fatalf("expected disabled, got %v", err)
 	}
 }
@@ -233,7 +234,7 @@ func TestConcurrentSubscribeAndDeliver(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	notice := Notice{EventID: "evt.race", QueueID: "alice", JobID: "job.race", Mode: "answer"}
+	notice := Notice{OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), EventID: "evt.race", QueueID: "alice", JobID: "job.race", Mode: "answer"}
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func() {
