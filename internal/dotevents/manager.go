@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const verifiedCacheTTL = 5 * time.Minute
+
 type Manager struct {
 	store    *store
 	delivery *Delivery
@@ -39,6 +41,10 @@ func (m *Manager) SetEnabled(enabled bool) error {
 	})
 }
 func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Subscription, error) {
+	return m.subscribe(ctx, principal, p, time.Now)
+}
+
+func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clock func() time.Time) (Subscription, error) {
 	if e := validateParams(principal, p); e != nil {
 		return Subscription{}, e
 	}
@@ -48,7 +54,7 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 	if e != nil {
 		return Subscription{}, e
 	}
-	now := time.Now().UTC()
+	now := clock().UTC()
 	var previous *subscriptionRecord
 	var cached bool
 	rec := &subscriptionRecord{ID: id, Generation: gen, Principal: principal, Params: p, Secret: p.Delivery.Secret, ExpiresAt: now.Add(time.Duration(ttl) * time.Millisecond), CreatedAt: now, UpdatedAt: now}
@@ -72,7 +78,7 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 			if s.Principal == principal && s.Params.Delivery.URL == p.Delivery.URL && s.CallbackVerified && s.VerifiedUntil.After(now) && s.ExpiresAt.After(now) {
 				cached = true
 				rec.CallbackVerified = true
-				rec.VerifiedUntil = s.VerifiedUntil
+				rec.VerifiedUntil = boundedVerificationDeadline(s.VerifiedUntil, s.ExpiresAt, rec.ExpiresAt, now)
 				break
 			}
 		}
@@ -113,7 +119,7 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 				// original callback failure unless authorization was revoked.
 				return nil
 			}
-			if previous != nil && previous.CallbackVerified && previous.ExpiresAt.After(time.Now()) {
+			if previous != nil && previous.CallbackVerified && previous.ExpiresAt.After(clock()) {
 				st.Subscriptions[id] = previous
 			}
 			return nil
@@ -128,12 +134,12 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 			return errf("disabled")
 		}
 		s := st.Subscriptions[id]
-		if s == nil || s.Generation != gen || !s.ExpiresAt.After(time.Now()) {
+		if s == nil || s.Generation != gen || !s.ExpiresAt.After(clock()) {
 			return errf("stale")
 		}
 		s.CallbackVerified = true
-		s.UpdatedAt = time.Now().UTC()
-		s.VerifiedUntil = s.UpdatedAt.Add(5 * time.Minute)
+		s.UpdatedAt = clock().UTC()
+		s.VerifiedUntil = boundedVerificationDeadline(s.UpdatedAt.Add(verifiedCacheTTL), s.ExpiresAt, s.ExpiresAt, s.UpdatedAt)
 		return nil
 	})
 	if e != nil {
@@ -141,6 +147,19 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 	}
 	return Subscription{ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
 }
+
+// Never extend an accepted verification proof on refresh, even after a
+// backward clock step. Legacy deadlines need no guessed lock/IO allowance:
+// each reuse is capped by both subscription grants and the current cache TTL.
+func boundedVerificationDeadline(until, sourceExpiry, expiry, now time.Time) time.Time {
+	for _, bound := range []time.Time{sourceExpiry, expiry, now.Add(verifiedCacheTTL)} {
+		if bound.Before(until) {
+			until = bound
+		}
+	}
+	return until
+}
+
 func (m *Manager) Unsubscribe(ctx context.Context, principal string, p Params) error {
 	if ctx.Err() != nil {
 		return errf("cancelled")

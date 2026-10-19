@@ -34,7 +34,7 @@ Working directory: `D:\Applications\Opencode\data\share\worktree\bd2540\dot-task
 & "C:\Program Files\Go\bin\go.exe" test -race ./internal/dotqueue -count=1 -run TestList
 ```
 
-Results: all `TestList*` cases passed on 2026-10-19. `-race` was attempted with `CGO_ENABLED=1` but the environment has no C compiler (`gcc` not found); rerun `-race` where CGO and a compiler are available.
+Results: all `TestList*` cases passed on 2026-10-19. The initial worker race attempt could not locate gcc. The controller subsequently ran `C:\Program Files\Go\bin\go.exe test -race -count=1 -timeout 1m ./internal/dotqueue -run ^TestList` successfully (exit 0, runner 4.23s). Retained evidence: `C:\Users\13678\AppData\Local\Temp\opencode\magpie-context-verification\dotqueue-list-controller-race.json` and `.log`. GCC is available at `C:\msys64\mingw64\bin\gcc.exe`; the external runner configures that compiler for race checks.
 
 ## Follow-up
 

@@ -81,9 +81,10 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 	}
 	for id, sub := range st.Subscriptions {
 		if sub != nil && !sub.VerifiedUntil.IsZero() {
-			// Zero is valid for legacy records and invalidated caches. Older
-			// records stamped UpdatedAt before the bounded verification I/O.
-			if !sub.CallbackVerified || sub.VerifiedUntil.Year() < 1 || sub.VerifiedUntil.Year() > 9999 || sub.VerifiedUntil.After(sub.UpdatedAt.Add(5*time.Minute+maxHTTPTimeout)) {
+			// Validate the persisted shape, not elapsed wall time. Legacy
+			// UpdatedAt predates lock/save/HTTP work, and wall clocks can step
+			// in either direction. Cache reuse bounds the deadline separately.
+			if !sub.CallbackVerified || sub.VerifiedUntil.Year() < 1 || sub.VerifiedUntil.Year() > 9999 {
 				return nil, errf("corrupt")
 			}
 		}
