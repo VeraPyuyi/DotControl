@@ -180,21 +180,50 @@ func (s *Service) Disable() error {
 	return s.saveState()
 }
 
+func (s *Service) bridgeCapacity() (*CapacityDTO, error) {
+	s.mu.Lock()
+	enabled := s.state.Enabled
+	s.mu.Unlock()
+	if !enabled {
+		return nil, nil
+	}
+	cap, err := s.queue.Capacity()
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	still := s.state.Enabled
+	s.mu.Unlock()
+	if !still {
+		return nil, nil
+	}
+	return &CapacityDTO{Limit: cap.Limit, Retained: cap.Retained, Remaining: cap.Remaining}, nil
+}
+
 func (s *Service) AdminStatus() (map[string]any, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	paired := 0
 	for _, policy := range s.state.Clients {
 		if !policy.Revoked {
 			paired++
 		}
 	}
-	return map[string]any{
+	enabled := s.state.Enabled
+	s.mu.Unlock()
+	out := map[string]any{
 		"version": APIVersion,
-		"enabled": s.state.Enabled,
+		"enabled": enabled,
 		"paired":  paired > 0,
 		"clients": paired,
-	}, nil
+	}
+	cap, err := s.bridgeCapacity()
+	if err != nil {
+		return nil, err
+	}
+	if cap != nil {
+		out["capacity"] = cap
+	}
+	return out, nil
 }
 
 func (s *Service) StatusForClient(clientID string) (StatusDTO, error) {
@@ -212,6 +241,7 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	// never combine its subscription with a previously captured proof.
 	eventStatus, e := s.events.Status(policy.QueueID, policy.QueueID)
 	gateOK := s.clientGate(policy.ClientID) == nil
+	capacity, capErr := s.bridgeCapacity()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, exists := s.state.Clients[policy.ClientID]
@@ -221,6 +251,9 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	out := StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: exists && !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
 	if active {
 		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires}
+	}
+	if capErr == nil && capacity != nil {
+		out.Capacity = capacity
 	}
 	if !gateOK || !s.state.Enabled || !exists || current.Revoked || !active || e != nil || !eventStatus.Subscribed || !eventStatus.CallbackVerified || (s.paused != nil && s.paused()) || (s.revoked != nil && s.revoked()) {
 		return out
@@ -513,6 +546,7 @@ func toJobDTO(job dotqueue.Job) JobDTO {
 		Mode:            job.Mode,
 		SessionID:       job.SessionID,
 		State:           job.State,
+		Summary:         job.Summary,
 		CreatedAt:       job.CreatedAt,
 		UpdatedAt:       job.UpdatedAt,
 		CancelRequested: job.CancelRequested,

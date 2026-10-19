@@ -11,9 +11,11 @@ import (
 	"strings"
 )
 
-// Allow 256KiB of raw content escaped at six bytes per byte, plus envelope
-// overhead. The queue independently enforces the raw content limit.
-const maxBody = 2 << 20
+// MaxWireResponseBytes allows 256KiB of raw content escaped at six bytes per
+// byte, plus envelope overhead. The queue independently enforces the raw limit.
+const MaxWireResponseBytes = 2 << 20
+
+const maxBody = MaxWireResponseBytes
 
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()

@@ -64,6 +64,14 @@ type PersistedState struct {
 	Clients map[string]ClientPolicy `json:"clients"`
 }
 
+// CapacityDTO reports global retained job counts for operator visibility.
+// It intentionally omits client-identifying fields.
+type CapacityDTO struct {
+	Limit     int `json:"limit"`
+	Retained  int `json:"retained"`
+	Remaining int `json:"remaining"`
+}
+
 type StatusDTO struct {
 	Version      int             `json:"version"`
 	Enabled      bool            `json:"enabled"`
@@ -74,6 +82,7 @@ type StatusDTO struct {
 	ExpiresAt    *time.Time      `json:"expires_at,omitempty"`
 	Subscription SubscriptionDTO `json:"subscription"`
 	Capabilities CapPolicy       `json:"capabilities"`
+	Capacity     *CapacityDTO    `json:"capacity,omitempty"`
 }
 
 type SubscriptionDTO struct {
@@ -89,6 +98,7 @@ type JobDTO struct {
 	Mode            string     `json:"mode"`
 	SessionID       string     `json:"session_id"`
 	State           string     `json:"state"`
+	Summary         string     `json:"summary,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	CancelRequested bool       `json:"cancel_requested"`

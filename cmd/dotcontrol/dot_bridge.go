@@ -187,7 +187,10 @@ func bridgeClientRequest(ctx context.Context, listen, token, method, path string
 		return err
 	}
 	defer res.Body.Close()
-	data, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	data, err := readBridgeResponseBody(res.Body)
+	if err != nil {
+		return err
+	}
 	fmt.Println(string(data))
 	if res.StatusCode >= 400 {
 		return errors.New("bridge_request_failed")
@@ -201,6 +204,17 @@ func loadPairingToken(dir, clientID string) (string, error) {
 		return "", err
 	}
 	return file.Token, nil
+}
+
+func readBridgeResponseBody(r io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, dotbridge.MaxWireResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > dotbridge.MaxWireResponseBytes {
+		return nil, errors.New("bridge_response_too_large")
+	}
+	return data, nil
 }
 
 func validateBridgeListen(listen string) error {

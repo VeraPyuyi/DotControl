@@ -21,6 +21,7 @@ type QueueAPI interface {
 	Cancel(clientID, jobID string) (dotqueue.Job, error)
 	Recover() error
 	Pending(queueID string) ([]dotqueue.Notice, error)
+	Capacity() (dotqueue.CapacityStatus, error)
 }
 
 // EventsAPI isolates Task3 integration from dotevents manager details.
@@ -69,6 +70,9 @@ func (q queueAdapter) Cancel(clientID, jobID string) (dotqueue.Job, error) {
 func (q queueAdapter) Recover() error { return q.Store.Recover() }
 func (q queueAdapter) Pending(queueID string) ([]dotqueue.Notice, error) {
 	return q.Store.Pending(queueID)
+}
+func (q queueAdapter) Capacity() (dotqueue.CapacityStatus, error) {
+	return q.Store.Capacity()
 }
 
 func (e eventsAdapter) SetEnabled(enabled bool) error { return e.Manager.SetEnabled(enabled) }
