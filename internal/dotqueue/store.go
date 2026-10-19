@@ -69,7 +69,7 @@ func (s *Store) Submit(clientID string, sub Submission) (Job, error) {
 			return nil
 		}
 		if len(st.Jobs) >= maxRetainedJobs {
-			return errf("conflict")
+			return errf("queue_full")
 		}
 		now := time.Now().UTC()
 		jobID, err := newID("job")
