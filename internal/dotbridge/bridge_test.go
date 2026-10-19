@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dotcontrol/dotcontrol/internal/dotqueue"
@@ -79,7 +80,7 @@ func TestBridgeAPIProbeClaimComplete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := svc.CompleteTask(probe.JobID, claim.Token, dotqueue.Result{Text: mustProbeAnswer(svc, clientID)})
+	job, err := svc.CompleteTask(probe.JobID, claim.Token, dotqueue.Result{Text: strings.TrimPrefix(claim.Submission.Messages[0].Content, "Reply with exactly this nonce: ")})
 	if err != nil || job.State != dotqueue.StateCompleted {
 		t.Fatalf("complete: %v %#v", err, job)
 	}
@@ -96,11 +97,4 @@ func TestBridgeAPIProbeClaimComplete(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("status code %d", res.Code)
 	}
-}
-
-func mustProbeAnswer(svc *Service, clientID string) string {
-	svc.mu.Lock()
-	answer := svc.state.Clients[clientID].ProbeAnswer
-	svc.mu.Unlock()
-	return answer
 }

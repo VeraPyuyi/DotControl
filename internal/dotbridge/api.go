@@ -86,11 +86,15 @@ func (s *Service) handleJobs(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	client := clientFrom(r.Context())
 	jobID := strings.TrimPrefix(r.URL.Path, "/dot-bridge/v1/jobs/")
+	cancelRoute := strings.HasSuffix(jobID, "/cancel")
+	if cancelRoute {
+		jobID = strings.TrimSuffix(jobID, "/cancel")
+	}
 	if jobID == "" || strings.Contains(jobID, "/") {
 		writeError(w, http.StatusNotFound, "notfound", "")
 		return
 	}
-	if strings.HasSuffix(r.URL.Path, "/cancel") {
+	if cancelRoute {
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "method_rejected", "")
 			return
@@ -142,7 +146,7 @@ func decodeSubmit(body io.Reader) (SubmitRequest, error) {
 	if dec.Decode(&req) != nil {
 		return SubmitRequest{}, errors.New("invalid_request")
 	}
-	if dec.Decode(&struct{}{}) != nil {
+	if dec.Decode(&struct{}{}) != io.EOF {
 		return SubmitRequest{}, errors.New("invalid_request")
 	}
 	return req, nil

@@ -25,13 +25,5 @@ func writePairingFile(root string, file PairingFile) (string, error) {
 }
 
 func EnsureStateKey(v vault.Store) error {
-	_, err := v.Get(StateKeyName)
-	if err == nil {
-		return nil
-	}
-	encoded, err := randomStateKey()
-	if err != nil {
-		return err
-	}
-	return v.Set(StateKeyName, encoded)
+	return vault.Ensure(v, StateKeyName, func() string { key, _ := randomStateKey(); return key })
 }

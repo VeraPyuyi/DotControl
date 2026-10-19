@@ -32,7 +32,7 @@ func (s *Service) StartProbe(clientID string) (ProbeResult, error) {
 		return ProbeResult{}, err
 	}
 	answer := hex.EncodeToString(nonce[:])
-	requestID := "probe." + time.Now().UTC().Format("20060102150405")
+	requestID := "probe." + hashToken(answer)
 	sub := dotqueue.Submission{
 		RequestID: requestID,
 		Mode:      dotqueue.ModeAnswer,
@@ -46,15 +46,23 @@ func (s *Service) StartProbe(clientID string) (ProbeResult, error) {
 	if err != nil {
 		return ProbeResult{}, err
 	}
+	if e := s.clientGate(clientID); e != nil {
+		return ProbeResult{}, e
+	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	policy, ok = s.state.Clients[clientID]
+	if !ok || policy.Revoked {
+		return ProbeResult{}, errors.New("access_revoked")
+	}
 	policy.ProbeJobID = job.ID
-	policy.ProbeNonce = answer
-	policy.ProbeAnswer = answer
+	policy.ProbeAnswer = hashToken(answer)
 	policy.ProbeVerified = time.Time{}
 	policy.ProbeExpires = time.Time{}
 	s.state.Clients[clientID] = policy
-	_ = s.saveState()
-	s.mu.Unlock()
+	if e := s.saveState(); e != nil {
+		return ProbeResult{}, e
+	}
 	return ProbeResult{
 		JobID:     job.ID,
 		RequestID: requestID,

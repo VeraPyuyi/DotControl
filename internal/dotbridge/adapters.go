@@ -11,7 +11,6 @@ import (
 type QueueAPI interface {
 	Initialize(enabled bool) error
 	SetEnabled(enabled bool) error
-	ConfigStatus() (dotqueue.ConfigStatus, error)
 	Submit(clientID string, sub dotqueue.Submission) (dotqueue.Job, error)
 	Get(clientID, jobID string) (dotqueue.Job, error)
 	ByRequest(clientID, requestID string) (dotqueue.Job, error)
@@ -40,9 +39,8 @@ type eventsAdapter struct{ *dotevents.Manager }
 func wrapQueue(s *dotqueue.Store) QueueAPI      { return queueAdapter{s} }
 func wrapEvents(m *dotevents.Manager) EventsAPI { return eventsAdapter{m} }
 
-func (q queueAdapter) Initialize(enabled bool) error                { return q.Store.Initialize(enabled) }
-func (q queueAdapter) SetEnabled(enabled bool) error                { return q.Store.SetEnabled(enabled) }
-func (q queueAdapter) ConfigStatus() (dotqueue.ConfigStatus, error) { return q.Store.ConfigStatus() }
+func (q queueAdapter) Initialize(enabled bool) error { return q.Store.Initialize(enabled) }
+func (q queueAdapter) SetEnabled(enabled bool) error { return q.Store.SetEnabled(enabled) }
 func (q queueAdapter) Submit(clientID string, sub dotqueue.Submission) (dotqueue.Job, error) {
 	return q.Store.Submit(clientID, sub)
 }

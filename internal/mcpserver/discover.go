@@ -7,18 +7,18 @@ import (
 	"net/http"
 )
 
-// DiscoverEventsWrapper augments successful 2026-07-28 server/discover responses
-// with events capability without replacing SDK dispatch.
+// DiscoverEventsWrapper only augments a successful modern SDK discovery result.
+// Other traffic remains on the original SDK ResponseWriter (including streaming).
 func DiscoverEventsWrapper(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
+		if r.Method != "POST" || r.Header.Get("MCP-Protocol-Version") != "2026-07-28" || r.Header.Get("Mcp-Method") != "server/discover" {
 			next.ServeHTTP(w, r)
 			return
 		}
 		rec := &responseRecorder{header: make(http.Header)}
 		next.ServeHTTP(rec, r)
 		body := rec.body.Bytes()
-		if rec.status == http.StatusOK && bytes.Contains(body, []byte(`"method":"server/discover"`)) {
+		if rec.status == 200 {
 			body = patchDiscoverEvents(body)
 		}
 		for k, vals := range rec.header {
@@ -26,7 +26,12 @@ func DiscoverEventsWrapper(next http.Handler) http.Handler {
 				w.Header().Add(k, v)
 			}
 		}
-		w.WriteHeader(rec.status)
+		w.Header().Del("Content-Length")
+		status := rec.status
+		if status == 0 {
+			status = 200
+		}
+		w.WriteHeader(status)
 		_, _ = io.Copy(w, bytes.NewReader(body))
 	})
 }
@@ -38,39 +43,48 @@ type responseRecorder struct {
 }
 
 func (r *responseRecorder) Header() http.Header { return r.header }
-func (r *responseRecorder) Write(b []byte) (int, error) { return r.body.Write(b) }
-func (r *responseRecorder) WriteHeader(statusCode int) { r.status = statusCode }
-
+func (r *responseRecorder) Write(b []byte) (int, error) {
+	if r.status == 0 {
+		r.WriteHeader(200)
+	}
+	return r.body.Write(b)
+}
+func (r *responseRecorder) WriteHeader(code int) {
+	if r.status == 0 {
+		r.status = code
+	}
+}
 func patchDiscoverEvents(body []byte) []byte {
 	var env map[string]json.RawMessage
-	if json.Unmarshal(body, &env) != nil {
+	if json.Unmarshal(body, &env) != nil || env["error"] != nil || env["id"] == nil {
 		return body
 	}
-	result, ok := env["result"]
-	if !ok {
+	var typed struct {
+		SupportedVersions []string         `json:"supportedVersions"`
+		Capabilities      *json.RawMessage `json:"capabilities"`
+	}
+	if json.Unmarshal(env["result"], &typed) != nil || typed.Capabilities == nil {
 		return body
 	}
-	var obj map[string]any
-	if json.Unmarshal(result, &obj) != nil {
-		return body
-	}
-	caps, ok := obj["capabilities"].(map[string]any)
-	if !ok {
-		return body
-	}
-	if _, exists := caps["events"]; !exists {
-		caps["events"] = map[string]any{}
-		obj["capabilities"] = caps
-		patched, err := json.Marshal(obj)
-		if err != nil {
-			return body
+	modern := false
+	for _, v := range typed.SupportedVersions {
+		if v == "2026-07-28" {
+			modern = true
 		}
-		env["result"] = patched
-		out, err := json.Marshal(env)
-		if err != nil {
-			return body
-		}
-		return out
 	}
-	return body
+	if !modern {
+		return body
+	}
+	var result, caps map[string]json.RawMessage
+	if json.Unmarshal(env["result"], &result) != nil || json.Unmarshal(*typed.Capabilities, &caps) != nil || caps == nil {
+		return body
+	}
+	caps["events"] = json.RawMessage(`{}`)
+	result["capabilities"], _ = json.Marshal(caps)
+	env["result"], _ = json.Marshal(result)
+	out, e := json.Marshal(env)
+	if e != nil {
+		return body
+	}
+	return out
 }

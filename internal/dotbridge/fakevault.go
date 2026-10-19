@@ -1,6 +1,9 @@
 package dotbridge
 
-import "sync"
+import (
+	"github.com/zalando/go-keyring"
+	"sync"
+)
 
 type FakeVault struct {
 	mu   sync.Mutex
@@ -17,7 +20,7 @@ func (f *FakeVault) Get(name string) (string, error) {
 	if v, ok := f.data[name]; ok {
 		return v, nil
 	}
-	return "", errMissing
+	return "", keyring.ErrNotFound
 }
 
 func (f *FakeVault) Set(name, value string) error {
@@ -26,9 +29,3 @@ func (f *FakeVault) Set(name, value string) error {
 	f.data[name] = value
 	return nil
 }
-
-var errMissing = &vaultMissing{}
-
-type vaultMissing struct{}
-
-func (v *vaultMissing) Error() string { return "not_found" }

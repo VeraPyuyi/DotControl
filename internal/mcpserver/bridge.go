@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -26,9 +27,9 @@ type TaskProgressArgs struct {
 }
 
 type TaskCompleteArgs struct {
-	JobID  string            `json:"job_id"`
-	Token  string            `json:"token"`
-	Result dotqueue.Result   `json:"result"`
+	JobID  string          `json:"job_id"`
+	Token  string          `json:"token"`
+	Result dotqueue.Result `json:"result"`
 }
 
 type TaskStatusArgs struct {
@@ -47,7 +48,11 @@ type EventsListResult struct {
 
 type EventsSubscribeParams struct {
 	mcp.ParamsBase
-	Params dotevents.Params `json:"params"`
+	Name      string              `json:"name"`
+	Arguments dotevents.Arguments `json:"arguments"`
+	Delivery  dotevents.Callback  `json:"delivery"`
+	Cursor    json.RawMessage     `json:"cursor,omitempty"`
+	TTL       json.RawMessage     `json:"ttlMs,omitempty"`
 }
 
 type EventsSubscribeResult struct {
@@ -57,7 +62,11 @@ type EventsSubscribeResult struct {
 
 type EventsUnsubscribeParams struct {
 	mcp.ParamsBase
-	Params dotevents.Params `json:"params"`
+	Name      string              `json:"name"`
+	Arguments dotevents.Arguments `json:"arguments"`
+	Delivery  dotevents.Callback  `json:"delivery"`
+	Cursor    json.RawMessage     `json:"cursor,omitempty"`
+	TTL       json.RawMessage     `json:"ttlMs,omitempty"`
 }
 
 type EventsUnsubscribeResult struct {
@@ -115,10 +124,8 @@ func NewWithBridge(backend service.Backend, bridge *dotbridge.Service) (*mcp.Ser
 		if err != nil {
 			return nil, err
 		}
-		if params.Params.Arguments.QueueID != queueID {
-			return nil, fmt.Errorf("queue_mismatch")
-		}
-		sub, err := bridge.EventsSubscribe(ctx, principal, params.Params)
+		_ = queueID
+		sub, err := bridge.EventsSubscribe(ctx, principal, dotevents.Params{Name: params.Name, Arguments: params.Arguments, Delivery: params.Delivery, Cursor: params.Cursor, TTL: params.TTL})
 		if err != nil {
 			return nil, err
 		}
@@ -131,10 +138,8 @@ func NewWithBridge(backend service.Backend, bridge *dotbridge.Service) (*mcp.Ser
 		if err != nil {
 			return nil, err
 		}
-		if params.Params.Arguments.QueueID != queueID {
-			return nil, fmt.Errorf("queue_mismatch")
-		}
-		if err := bridge.EventsUnsubscribe(ctx, principal, params.Params); err != nil {
+		_ = queueID
+		if err := bridge.EventsUnsubscribe(ctx, principal, dotevents.Params{Name: params.Name, Arguments: params.Arguments, Delivery: params.Delivery, Cursor: params.Cursor, TTL: params.TTL}); err != nil {
 			return nil, err
 		}
 		return &EventsUnsubscribeResult{}, nil

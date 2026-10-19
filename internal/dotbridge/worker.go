@@ -2,6 +2,7 @@ package dotbridge
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -55,7 +56,7 @@ func (w *worker) tick() {
 		return
 	}
 	for _, queueID := range queues {
-		if err := w.svc.gate(); err != nil {
+		if err := w.svc.authorizeQueue(queueID); err != nil {
 			return
 		}
 		notices, err := w.svc.queue.Pending(queueID)
@@ -63,7 +64,7 @@ func (w *worker) tick() {
 			continue
 		}
 		for _, notice := range notices {
-			if err := w.svc.gate(); err != nil {
+			if err := w.svc.authorizeQueue(queueID); err != nil {
 				return
 			}
 			ctx, cancel := context.WithTimeout(w.svc.ctx, 5*time.Second)
@@ -75,6 +76,9 @@ func (w *worker) tick() {
 				OccurredAt: notice.OccurredAt,
 			})
 			cancel()
+			if w.svc.authorizeQueue(queueID) != nil {
+				return
+			}
 			if err != nil {
 				continue
 			}
@@ -83,57 +87,87 @@ func (w *worker) tick() {
 }
 
 func (s *Service) claimTask(queueID, jobID, workerID string) (dotqueue.Claim, error) {
-	if err := s.gate(); err != nil {
-		return dotqueue.Claim{}, err
+	if e := s.authorizeQueue(queueID); e != nil {
+		return dotqueue.Claim{}, e
 	}
-	authorized, _, err := s.MCPPrincipal()
-	if err != nil {
-		return dotqueue.Claim{}, err
+	if workerID == "" {
+		return dotqueue.Claim{}, errors.New("worker_required")
 	}
-	if queueID != authorized {
-		return dotqueue.Claim{}, &dotqueue.Error{Code: "unknown"}
+	sub, active := s.activeSubscription(queueID)
+	if !active {
+		return dotqueue.Claim{}, errors.New("subscription_required")
 	}
-	return s.queue.Claim(queueID, jobID, workerID)
-}
-
-func (s *Service) progressTask(jobID, token, state, summary string) (dotqueue.Job, error) {
-	if err := s.gate(); err != nil {
-		return dotqueue.Job{}, err
+	claim, e := s.queue.Claim(queueID, jobID, consumerWorker(s.mcpQueue, workerID))
+	if e != nil {
+		return claim, e
 	}
-	return s.queue.Progress(jobID, token, state, summary)
-}
-
-func (s *Service) completeTask(jobID, token string, result dotqueue.Result) (dotqueue.Job, error) {
-	if err := s.gate(); err != nil {
-		return dotqueue.Job{}, err
-	}
-	job, err := s.queue.Complete(jobID, token, result)
-	if err != nil {
-		return job, err
+	if e = s.authorizeQueue(queueID); e != nil {
+		return dotqueue.Claim{}, e
 	}
 	s.mu.Lock()
-	for id, policy := range s.state.Clients {
-		if policy.ProbeJobID == jobID && policy.ProbeAnswer != "" && result.Text == policy.ProbeAnswer {
-			now := time.Now().UTC()
-			policy.ProbeVerified = now
-			policy.ProbeExpires = now.Add(probeValidity)
-			policy.Capabilities.Text = true
-			s.state.Clients[id] = policy
-			_ = s.saveState()
-			break
+	defer s.mu.Unlock()
+	if s.state.Clients[queueID].Revoked {
+		return dotqueue.Claim{}, errors.New("access_revoked")
+	}
+	if _, exists := s.claims[jobID]; !exists {
+		s.claims[jobID] = claimBinding{QueueID: queueID, Token: claim.Token, Generation: sub.Generation}
+	}
+	return claim, nil
+}
+func (s *Service) progressTask(jobID, token, state, summary string) (dotqueue.Job, error) {
+	b, e := s.binding(jobID, token)
+	if e != nil {
+		return dotqueue.Job{}, e
+	}
+	j, e := s.queue.Progress(jobID, token, state, summary)
+	if post := s.authorizeQueue(b.QueueID); post != nil {
+		return dotqueue.Job{}, post
+	}
+	return j, e
+}
+func (s *Service) completeTask(jobID, token string, result dotqueue.Result) (dotqueue.Job, error) {
+	b, e := s.binding(jobID, token)
+	if e != nil {
+		return dotqueue.Job{}, e
+	}
+	job, e := s.queue.Complete(jobID, token, result)
+	if e != nil {
+		return dotqueue.Job{}, e
+	}
+	if e = s.authorizeQueue(b.QueueID); e != nil {
+		return dotqueue.Job{}, e
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sub := s.subscriptions[b.QueueID]
+	active := time.Now().Before(sub.Expires)
+	policy := s.state.Clients[b.QueueID]
+	if policy.Revoked {
+		return dotqueue.Job{}, errors.New("access_revoked")
+	}
+	if active && sub.Generation == b.Generation && policy.ProbeJobID == jobID && policy.ProbeAnswer == hashToken(result.Text) && job.State == dotqueue.StateCompleted && job.Mode == dotqueue.ModeAnswer {
+		now := time.Now().UTC()
+		policy.ProbeVerified = now
+		policy.ProbeExpires = now.Add(probeValidity)
+		if sub.Expires.Before(policy.ProbeExpires) {
+			policy.ProbeExpires = sub.Expires
+		}
+		policy.Capabilities = CapPolicy{Text: true}
+		s.state.Clients[b.QueueID] = policy
+		if e := s.saveState(); e != nil {
+			return dotqueue.Job{}, e
 		}
 	}
-	s.mu.Unlock()
 	return job, nil
 }
-
 func (s *Service) taskStatus(principal, jobID, token string) (dotqueue.Job, error) {
-	if err := s.gate(); err != nil {
-		return dotqueue.Job{}, err
+	b, e := s.binding(jobID, token)
+	if e != nil {
+		return dotqueue.Job{}, e
 	}
-	job, err := s.queue.Get(principal, jobID)
-	if err != nil {
-		return dotqueue.Job{}, err
+	job, e := s.queue.Get(b.QueueID, jobID)
+	if post := s.authorizeQueue(b.QueueID); post != nil {
+		return dotqueue.Job{}, post
 	}
-	return s.queue.Progress(jobID, token, job.State, job.Summary)
+	return job, e
 }

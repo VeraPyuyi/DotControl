@@ -132,3 +132,11 @@ func loadPairingToken(dir, clientID string) (string, error) {
 	}
 	return file.Token, nil
 }
+
+// Optional bridge failures preserve the existing runtime and its default catalog.
+func openRuntimeDotBridge(ctx context.Context, dir string, c config.Config, v vault.Store, paused, revoked func() bool) (*dotbridge.Service, error) {
+	if e := dotbridge.EnsureStateKey(v); e != nil {
+		return nil, e
+	}
+	return dotbridge.Open(ctx, dotbridge.Config{Root: filepath.Join(dir, "dot-bridge"), Listen: c.Listen, Vault: v, MCPQueue: c.DeviceID, Paused: paused, Revoked: revoked})
+}

@@ -16,21 +16,22 @@ import (
 
 // Service owns bridge lifecycle, local API auth, and delivery worker wiring.
 type Service struct {
-	mu        sync.Mutex
-	ctx       context.Context
-	cancel    context.CancelFunc
-	root      string
-	listen    string
-	vault     vault.Store
-	queue     QueueAPI
-	events    EventsAPI
-	mcpQueue  string
-	mcpEpoch  uint64
-	state     PersistedState
-	recovered bool
-	worker    *worker
-	paused    func() bool
-	revoked   func() bool
+	mu            sync.Mutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	root          string
+	listen        string
+	vault         vault.Store
+	queue         QueueAPI
+	events        EventsAPI
+	mcpQueue      string
+	subscriptions map[string]subscriptionProof
+	claims        map[string]claimBinding
+	state         PersistedState
+	recovered     bool
+	worker        *worker
+	paused        func() bool
+	revoked       func() bool
 }
 
 type Config struct {
@@ -38,7 +39,6 @@ type Config struct {
 	Listen         string
 	Vault          vault.Store
 	MCPQueue       string
-	MCPEpoch       uint64
 	Paused         func() bool
 	Revoked        func() bool
 	EventsDelivery *dotevents.Delivery
@@ -72,18 +72,19 @@ func Open(ctx context.Context, cfg Config) (*Service, error) {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Service{
-		ctx:      ctx,
-		cancel:   cancel,
-		root:     cfg.Root,
-		listen:   cfg.Listen,
-		vault:    cfg.Vault,
-		queue:    wrapQueue(queueStore),
-		events:   wrapEvents(eventsMgr),
-		mcpQueue: cfg.MCPQueue,
-		mcpEpoch: cfg.MCPEpoch,
-		paused:   cfg.Paused,
-		revoked:  cfg.Revoked,
-		state:    PersistedState{Version: APIVersion, Clients: map[string]ClientPolicy{}},
+		ctx:           ctx,
+		cancel:        cancel,
+		root:          cfg.Root,
+		listen:        cfg.Listen,
+		vault:         cfg.Vault,
+		queue:         wrapQueue(queueStore),
+		events:        wrapEvents(eventsMgr),
+		mcpQueue:      cfg.MCPQueue,
+		subscriptions: map[string]subscriptionProof{},
+		claims:        map[string]claimBinding{},
+		paused:        cfg.Paused,
+		revoked:       cfg.Revoked,
+		state:         PersistedState{Version: APIVersion, Clients: map[string]ClientPolicy{}},
 	}
 	if err := s.loadState(); err != nil {
 		cancel()
@@ -138,7 +139,10 @@ func (s *Service) gate() error {
 	if s.paused != nil && s.paused() {
 		return errors.New("bridge_paused")
 	}
-	if !s.state.Enabled {
+	s.mu.Lock()
+	enabled := s.state.Enabled
+	s.mu.Unlock()
+	if !enabled {
 		return errors.New("bridge_disabled")
 	}
 	return nil
@@ -195,51 +199,47 @@ func (s *Service) AdminStatus() (map[string]any, error) {
 
 func (s *Service) StatusForClient(clientID string) (StatusDTO, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	policy, ok := s.state.Clients[clientID]
+	enabled := s.state.Enabled
+	s.mu.Unlock()
 	if !ok || policy.Revoked {
-		return StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: false, Ready: false, Code: "not_paired", Capabilities: CapPolicy{}}, nil
+		return StatusDTO{Version: APIVersion, Enabled: enabled, Code: "not_paired"}, nil
 	}
 	return s.statusDTO(policy), nil
 }
-
 func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
-	now := time.Now().UTC()
-	eventsStatus, _ := s.events.Status(policy.QueueID, policy.QueueID)
-	sub := SubscriptionDTO{State: "inactive"}
-	if eventsStatus.Subscribed && eventsStatus.CallbackVerified {
-		sub.State = "active"
+	s.mu.Lock()
+	enabled := s.state.Enabled
+	current := s.state.Clients[policy.ClientID]
+	s.mu.Unlock()
+	sub, active := s.activeSubscription(policy.QueueID)
+	eventStatus, e := s.events.Status(policy.QueueID, policy.QueueID)
+	ready := s.clientGate(policy.ClientID) == nil && active && e == nil && eventStatus.Subscribed && eventStatus.CallbackVerified && current.ProbeVerified.After(time.Time{}) && time.Now().Before(current.ProbeExpires)
+	out := StatusDTO{Version: APIVersion, Enabled: enabled, Paired: !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
+	if active {
+		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires}
 	}
-	ready := false
-	code := "probe_required"
-	var verifiedAt, expiresAt *time.Time
-	if s.state.Enabled && policy.ProbeVerified.After(time.Time{}) && policy.ProbeExpires.After(now) {
-		ready = eventsStatus.Subscribed && eventsStatus.CallbackVerified
-		if ready {
-			code = "ready"
-			verifiedAt = &policy.ProbeVerified
-			expiresAt = &policy.ProbeExpires
-			if sub.State == "active" {
-				sub.ExpiresAt = expiresAt
-			}
+	if ready {
+		expiry := current.ProbeExpires
+		if sub.Expires.Before(expiry) {
+			expiry = sub.Expires
 		}
+		out.Ready = true
+		out.Code = "ready"
+		out.VerifiedAt = &current.ProbeVerified
+		out.ExpiresAt = &expiry
+		out.Capabilities = CapPolicy{Text: true}
 	}
-	return StatusDTO{
-		Version:      APIVersion,
-		Enabled:      s.state.Enabled,
-		Paired:       true,
-		Ready:        ready,
-		Code:         code,
-		VerifiedAt:   verifiedAt,
-		ExpiresAt:    expiresAt,
-		Subscription: sub,
-		Capabilities: policy.Capabilities,
-	}
+	return out
 }
 
 func (s *Service) Pair(clientID string) (PairingFile, string, error) {
 	if clientID == "" {
-		clientID = "client." + time.Now().UTC().Format("20060102150405")
+		id, e := randomToken()
+		if e != nil {
+			return PairingFile{}, "", e
+		}
+		clientID = "client." + id
 	}
 	token, err := randomToken()
 	if err != nil {
@@ -247,6 +247,9 @@ func (s *Service) Pair(clientID string) (PairingFile, string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, exists := s.state.Clients[clientID]; exists {
+		return PairingFile{}, "", errors.New("client_exists")
+	}
 	policy := ClientPolicy{
 		ClientID:     clientID,
 		QueueID:      clientID,
@@ -272,6 +275,7 @@ func (s *Service) RevokeClient(clientID string) error {
 	}
 	policy.Revoked = true
 	s.state.Clients[clientID] = policy
+	delete(s.subscriptions, policy.QueueID)
 	return s.saveState()
 }
 
@@ -297,21 +301,52 @@ func (s *Service) MCPPrincipal() (string, string, error) {
 }
 
 func (s *Service) EventsList(principal string) []dotevents.Definition {
-	return s.events.List(principal)
+	if s.gate() != nil {
+		return nil
+	}
+	return []dotevents.Definition{{Name: dotevents.EventName, Description: "Availability notices for an authorized paired queue."}}
 }
-
 func (s *Service) EventsSubscribe(ctx context.Context, principal string, params dotevents.Params) (dotevents.Subscription, error) {
-	if err := s.gate(); err != nil {
-		return dotevents.Subscription{}, err
+	queue := params.Arguments.QueueID
+	if e := s.authorizeQueue(queue); e != nil {
+		return dotevents.Subscription{}, e
 	}
-	return s.events.Subscribe(ctx, principal, params)
+	sub, e := s.events.Subscribe(ctx, queue, params)
+	if e != nil {
+		return sub, e
+	}
+	if e = s.authorizeQueue(queue); e != nil {
+		return dotevents.Subscription{}, e
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.state.Clients[queue]
+	if p.Revoked {
+		return dotevents.Subscription{}, errors.New("access_revoked")
+	}
+	old := s.subscriptions[queue]
+	s.subscriptions[queue] = subscriptionProof{Expires: sub.ExpiresAt, Generation: old.Generation + 1}
+	p.ProbeVerified = time.Time{}
+	p.ProbeExpires = time.Time{}
+	s.state.Clients[queue] = p
+	return sub, nil
 }
-
 func (s *Service) EventsUnsubscribe(ctx context.Context, principal string, params dotevents.Params) error {
-	if err := s.gate(); err != nil {
-		return err
+	queue := params.Arguments.QueueID
+	if e := s.authorizeQueue(queue); e != nil {
+		return e
 	}
-	return s.events.Unsubscribe(ctx, principal, params)
+	e := s.events.Unsubscribe(ctx, queue, params)
+	s.mu.Lock()
+	old := s.subscriptions[queue]
+	old.Expires = time.Time{}
+	old.Generation++
+	s.subscriptions[queue] = old
+	s.mu.Unlock()
+	if post := s.authorizeQueue(queue); post != nil {
+		return post
+	}
+	return e
 }
 
 func (s *Service) ClaimTask(queueID, jobID, workerID string) (dotqueue.Claim, error) {
@@ -366,9 +401,12 @@ func (s *Service) submit(client ClientPolicy, req SubmitRequest) (JobDTO, int, e
 	if err := s.gate(); err != nil {
 		return JobDTO{}, 0, err
 	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, 0, e
+	}
 	status := s.statusDTO(client)
-	if !status.Ready && req.Mode != dotqueue.ModeAnswer {
-		return JobDTO{}, 0, errors.New("probe_required")
+	if req.Mode == dotqueue.ModeTask {
+		return JobDTO{}, 0, errors.New("task_verification_required")
 	}
 	if !status.Ready {
 		return JobDTO{}, 0, errors.New("probe_required")
@@ -386,6 +424,9 @@ func (s *Service) submit(client ClientPolicy, req SubmitRequest) (JobDTO, int, e
 	if err != nil {
 		return JobDTO{}, 0, err
 	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, 0, e
+	}
 	dto := toJobDTO(job)
 	dto.Accepted = true
 	return dto, 202, nil
@@ -395,9 +436,15 @@ func (s *Service) getJob(client ClientPolicy, jobID string) (JobDTO, error) {
 	if err := s.gate(); err != nil {
 		return JobDTO{}, err
 	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, e
+	}
 	job, err := s.queue.Get(client.ClientID, jobID)
 	if err != nil {
 		return JobDTO{}, err
+	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, e
 	}
 	return toJobDTO(job), nil
 }
@@ -406,9 +453,15 @@ func (s *Service) byRequest(client ClientPolicy, requestID string) (JobDTO, erro
 	if err := s.gate(); err != nil {
 		return JobDTO{}, err
 	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, e
+	}
 	job, err := s.queue.ByRequest(client.ClientID, requestID)
 	if err != nil {
 		return JobDTO{}, err
+	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, e
 	}
 	return toJobDTO(job), nil
 }
@@ -417,9 +470,15 @@ func (s *Service) cancelJob(client ClientPolicy, jobID string) (JobDTO, error) {
 	if err := s.gate(); err != nil {
 		return JobDTO{}, err
 	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, e
+	}
 	job, err := s.queue.Cancel(client.ClientID, jobID)
 	if err != nil {
 		return JobDTO{}, err
+	}
+	if e := s.clientGate(client.ClientID); e != nil {
+		return JobDTO{}, e
 	}
 	return toJobDTO(job), nil
 }

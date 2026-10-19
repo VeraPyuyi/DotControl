@@ -1,19 +1,17 @@
 # Dot bridge
 
-The Dot bridge is opt-in via `dot_bridge_enabled` in local config. It does not change the default 13-tool MCP catalog unless the runtime is started with bridge support enabled.
+The bridge is optional. Set `dot_bridge_enabled` in the installed local configuration and restart the runtime, then run `dotcontrol bridge enable`. The default installation retains 13 MCP tools. With the bridge available, MCP adds four task tools and three Events methods. A missing or unavailable vault key, or a bridge open failure, leaves the regular runtime and its 13 tools available; bridge admin operations report `bridge_unavailable`.
 
-## Operator flow
+Run `dotcontrol bridge pair` to create a separate client credential and queue. The command prints a pairing file path and public IDs. Import the file locally into the client, then remove it when import is complete. Pairing locally authorizes the runtime's configured Dot consumer to act on that queue. Pairing grants no desktop, history, or terminal permission.
 
-1. Enable bridge support in config and start `dotcontrol serve`.
-2. Run `dotcontrol bridge enable`.
-3. Run `dotcontrol bridge pair` and import the secure pairing file into Magpie.
-4. Connect the private Dot plugin, refresh MCP metadata, and subscribe to `dot.task.available`.
-5. Run `dotcontrol bridge probe <client_id>` and complete the probe job through MCP claim/complete.
-6. Poll `GET /dot-bridge/v1/status` with the paired Bearer token.
+Connect the private Dot plugin, refresh its metadata, and subscribe to `dot.task.available` using the returned queue ID. Events parameters are flat: `name`, `arguments`, `delivery`, and optional `cursor`/`ttlMs`. The SDK handles the Events RPC methods and protocol metadata checks. Only a successful modern `2026-07-28` `server/discover` response advertises `capabilities.events`.
 
-## Security notes
+Run `dotcontrol bridge probe <client_id>` explicitly to enqueue a nonce challenge. Through MCP, claim that job with `dot_task_claim`, then complete it with the exact requested nonce. The service checks the claim token, queue authorization, current verified callback subscription generation, and completed answer state. Expected nonce text is hashed in bridge policy; the challenge prompt remains in the encrypted queue. No manual readiness setter exists.
 
-- Loopback client API uses Bearer tokens only; queue scope is resolved from the paired token.
-- MCP task tools bind to the configured bridge queue, not arbitrary client input.
-- Readiness is derived from a real probe claim/completion lifecycle; there is no manual readiness setter.
-- The bridge cannot cryptographically prove that Dot itself completed the probe versus another authorized MCP caller using the same tunnel credential.
+The paired Bearer credential accesses `/dot-bridge/v1/status`, `/jobs`, `/jobs/{id}`, `/requests/{request_id}`, and `/jobs/{id}/cancel` on the numeric loopback listener. No client-supplied identity selects a queue. Status exposes no prompt or credential. A successful text probe enables text readiness for at most ten minutes, bounded by subscription expiry. Pause, revoke, disable, renewal, and unsubscribe invalidate or suppress readiness. Runtime restart requires a fresh subscription and probe; live claim bindings are intentionally not restored.
+
+Regular submission requires current readiness. Task execution remains unavailable: `capabilities.tasks` is false and task submissions return `task_verification_required`. A text ping establishes no evidence about cloud task execution. An authorized task verification policy and work test are required before enabling that capability.
+
+All MCP callers sharing the authenticated installation hop act as the same configured consumer. Queue IDs and worker IDs provide no authentication by themselves. A worker ID supplies retry identity and is combined with the trusted consumer identity. This proves a round trip through the configured source, not cryptographic model or personal identity. Fixture tests provide protocol evidence only, with no real account acceptance.
+
+Operations recheck pause, revocation, enabled state, and queue policy after queue or callback I/O. A concurrent gate change can suppress a success response even when a durable write has happened. Resolve uncertain submission through the original request ID; never replay under a new ID. Cancellation records intent and cannot prove that cloud work stopped.

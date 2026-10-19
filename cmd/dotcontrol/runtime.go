@@ -182,26 +182,7 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	}
 	owner := &runtimeOwner{ctx: ctx, stop: cancel, dir: dir, cfg: c, vault: v, eng: eng, monitor: monitor, sup: &tunnel.Supervisor{}, revoked: revErr == nil, noTunnel: *noTunnel, repair: make(chan struct{}, 1)}
 	if c.DotBridgeEnabled {
-		if err := dotbridge.EnsureStateKey(v); err != nil {
-			return err
-		}
-		dotBridge, err := dotbridge.Open(ctx, dotbridge.Config{
-			Root:     filepath.Join(dir, "dot-bridge"),
-			Listen:   c.Listen,
-			Vault:    v,
-			MCPQueue: c.DeviceID,
-			Paused: func() bool { return eng.Device().Paused },
-			Revoked: func() bool {
-				owner.mu.Lock()
-				rev := owner.revoked
-				owner.mu.Unlock()
-				return rev
-			},
-		})
-		if err != nil {
-			return err
-		}
-		owner.dotBridge = dotBridge
+		owner.dotBridge, _ = openRuntimeDotBridge(ctx, dir, c, v, func() bool { return eng.Device().Paused }, func() bool { owner.mu.Lock(); defer owner.mu.Unlock(); return owner.revoked })
 	}
 	if owner.revoked {
 		_ = eng.Pause(true)

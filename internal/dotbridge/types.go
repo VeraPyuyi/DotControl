@@ -3,10 +3,9 @@ package dotbridge
 import "time"
 
 const (
-	APIVersion        = 1
-	StateKeyName      = "dot-bridge-state-key"
-	probeValidity     = 10 * time.Minute
-	statusCacheMaxAge = 10 * time.Second
+	APIVersion    = 1
+	StateKeyName  = "dot-bridge-state-key"
+	probeValidity = 10 * time.Minute
 )
 
 type ClientPolicy struct {
@@ -17,8 +16,7 @@ type ClientPolicy struct {
 	Revoked       bool      `json:"revoked"`
 	Capabilities  CapPolicy `json:"capabilities"`
 	ProbeJobID    string    `json:"probe_job_id,omitempty"`
-	ProbeNonce    string    `json:"probe_nonce,omitempty"`
-	ProbeAnswer   string    `json:"probe_answer,omitempty"`
+	ProbeAnswer   string    `json:"probe_answer_hash,omitempty"`
 	ProbeVerified time.Time `json:"probe_verified_at,omitempty"`
 	ProbeExpires  time.Time `json:"probe_expires_at,omitempty"`
 }
