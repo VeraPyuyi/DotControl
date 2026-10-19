@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,26 +27,6 @@ func (q listInterceptQueue) List(id string) ([]dotqueue.Job, error) {
 		q.after()
 	}
 	return jobs, err
-}
-func listHTTPRequest(t *testing.T, api *httptest.Server, method, path, token string, body []byte) (int, []byte) {
-	t.Helper()
-	req, err := http.NewRequest(method, api.URL+path, bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	res, err := api.Client().Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	raw, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res.StatusCode, raw
 }
 func TestListAPIOwnerMetadata(t *testing.T) {
 	s, token, id := openTestBridge(t)
