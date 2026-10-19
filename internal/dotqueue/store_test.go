@@ -300,7 +300,7 @@ func TestMaxRetainedJobs(t *testing.T) {
 		}
 	}
 	_, err := store.Submit("client.a", sampleSubmission("req.overflow"))
-	if errorCode(err) != "conflict" {
-		t.Fatalf("expected capacity conflict, got %v", err)
+	if errorCode(err) != "queue_full" {
+		t.Fatalf("expected queue_full at capacity, got %v", err)
 	}
 }
