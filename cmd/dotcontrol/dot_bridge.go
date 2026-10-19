@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"os"
+	"net/netip"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/config"
 	"github.com/dotcontrol/dotcontrol/internal/dotbridge"
@@ -17,19 +20,35 @@ import (
 	"github.com/dotcontrol/dotcontrol/internal/vault"
 )
 
-func bridgeCLI(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
+func bridgeCLI(ctx context.Context, dir string, c config.Config, v vault.Store, args []string) error {
 	if len(args) == 0 {
 		return errors.New("bridge command required")
 	}
 	switch args[0] {
 	case "enable":
+		if len(args) != 1 {
+			return errors.New("usage: bridge enable")
+		}
+		if !c.DotBridgeEnabled {
+			// Reload installed configuration instead of persisting a stale CLI snapshot.
+			current, err := config.Load(dir)
+			if err != nil {
+				return err
+			}
+			current.DotBridgeEnabled = true
+			if err := config.Save(dir, current); err != nil {
+				return err
+			}
+			fmt.Println(`{"configured":true,"restart_required":true,"next":"Restart the existing runtime, then run dotcontrol bridge enable"}`)
+			return nil
+		}
 		return bridgePost(ctx, c, v, "/admin/bridge/enable", nil)
 	case "disable":
 		return bridgePost(ctx, c, v, "/admin/bridge/disable", nil)
 	case "status":
 		return bridgePost(ctx, c, v, "/admin/bridge/status", nil)
 	case "pair":
-		return bridgePost(ctx, c, v, "/admin/bridge/pair", map[string]any{})
+		return bridgePair(ctx, c, v)
 	case "revoke-client":
 		if len(args) < 2 {
 			return errors.New("client_id required")
@@ -39,12 +58,19 @@ func bridgeCLI(ctx context.Context, dir string, c config.Config, v vault.Vault, 
 		if len(args) < 2 {
 			return errors.New("client_id required")
 		}
-		return bridgePost(ctx, c, v, "/admin/bridge/probe", map[string]string{"client_id": args[1]})
+		mode := "answer"
+		if len(args) != 2 {
+			if len(args) != 4 || args[2] != "--mode" || (args[3] != "answer" && args[3] != "task") {
+				return errors.New("usage: bridge probe <client_id> [--mode answer|task]")
+			}
+			mode = args[3]
+		}
+		return bridgePost(ctx, c, v, "/admin/bridge/probe", map[string]string{"client_id": args[1], "mode": mode})
 	case "jobs":
 		if len(args) < 2 {
 			return errors.New("client_id required")
 		}
-		return bridgeClientGet(ctx, dir, c.Listen, args[1], "/dot-bridge/v1/status")
+		return bridgeClientGet(ctx, dir, c.Listen, args[1], "/dot-bridge/v1/jobs")
 	case "get":
 		if len(args) < 3 {
 			return errors.New("client_id and job_id required")
@@ -60,12 +86,37 @@ func bridgeCLI(ctx context.Context, dir string, c config.Config, v vault.Vault, 
 	}
 }
 
-func bridgePost(ctx context.Context, c config.Config, v vault.Vault, path string, body any) error {
-	token, err := v.Get("admin-token")
+func bridgePair(ctx context.Context, c config.Config, v vault.Store) error {
+	data, err := bridgePostRaw(ctx, c, v, "/admin/bridge/pair", map[string]any{})
 	if err != nil {
-		return errors.New("local_credential_missing")
+		return err
 	}
-	data, err := localapi.Client{Address: c.Listen, Token: token}.Post(ctx, path, body)
+	var full map[string]json.RawMessage
+	if json.Unmarshal(data, &full) != nil {
+		return errors.New("invalid_agent_response")
+	}
+	out := make(map[string]string, 3)
+	for _, key := range []string{"pairing_file", "client_id", "queue_id"} {
+		if raw, ok := full[key]; ok {
+			var value string
+			if json.Unmarshal(raw, &value) == nil && value != "" {
+				out[key] = value
+			}
+		}
+	}
+	if out["pairing_file"] == "" {
+		return errors.New("invalid_agent_response")
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(b))
+	return nil
+}
+
+func bridgePost(ctx context.Context, c config.Config, v vault.Store, path string, body any) error {
+	data, err := bridgePostRaw(ctx, c, v, path, body)
 	if err != nil {
 		return err
 	}
@@ -73,7 +124,23 @@ func bridgePost(ctx context.Context, c config.Config, v vault.Vault, path string
 	return nil
 }
 
+func bridgePostRaw(ctx context.Context, c config.Config, v vault.Store, path string, body any) (json.RawMessage, error) {
+	if err := validateBridgeListen(c.Listen); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	token, err := v.Get("admin-token")
+	if err != nil {
+		return nil, errors.New("local_credential_missing")
+	}
+	return localapi.Client{Address: c.Listen, Token: token}.Post(ctx, path, body)
+}
+
 func bridgeClientGet(ctx context.Context, dir, listen, clientID, path string) error {
+	if err := validateBridgeListen(listen); err != nil {
+		return err
+	}
 	token, err := loadPairingToken(dir, clientID)
 	if err != nil {
 		return err
@@ -82,6 +149,9 @@ func bridgeClientGet(ctx context.Context, dir, listen, clientID, path string) er
 }
 
 func bridgeClientPost(ctx context.Context, dir, listen, clientID, path string, body any) error {
+	if err := validateBridgeListen(listen); err != nil {
+		return err
+	}
 	token, err := loadPairingToken(dir, clientID)
 	if err != nil {
 		return err
@@ -90,6 +160,9 @@ func bridgeClientPost(ctx context.Context, dir, listen, clientID, path string, b
 }
 
 func bridgeClientRequest(ctx context.Context, listen, token, method, path string, body any) error {
+	if err := validateBridgeListen(listen); err != nil {
+		return err
+	}
 	var reader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -106,7 +179,9 @@ func bridgeClientRequest(ctx context.Context, listen, token, method, path string
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect_refused") }}
+	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect_refused") }}
 	res, err := client.Do(req)
 	if err != nil {
 		return err
@@ -121,16 +196,24 @@ func bridgeClientRequest(ctx context.Context, listen, token, method, path string
 }
 
 func loadPairingToken(dir, clientID string) (string, error) {
-	path := filepath.Join(dir, "dot-bridge", "pairing-"+clientID+".json")
-	data, err := os.ReadFile(path)
+	file, err := dotbridge.ReadPairingFile(filepath.Join(dir, "dot-bridge"), clientID)
 	if err != nil {
-		return "", errors.New("pairing_file_missing")
-	}
-	var file dotbridge.PairingFile
-	if json.Unmarshal(data, &file) != nil || file.Token == "" {
-		return "", errors.New("pairing_file_invalid")
+		return "", err
 	}
 	return file.Token, nil
+}
+
+func validateBridgeListen(listen string) error {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return errors.New("invalid_local_address")
+	}
+	ip, err := netip.ParseAddr(host)
+	n, portErr := strconv.Atoi(port)
+	if err != nil || !ip.IsLoopback() || ip.Zone() != "" || portErr != nil || n < 1 || n > 65535 {
+		return errors.New("invalid_local_address")
+	}
+	return nil
 }
 
 // Optional bridge failures preserve the existing runtime and its default catalog.
