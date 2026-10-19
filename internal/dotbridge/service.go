@@ -208,27 +208,45 @@ func (s *Service) StatusForClient(clientID string) (StatusDTO, error) {
 	return s.statusDTO(policy), nil
 }
 func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
-	s.mu.Lock()
-	enabled := s.state.Enabled
-	current := s.state.Clients[policy.ClientID]
-	s.mu.Unlock()
-	sub, active := s.activeSubscription(policy.QueueID)
+	// Read policy and subscription together after external I/O. A renewal must
+	// never combine its subscription with a previously captured proof.
 	eventStatus, e := s.events.Status(policy.QueueID, policy.QueueID)
-	ready := s.clientGate(policy.ClientID) == nil && active && e == nil && eventStatus.Subscribed && eventStatus.CallbackVerified && current.ProbeVerified.After(time.Time{}) && time.Now().Before(current.ProbeExpires)
-	out := StatusDTO{Version: APIVersion, Enabled: enabled, Paired: !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
+	gateOK := s.clientGate(policy.ClientID) == nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, exists := s.state.Clients[policy.ClientID]
+	sub := s.subscriptions[current.QueueID]
+	now := time.Now()
+	active := now.Before(sub.Expires)
+	out := StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: exists && !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
 	if active {
 		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires}
 	}
-	if ready {
-		expiry := current.ProbeExpires
+	if !gateOK || !s.state.Enabled || !exists || current.Revoked || !active || e != nil || !eventStatus.Subscribed || !eventStatus.CallbackVerified || (s.paused != nil && s.paused()) || (s.revoked != nil && s.revoked()) {
+		return out
+	}
+	for _, mode := range []string{dotqueue.ModeAnswer, dotqueue.ModeTask} {
+		proof := current.proof(mode)
+		if proof.Verified.IsZero() || !proof.Consumed || proof.Generation != sub.Generation || !now.Before(proof.Expires) || !proof.SubscriptionExpires.Equal(sub.Expires) {
+			continue
+		}
+		expiry := proof.Expires
 		if sub.Expires.Before(expiry) {
 			expiry = sub.Expires
 		}
-		out.Ready = true
-		out.Code = "ready"
-		out.VerifiedAt = &current.ProbeVerified
-		out.ExpiresAt = &expiry
-		out.Capabilities = CapPolicy{Text: true}
+		if out.ExpiresAt == nil || expiry.Before(*out.ExpiresAt) {
+			out.ExpiresAt = &expiry
+		}
+		verified := proof.Verified
+		if out.VerifiedAt == nil || verified.Before(*out.VerifiedAt) {
+			out.VerifiedAt = &verified
+		}
+		if mode == dotqueue.ModeTask {
+			out.Capabilities.Tasks = true
+		} else {
+			out.Capabilities.Text = true
+		}
+		out.Ready, out.Code = true, "ready"
 	}
 	return out
 }
@@ -326,8 +344,11 @@ func (s *Service) EventsSubscribe(ctx context.Context, principal string, params 
 	}
 	old := s.subscriptions[queue]
 	s.subscriptions[queue] = subscriptionProof{Expires: sub.ExpiresAt, Generation: old.Generation + 1}
-	p.ProbeVerified = time.Time{}
+	// Keep consumed timestamps for audit/replay protection. Generation binding
+	// invalidates both modes without erasing their first verification time.
+	p.Capabilities = CapPolicy{}
 	p.ProbeExpires = time.Time{}
+	p.TaskProbe.Expires = time.Time{}
 	s.state.Clients[queue] = p
 	return sub, nil
 }
@@ -366,8 +387,7 @@ func (s *Service) TaskStatus(principal, jobID, token string) (dotqueue.Job, erro
 }
 
 func (s *Service) loadState() error {
-	path := filepath.Join(s.root, "bridge.state.json")
-	data, err := os.ReadFile(path)
+	data, err := securelyReadBridgeState(s.root)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -386,15 +406,11 @@ func (s *Service) loadState() error {
 }
 
 func (s *Service) saveState() error {
-	if err := os.MkdirAll(s.root, 0700); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(s.state, "", "  ")
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(s.root, "bridge.state.json")
-	return os.WriteFile(path, data, 0600)
+	return securelyWriteBridgeState(s.root, data)
 }
 
 func (s *Service) submit(client ClientPolicy, req SubmitRequest) (JobDTO, int, error) {
@@ -406,9 +422,10 @@ func (s *Service) submit(client ClientPolicy, req SubmitRequest) (JobDTO, int, e
 	}
 	status := s.statusDTO(client)
 	if req.Mode == dotqueue.ModeTask {
-		return JobDTO{}, 0, errors.New("task_verification_required")
-	}
-	if !status.Ready {
+		if !status.Capabilities.Tasks {
+			return JobDTO{}, 0, errors.New("task_probe_required")
+		}
+	} else if !status.Capabilities.Text {
 		return JobDTO{}, 0, errors.New("probe_required")
 	}
 	sub := dotqueue.Submission{
@@ -426,6 +443,10 @@ func (s *Service) submit(client ClientPolicy, req SubmitRequest) (JobDTO, int, e
 	}
 	if e := s.clientGate(client.ClientID); e != nil {
 		return JobDTO{}, 0, e
+	}
+	postStatus := s.statusDTO(client)
+	if (req.Mode == dotqueue.ModeTask && !postStatus.Capabilities.Tasks) || (req.Mode != dotqueue.ModeTask && !postStatus.Capabilities.Text) {
+		return JobDTO{}, 0, errors.New("probe_required")
 	}
 	dto := toJobDTO(job)
 	dto.Accepted = true
@@ -499,6 +520,9 @@ func toJobDTO(job dotqueue.Job) JobDTO {
 	}
 	if job.Result != nil {
 		dto.Result = &ResultDTO{Text: job.Result.Text, Cancelled: job.Result.Cancelled, ErrorCode: job.Result.ErrorCode}
+		for _, artifact := range job.Result.Artifacts {
+			dto.Result.Artifacts = append(dto.Result.Artifacts, ArtifactDTO{URL: artifact.URL, Label: artifact.Label})
+		}
 	}
 	return dto
 }

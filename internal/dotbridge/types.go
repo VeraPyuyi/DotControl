@@ -9,16 +9,48 @@ const (
 )
 
 type ClientPolicy struct {
-	ClientID      string    `json:"client_id"`
-	QueueID       string    `json:"queue_id"`
-	TokenHash     string    `json:"token_hash"`
-	CreatedAt     time.Time `json:"created_at"`
-	Revoked       bool      `json:"revoked"`
-	Capabilities  CapPolicy `json:"capabilities"`
-	ProbeJobID    string    `json:"probe_job_id,omitempty"`
-	ProbeAnswer   string    `json:"probe_answer_hash,omitempty"`
-	ProbeVerified time.Time `json:"probe_verified_at,omitempty"`
-	ProbeExpires  time.Time `json:"probe_expires_at,omitempty"`
+	ClientID                 string     `json:"client_id"`
+	QueueID                  string     `json:"queue_id"`
+	TokenHash                string     `json:"token_hash"`
+	CreatedAt                time.Time  `json:"created_at"`
+	Revoked                  bool       `json:"revoked"`
+	Capabilities             CapPolicy  `json:"capabilities"`
+	ProbeJobID               string     `json:"probe_job_id,omitempty"`
+	ProbeAnswer              string     `json:"probe_answer_hash,omitempty"`
+	ProbeVerified            time.Time  `json:"probe_verified_at,omitempty"`
+	ProbeExpires             time.Time  `json:"probe_expires_at,omitempty"`
+	ProbeGeneration          uint64     `json:"probe_generation,omitempty"`
+	ProbeSubscriptionExpires time.Time  `json:"probe_subscription_expires_at,omitempty"`
+	ProbeConsumed            bool       `json:"probe_consumed,omitempty"`
+	TaskProbe                ProbeProof `json:"task_probe,omitempty"`
+}
+
+// ProbeProof is bounded private state for one mode's latest challenge.
+// Consumed survives expiry and subscription rotation; retries cannot renew proof.
+type ProbeProof struct {
+	JobID               string    `json:"job_id,omitempty"`
+	AnswerHash          string    `json:"answer_hash,omitempty"`
+	Verified            time.Time `json:"verified_at,omitempty"`
+	Expires             time.Time `json:"expires_at,omitempty"`
+	Generation          uint64    `json:"generation,omitempty"`
+	SubscriptionExpires time.Time `json:"subscription_expires_at,omitempty"`
+	Consumed            bool      `json:"consumed,omitempty"`
+}
+
+func (p ClientPolicy) proof(mode string) ProbeProof {
+	if mode == "task" {
+		return p.TaskProbe
+	}
+	return ProbeProof{JobID: p.ProbeJobID, AnswerHash: p.ProbeAnswer, Verified: p.ProbeVerified, Expires: p.ProbeExpires, Generation: p.ProbeGeneration, SubscriptionExpires: p.ProbeSubscriptionExpires, Consumed: p.ProbeConsumed}
+}
+func (p *ClientPolicy) setProof(mode string, proof ProbeProof) {
+	if mode == "task" {
+		p.TaskProbe = proof
+		return
+	}
+	p.ProbeJobID, p.ProbeAnswer = proof.JobID, proof.AnswerHash
+	p.ProbeVerified, p.ProbeExpires = proof.Verified, proof.Expires
+	p.ProbeGeneration, p.ProbeSubscriptionExpires, p.ProbeConsumed = proof.Generation, proof.SubscriptionExpires, proof.Consumed
 }
 
 type CapPolicy struct {
@@ -66,9 +98,15 @@ type JobDTO struct {
 }
 
 type ResultDTO struct {
-	Text      string `json:"text"`
-	Cancelled bool   `json:"cancelled,omitempty"`
-	ErrorCode string `json:"error_code,omitempty"`
+	Text      string        `json:"text"`
+	Artifacts []ArtifactDTO `json:"artifacts,omitempty"`
+	Cancelled bool          `json:"cancelled,omitempty"`
+	ErrorCode string        `json:"error_code,omitempty"`
+}
+
+type ArtifactDTO struct {
+	URL   string `json:"url"`
+	Label string `json:"label"`
 }
 
 type SubmitRequest struct {

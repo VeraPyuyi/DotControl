@@ -142,17 +142,23 @@ func (s *Service) completeTask(jobID, token string, result dotqueue.Result) (dot
 	sub := s.subscriptions[b.QueueID]
 	active := time.Now().Before(sub.Expires)
 	policy := s.state.Clients[b.QueueID]
-	if policy.Revoked {
+	if policy.Revoked || (s.revoked != nil && s.revoked()) {
 		return dotqueue.Job{}, errors.New("access_revoked")
 	}
-	if active && sub.Generation == b.Generation && policy.ProbeJobID == jobID && policy.ProbeAnswer == hashToken(result.Text) && job.State == dotqueue.StateCompleted && job.Mode == dotqueue.ModeAnswer {
-		now := time.Now().UTC()
-		policy.ProbeVerified = now
-		policy.ProbeExpires = now.Add(probeValidity)
-		if sub.Expires.Before(policy.ProbeExpires) {
-			policy.ProbeExpires = sub.Expires
+	if s.paused != nil && s.paused() {
+		return dotqueue.Job{}, errors.New("bridge_paused")
+	}
+	proof := policy.proof(job.Mode)
+	if s.state.Enabled && active && sub.Generation == b.Generation && proof.Generation == b.Generation && !sub.Expires.After(proof.SubscriptionExpires) && proof.JobID == jobID && proof.AnswerHash == hashToken(result.Text) && !proof.Consumed && proof.Verified.IsZero() && job.State == dotqueue.StateCompleted && (job.Mode == dotqueue.ModeAnswer || job.Mode == dotqueue.ModeTask) {
+		// Use the durable queue terminal timestamp, never the retry time.
+		proof.Verified = job.UpdatedAt
+		proof.Expires = job.UpdatedAt.Add(probeValidity)
+		proof.Consumed = true
+		proof.SubscriptionExpires = sub.Expires
+		if sub.Expires.Before(proof.Expires) {
+			proof.Expires = sub.Expires
 		}
-		policy.Capabilities = CapPolicy{Text: true}
+		policy.setProof(job.Mode, proof)
 		s.state.Clients[b.QueueID] = policy
 		if e := s.saveState(); e != nil {
 			return dotqueue.Job{}, e
