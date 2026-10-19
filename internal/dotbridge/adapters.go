@@ -13,6 +13,7 @@ type QueueAPI interface {
 	SetEnabled(enabled bool) error
 	Submit(clientID string, sub dotqueue.Submission) (dotqueue.Job, error)
 	Get(clientID, jobID string) (dotqueue.Job, error)
+	List(clientID string) ([]dotqueue.Job, error)
 	ByRequest(clientID, requestID string) (dotqueue.Job, error)
 	Claim(queueID, jobID, workerID string) (dotqueue.Claim, error)
 	Progress(jobID, token, state, summary string) (dotqueue.Job, error)
@@ -46,6 +47,9 @@ func (q queueAdapter) Submit(clientID string, sub dotqueue.Submission) (dotqueue
 }
 func (q queueAdapter) Get(clientID, jobID string) (dotqueue.Job, error) {
 	return q.Store.Get(clientID, jobID)
+}
+func (q queueAdapter) List(clientID string) ([]dotqueue.Job, error) {
+	return q.Store.List(clientID)
 }
 func (q queueAdapter) ByRequest(clientID, requestID string) (dotqueue.Job, error) {
 	return q.Store.ByRequest(clientID, requestID)

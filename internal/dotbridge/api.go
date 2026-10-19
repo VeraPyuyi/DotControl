@@ -1,6 +1,7 @@
 package dotbridge
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -10,7 +11,9 @@ import (
 	"strings"
 )
 
-const maxBody = 128 << 10
+// Allow 256KiB of raw content escaped at six bytes per byte, plus envelope
+// overhead. The queue independently enforces the raw content limit.
+const maxBody = 2 << 20
 
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -65,6 +68,10 @@ func (s *Service) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleJobs(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.handleListJobs(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_rejected", "")
 		return
@@ -77,7 +84,15 @@ func (s *Service) handleJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	job, code, err := s.submit(client, req)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, mapError(err), job.JobID)
+		errCode := mapError(err)
+		status := http.StatusBadRequest
+		switch errCode {
+		case "conflict":
+			status = http.StatusConflict
+		case "queue_full":
+			status = http.StatusTooManyRequests
+		}
+		writeError(w, status, errCode, job.JobID)
 		return
 	}
 	writeJSON(w, code, job)
@@ -140,7 +155,11 @@ func (s *Service) handleRequestByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func decodeSubmit(body io.Reader) (SubmitRequest, error) {
-	dec := json.NewDecoder(io.LimitReader(body, maxBody))
+	data, err := io.ReadAll(io.LimitReader(body, maxBody+1))
+	if err != nil || len(data) > maxBody {
+		return SubmitRequest{}, errors.New("invalid_request")
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	var req SubmitRequest
 	if dec.Decode(&req) != nil {
@@ -168,6 +187,10 @@ func mapError(err error) string {
 	}
 	msg := err.Error()
 	switch {
+	case strings.Contains(msg, "task_probe_required"):
+		return "task_probe_required"
+	case strings.Contains(msg, "queue_full"):
+		return "queue_full"
 	case strings.Contains(msg, "probe_required"):
 		return "probe_required"
 	case strings.Contains(msg, "bridge_disabled"):
