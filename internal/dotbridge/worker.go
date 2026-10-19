@@ -10,9 +10,9 @@ import (
 )
 
 type worker struct {
-	svc    *Service
-	done   chan struct{}
-	wg     sync.WaitGroup
+	svc  *Service
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
 func newWorker(s *Service) *worker {
@@ -68,10 +68,11 @@ func (w *worker) tick() {
 			}
 			ctx, cancel := context.WithTimeout(w.svc.ctx, 5*time.Second)
 			err := w.svc.events.Deliver(ctx, queueID, queueID, dotevents.Notice{
-				EventID: notice.EventID,
-				QueueID: notice.QueueID,
-				JobID:   notice.JobID,
-				Mode:    notice.Mode,
+				EventID:    notice.EventID,
+				QueueID:    notice.QueueID,
+				JobID:      notice.JobID,
+				Mode:       notice.Mode,
+				OccurredAt: notice.OccurredAt,
 			})
 			cancel()
 			if err != nil {
@@ -90,7 +91,7 @@ func (s *Service) claimTask(queueID, jobID, workerID string) (dotqueue.Claim, er
 		return dotqueue.Claim{}, err
 	}
 	if queueID != authorized {
-		return dotqueue.Claim{}, dotqueue.Error{Code: "unknown"}
+		return dotqueue.Claim{}, &dotqueue.Error{Code: "unknown"}
 	}
 	return s.queue.Claim(queueID, jobID, workerID)
 }

@@ -24,26 +24,26 @@ type ClientPolicy struct {
 }
 
 type CapPolicy struct {
-	Text bool `json:"text"`
+	Text  bool `json:"text"`
 	Tasks bool `json:"tasks"`
 }
 
 type PersistedState struct {
-	Version int            `json:"version"`
-	Enabled bool           `json:"enabled"`
+	Version int                     `json:"version"`
+	Enabled bool                    `json:"enabled"`
 	Clients map[string]ClientPolicy `json:"clients"`
 }
 
 type StatusDTO struct {
-	Version        int              `json:"version"`
-	Enabled        bool             `json:"enabled"`
-	Paired         bool             `json:"paired"`
-	Ready          bool             `json:"ready"`
-	Code           string           `json:"code"`
-	VerifiedAt     *time.Time       `json:"verified_at,omitempty"`
-	ExpiresAt      *time.Time       `json:"expires_at,omitempty"`
-	Subscription   SubscriptionDTO  `json:"subscription"`
-	Capabilities   CapPolicy        `json:"capabilities"`
+	Version      int             `json:"version"`
+	Enabled      bool            `json:"enabled"`
+	Paired       bool            `json:"paired"`
+	Ready        bool            `json:"ready"`
+	Code         string          `json:"code"`
+	VerifiedAt   *time.Time      `json:"verified_at,omitempty"`
+	ExpiresAt    *time.Time      `json:"expires_at,omitempty"`
+	Subscription SubscriptionDTO `json:"subscription"`
+	Capabilities CapPolicy       `json:"capabilities"`
 }
 
 type SubscriptionDTO struct {
@@ -74,11 +74,11 @@ type ResultDTO struct {
 }
 
 type SubmitRequest struct {
-	RequestID string              `json:"request_id"`
-	SessionID string              `json:"session_id"`
-	Mode      string              `json:"mode"`
-	Messages  []MessageDTO        `json:"messages,omitempty"`
-	Task      string              `json:"task,omitempty"`
+	RequestID string       `json:"request_id"`
+	SessionID string       `json:"session_id"`
+	Mode      string       `json:"mode"`
+	Messages  []MessageDTO `json:"messages,omitempty"`
+	Task      string       `json:"task,omitempty"`
 }
 
 type MessageDTO struct {
@@ -96,10 +96,10 @@ type ErrorBody struct {
 }
 
 type PairingFile struct {
-	Version   int    `json:"version"`
-	ClientID  string `json:"client_id"`
-	QueueID   string `json:"queue_id"`
-	Token     string `json:"token"`
-	Listen    string `json:"listen"`
+	Version   int       `json:"version"`
+	ClientID  string    `json:"client_id"`
+	QueueID   string    `json:"queue_id"`
+	Token     string    `json:"token"`
+	Listen    string    `json:"listen"`
 	CreatedAt time.Time `json:"created_at"`
 }

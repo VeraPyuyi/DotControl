@@ -11,9 +11,9 @@ import (
 )
 
 type ProbeResult struct {
-	JobID     string `json:"job_id"`
-	RequestID string `json:"request_id"`
-	QueueID   string `json:"queue_id"`
+	JobID     string   `json:"job_id"`
+	RequestID string   `json:"request_id"`
+	QueueID   string   `json:"queue_id"`
 	Steps     []string `json:"steps"`
 }
 

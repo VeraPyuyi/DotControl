@@ -375,10 +375,11 @@ func (s *Store) Pending(queueID string) ([]Notice, error) {
 				continue
 			}
 			out = append(out, Notice{
-				EventID: rec.EventID,
-				QueueID: rec.QueueID,
-				JobID:   rec.ID,
-				Mode:    rec.Mode,
+				EventID:    rec.EventID,
+				QueueID:    rec.QueueID,
+				JobID:      rec.ID,
+				Mode:       rec.Mode,
+				OccurredAt: rec.CreatedAt,
 			})
 		}
 		return nil

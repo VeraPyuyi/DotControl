@@ -28,9 +28,18 @@ const (
 
 var retrySchedule = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 
-// Delivery's zero value uses the public HTTPS transport. Custom transports are
-// deliberately private; offline TLS fixtures construct them inside package tests.
+// Delivery's zero value uses the public HTTPS transport. Test fixtures may
+// supply a custom HTTP client through NewDelivery.
 type Delivery struct{ client *http.Client }
+
+// NewDelivery constructs a delivery transport with an explicit HTTP client.
+// Production callers should pass nil to use the public HTTPS transport.
+func NewDelivery(client *http.Client) *Delivery {
+	if client == nil {
+		return &Delivery{}
+	}
+	return &Delivery{client: client}
+}
 
 func (d *Delivery) httpClient() *http.Client {
 	if d != nil && d.client != nil {

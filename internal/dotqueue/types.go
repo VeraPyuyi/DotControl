@@ -66,8 +66,9 @@ type Artifact struct {
 }
 
 type Notice struct {
-	EventID string `json:"event_id"`
-	QueueID string `json:"queue_id"`
-	JobID   string `json:"job_id"`
-	Mode    string `json:"mode"`
+	EventID    string    `json:"event_id"`
+	QueueID    string    `json:"queue_id"`
+	JobID      string    `json:"job_id"`
+	Mode       string    `json:"mode"`
+	OccurredAt time.Time `json:"occurred_at"`
 }

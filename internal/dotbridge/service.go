@@ -34,13 +34,14 @@ type Service struct {
 }
 
 type Config struct {
-	Root      string
-	Listen    string
-	Vault     vault.Store
-	MCPQueue  string
-	MCPEpoch  uint64
-	Paused    func() bool
-	Revoked   func() bool
+	Root           string
+	Listen         string
+	Vault          vault.Store
+	MCPQueue       string
+	MCPEpoch       uint64
+	Paused         func() bool
+	Revoked        func() bool
+	EventsDelivery *dotevents.Delivery
 }
 
 func Open(ctx context.Context, cfg Config) (*Service, error) {
@@ -61,7 +62,11 @@ func Open(ctx context.Context, cfg Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	eventsMgr, err := dotevents.Open(eventsDir, key, &dotevents.Delivery{})
+	delivery := cfg.EventsDelivery
+	if delivery == nil {
+		delivery = &dotevents.Delivery{}
+	}
+	eventsMgr, err := dotevents.Open(eventsDir, key, delivery)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +89,21 @@ func Open(ctx context.Context, cfg Config) (*Service, error) {
 		cancel()
 		return nil, err
 	}
-	if err := s.recoverOnce(); err != nil {
-		cancel()
-		return nil, err
+	if s.state.Enabled {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if err := s.queue.SetEnabled(true); err != nil {
+			cancel()
+			return nil, err
+		}
+		if err := s.events.SetEnabled(true); err != nil {
+			cancel()
+			return nil, err
+		}
+		if err := s.recoverOnce(); err != nil {
+			cancel()
+			return nil, err
+		}
 	}
 	s.worker = newWorker(s)
 	s.worker.Start()
@@ -104,8 +121,6 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) recoverOnce() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.recovered {
 		return nil
 	}
@@ -139,6 +154,9 @@ func (s *Service) Enable() error {
 		return err
 	}
 	if err := s.events.SetEnabled(true); err != nil {
+		return err
+	}
+	if err := s.recoverOnce(); err != nil {
 		return err
 	}
 	s.state.Enabled = true
@@ -348,7 +366,7 @@ func (s *Service) submit(client ClientPolicy, req SubmitRequest) (JobDTO, int, e
 	if err := s.gate(); err != nil {
 		return JobDTO{}, 0, err
 	}
-	status := s.statusDTO(policy)
+	status := s.statusDTO(client)
 	if !status.Ready && req.Mode != dotqueue.ModeAnswer {
 		return JobDTO{}, 0, errors.New("probe_required")
 	}

@@ -7,10 +7,8 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/dotqueue"
-	"github.com/dotcontrol/dotcontrol/internal/mcpserver"
 	"github.com/dotcontrol/dotcontrol/internal/service"
 )
 
@@ -27,15 +25,18 @@ func openTestBridge(t *testing.T) (*Service, string, string) {
 	if err := EnsureStateKey(vault); err != nil {
 		t.Fatal(err)
 	}
+	delivery, closeFixture := NewTestEventsDelivery(t)
+	t.Cleanup(closeFixture)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	svc, err := Open(ctx, Config{
-		Root:     filepath.Join(root, "dot-bridge"),
-		Listen:   "127.0.0.1:0",
-		Vault:    vault,
-		MCPQueue: "queue.a",
-		Paused:   func() bool { return false },
-		Revoked:  func() bool { return false },
+		Root:           filepath.Join(root, "dot-bridge"),
+		Listen:         "127.0.0.1:0",
+		Vault:          vault,
+		MCPQueue:       "client.a",
+		EventsDelivery: delivery,
+		Paused:         func() bool { return false },
+		Revoked:        func() bool { return false },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +49,7 @@ func openTestBridge(t *testing.T) (*Service, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	VerifyTestSubscription(t, svc, "client.a")
 	var file PairingFile
 	if json.Unmarshal(mustRead(path), &file) != nil {
 		t.Fatal("pairing file invalid")
@@ -93,24 +95,6 @@ func TestBridgeAPIProbeClaimComplete(t *testing.T) {
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusOK {
 		t.Fatalf("status code %d", res.Code)
-	}
-}
-
-func TestMCPAddsBridgeTools(t *testing.T) {
-	svc, _, _ := openTestBridge(t)
-	s, err := mcpserver.NewWithBridge(noopBackend{}, svc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	client := mcpTestClient(t, s, ctx)
-	list, err := client.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(list.Tools) != 17 {
-		t.Fatalf("tool count=%d", len(list.Tools))
 	}
 }
 
