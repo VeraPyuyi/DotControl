@@ -5,6 +5,7 @@ package dotqueue
 import (
 	"os"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
@@ -59,7 +60,29 @@ func replaceFile(from, to string) error {
 	if err != nil {
 		return err
 	}
-	return windows.MoveFileEx(source, target, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+	// Windows scanners/readers can temporarily deny replacement even after our
+	// own handles close. Retry only these transient errors, under the queue lock.
+	deadline := time.Now().Add(time.Second)
+	for {
+		e := windows.MoveFileEx(source, target, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+		if e == nil || e != windows.ERROR_ACCESS_DENIED && e != windows.ERROR_SHARING_VIOLATION || time.Now().After(deadline) {
+			return e
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func syncDirectory(string) error { return nil }
+
+func tryHandleLock(f *os.File) (bool, error) {
+	var o windows.Overlapped
+	e := windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &o)
+	if e == windows.ERROR_LOCK_VIOLATION {
+		return false, nil
+	}
+	return e == nil, e
+}
+func unlockHandle(f *os.File) {
+	var o windows.Overlapped
+	_ = windows.UnlockFileEx(windows.Handle(f.Fd()), 0, 1, 0, &o)
+}

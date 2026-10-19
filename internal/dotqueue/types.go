@@ -31,6 +31,7 @@ type Message struct {
 }
 
 type Job struct {
+	Summary         string    `json:"summary"`
 	ID              string    `json:"id"`
 	RequestID       string    `json:"request_id"`
 	RequestDigest   string    `json:"request_digest"`

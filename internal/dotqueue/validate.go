@@ -1,30 +1,30 @@
 package dotqueue
 
 import (
+	"encoding/hex"
+	"net/netip"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
 const (
-	maxMessages       = 32
-	maxPromptBytes    = 256 * 1024
-	maxResultBytes    = 256 * 1024
-	maxSummaryBytes   = 2048
-	maxArtifacts      = 16
-	maxLabelBytes     = 256
-	maxRetainedJobs   = 100
-	maxIDLen          = 128
+	maxMessages     = 32
+	maxPromptBytes  = 256 * 1024
+	maxResultBytes  = 256 * 1024
+	maxSummaryBytes = 2048
+	maxArtifacts    = 16
+	maxLabelBytes   = 256
+	maxRetainedJobs = 100
+	maxIDLen        = 128
+	maxURLBytes     = 2048
 )
 
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
-
-var allowedRoles = map[string]bool{
-	"user":      true,
-	"assistant": true,
-	"system":    true,
-}
+var hostPattern = regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$`)
+var allowedRoles = map[string]bool{"user": true, "assistant": true, "system": true}
 
 func validateID(id string) error {
 	if !idPattern.MatchString(id) {
@@ -32,88 +32,100 @@ func validateID(id string) error {
 	}
 	return nil
 }
-
-func validateSubmission(sub Submission) error {
-	if err := validateID(sub.RequestID); err != nil {
-		return err
+func validHex(s string) bool {
+	if len(s) != 64 || strings.ToLower(s) != s {
+		return false
 	}
-	if sub.Mode != ModeAnswer && sub.Mode != ModeTask {
+	_, e := hex.DecodeString(s)
+	return e == nil
+}
+func validateSubmission(s Submission) error {
+	if validateID(s.RequestID) != nil || (s.SessionID != "" && validateID(s.SessionID) != nil) || (s.Mode != ModeAnswer && s.Mode != ModeTask) || len(s.Messages) > maxMessages || !utf8.ValidString(s.Task) {
 		return errf("unknown")
 	}
-	if sub.Mode == ModeAnswer && len(sub.Messages) == 0 {
+	if s.Mode == ModeAnswer && len(s.Messages) == 0 || s.Mode == ModeTask && strings.TrimSpace(s.Task) == "" {
 		return errf("unknown")
 	}
-	if sub.Mode == ModeTask && strings.TrimSpace(sub.Task) == "" {
-		return errf("unknown")
-	}
-	if len(sub.Messages) > maxMessages {
-		return errf("unknown")
-	}
-	var promptBytes int
-	for _, m := range sub.Messages {
-		if !allowedRoles[m.Role] {
+	n := len(s.Task)
+	for _, m := range s.Messages {
+		if !allowedRoles[m.Role] || !utf8.ValidString(m.Content) {
 			return errf("unknown")
 		}
-		promptBytes += len(m.Content)
+		n += len(m.Content)
 	}
-	if promptBytes > maxPromptBytes {
+	if n > maxPromptBytes {
 		return errf("unknown")
-	}
-	if sub.SessionID != "" {
-		if err := validateID(sub.SessionID); err != nil {
-			return err
-		}
 	}
 	return nil
 }
-
-func validateProgressState(state string) error {
-	switch state {
-	case StateRunning, StateWaitingUser:
+func validateProgressState(s string) error {
+	switch s {
+	case StateClaimed, StateRunning, StateWaitingUser:
 		return nil
-	default:
-		return errf("unknown")
 	}
+	return errf("unknown")
 }
-
-func validateSummary(summary string) error {
-	if len(summary) > maxSummaryBytes {
-		return errf("unknown")
-	}
-	if !utf8.ValidString(summary) {
+func validateSummary(s string) error {
+	if len(s) > maxSummaryBytes || !utf8.ValidString(s) {
 		return errf("unknown")
 	}
 	return nil
 }
-
-func validateResult(res Result) error {
-	if len(res.Text) > maxResultBytes {
+func validateResult(r Result) error {
+	if !utf8.ValidString(r.Text) || len(r.Artifacts) > maxArtifacts || r.ErrorCode != "" && validateID(r.ErrorCode) != nil || r.Cancelled && r.ErrorCode != "" {
 		return errf("unknown")
 	}
-	if !utf8.ValidString(res.Text) {
+	n := len(r.Text) + len(r.ErrorCode)
+	for _, a := range r.Artifacts {
+		if validateArtifact(a) != nil {
+			return errf("unknown")
+		}
+		n += len(a.URL) + len(a.Label)
+	}
+	if n > maxResultBytes {
 		return errf("unknown")
 	}
-	if len(res.Artifacts) > maxArtifacts {
+	return nil
+}
+func validateArtifact(a Artifact) error {
+	if len(a.Label) > maxLabelBytes || !utf8.ValidString(a.Label) || len(a.URL) > maxURLBytes || !utf8.ValidString(a.URL) || strings.Contains(a.URL, "\\") {
 		return errf("unknown")
 	}
-	for _, a := range res.Artifacts {
-		if err := validateArtifact(a); err != nil {
-			return err
+	u, e := url.Parse(a.URL)
+	if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Opaque != "" {
+		return errf("unknown")
+	}
+	if p := u.Port(); p != "" {
+		n, e := strconv.Atoi(p)
+		if e != nil || n < 1 || n > 65535 {
+			return errf("unknown")
 		}
 	}
-	return nil
-}
-
-func validateArtifact(a Artifact) error {
-	if len(a.Label) > maxLabelBytes || !utf8.ValidString(a.Label) {
-		return errf("unknown")
-	}
-	u, err := url.Parse(a.URL)
-	if err != nil || u.Scheme != "https" || u.Host == "" {
-		return errf("unknown")
-	}
-	if strings.Contains(a.URL, "\\") || strings.HasPrefix(a.URL, "file:") {
-		return errf("unknown")
+	h := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if ip, e := netip.ParseAddr(h); e == nil {
+		ip = ip.Unmap()
+		if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() || ip.Zone() != "" || netip.MustParsePrefix("100.64.0.0/10").Contains(ip) {
+			return errf("unknown")
+		}
+	} else {
+		// Reject browser-style abbreviated/numeric IPv4 aliases as hostnames.
+		numeric := true
+		for _, c := range h {
+			if c != '.' && (c < '0' || c > '9') {
+				numeric = false
+			}
+		}
+		if numeric {
+			return errf("unknown")
+		}
+		if !hostPattern.MatchString(h) || !strings.Contains(h, ".") || strings.HasSuffix(h, ".localhost") || h == "localhost" || strings.HasSuffix(h, ".local") || strings.Contains(h, "..") {
+			return errf("unknown")
+		}
+		for _, label := range strings.Split(h, ".") {
+			if len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+				return errf("unknown")
+			}
+		}
 	}
 	return nil
 }

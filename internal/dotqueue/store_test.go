@@ -198,8 +198,8 @@ func TestDisabledRejectsSensitiveOps(t *testing.T) {
 		t.Fatalf("claim should be disabled: %v", err)
 	}
 	_, err = store.Get("client.a", job.ID)
-	if err != nil {
-		t.Fatalf("read should work while disabled: %v", err)
+	if err == nil || err.Error() != "dot_queue_disabled" {
+		t.Fatalf("read should be disabled: %v", err)
 	}
 }
 
@@ -293,7 +293,7 @@ func TestConcurrentSubmitAndClaim(t *testing.T) {
 
 func TestMaxRetainedJobs(t *testing.T) {
 	store, _ := openTestStore(t)
-	for i := 0; i < maxRetainedJobs; i++ {
+	for i := 0; i < 100; i++ {
 		req := sampleSubmission(fmt.Sprintf("req.cap.%d", i))
 		if _, err := store.Submit("client.a", req); err != nil {
 			t.Fatalf("fill %d: %v", i, err)
@@ -304,4 +304,3 @@ func TestMaxRetainedJobs(t *testing.T) {
 		t.Fatalf("expected capacity conflict, got %v", err)
 	}
 }
-

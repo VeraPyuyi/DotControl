@@ -2,19 +2,21 @@ package dotqueue
 
 import (
 	"encoding/json"
+	"reflect"
 	"time"
 )
 
 const (
-	stateVersion     = 1
-	markerName       = "dot_queue.initialized"
-	lockName         = "dot_queue.lock"
-	stateFileName    = "queue.state.dq"
-	maxStateBytes    = 64 * 1024 * 1024
-	claimTokenBytes  = 32
+	stateVersion    = 1
+	markerName      = "dot_queue.initialized"
+	lockName        = "dot_queue.lock"
+	stateFileName   = "queue.state.dq"
+	maxStateBytes   = 64 * 1024 * 1024
+	claimTokenBytes = 32
 )
 
 type jobRecord struct {
+	Summary         string    `json:"summary"`
 	ID              string    `json:"id"`
 	RequestID       string    `json:"request_id"`
 	RequestDigest   string    `json:"request_digest"`
@@ -38,11 +40,11 @@ type jobRecord struct {
 }
 
 type persistenceState struct {
-	StateVersion int                    `json:"state_version"`
-	Enabled      bool                   `json:"enabled"`
-	Jobs         map[string]*jobRecord  `json:"jobs"`
-	RequestIndex map[string]string      `json:"request_index"`
-	Order        []string               `json:"order"`
+	StateVersion int                   `json:"state_version"`
+	Enabled      bool                  `json:"enabled"`
+	Jobs         map[string]*jobRecord `json:"jobs"`
+	RequestIndex map[string]string     `json:"request_index"`
+	Order        []string              `json:"order"`
 }
 
 func newPersistenceState(enabled bool) *persistenceState {
@@ -73,6 +75,9 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 			return nil, errf("corrupt")
 		}
 	}
+	if strictShape(data, reflect.TypeOf(persistenceState{})) != nil {
+		return nil, errf("corrupt")
+	}
 	var st persistenceState
 	if json.Unmarshal(data, &st) != nil {
 		return nil, errf("corrupt")
@@ -83,7 +88,24 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 	if st.Jobs == nil || st.RequestIndex == nil || st.Order == nil {
 		return nil, errf("corrupt")
 	}
+	if len(st.Jobs) > 100 || len(st.RequestIndex) != len(st.Jobs) {
+		return nil, errf("corrupt")
+	}
+	events := map[string]bool{}
+	tokens := map[string]bool{}
 	for id, job := range st.Jobs {
+		if job != nil {
+			if events[job.EventID] || job.ClaimToken != "" && tokens[job.ClaimToken] {
+				return nil, errf("corrupt")
+			}
+			events[job.EventID] = true
+			if job.ClaimToken != "" {
+				tokens[job.ClaimToken] = true
+			}
+		}
+		if job != nil && st.RequestIndex[requestKey(job.ClientID, job.RequestID)] != id {
+			return nil, errf("corrupt")
+		}
 		if job == nil || job.ID != id {
 			return nil, errf("corrupt")
 		}
@@ -129,6 +151,65 @@ func validateStoredJob(job *jobRecord) error {
 	if err := validateID(job.EventID); err != nil {
 		return errf("corrupt")
 	}
+	if validateSubmission(submissionFromRecord(job)) != nil || validateSummary(job.Summary) != nil || job.CreatedAt.IsZero() || job.UpdatedAt.Before(job.CreatedAt) {
+		return errf("corrupt")
+	}
+	digest, e := submissionDigest(submissionFromRecord(job))
+	if e != nil || digest != job.RequestDigest {
+		return errf("corrupt")
+	}
+	claimed := job.ClaimToken != "" || job.WorkerID != ""
+	if claimed && (!validHex(job.ClaimToken) || validateID(job.WorkerID) != nil) {
+		return errf("corrupt")
+	}
+	if job.Recovered && !claimed {
+		return errf("corrupt")
+	}
+	if job.Result == nil {
+		if job.ResultDigest != "" || job.ErrorCode != "" {
+			return errf("corrupt")
+		}
+	} else {
+		if validateResult(*job.Result) != nil || !claimed {
+			return errf("corrupt")
+		}
+		d, e := resultDigest(*job.Result)
+		if e != nil || d != job.ResultDigest || job.ErrorCode != job.Result.ErrorCode {
+			return errf("corrupt")
+		}
+	}
+	switch job.State {
+	case StateQueued:
+		if claimed || job.CancelRequested || job.Result != nil || job.Summary != "" {
+			return errf("corrupt")
+		}
+	case StateClaimed, StateRunning, StateWaitingUser:
+		if !claimed || job.CancelRequested || job.Result != nil || job.Recovered {
+			return errf("corrupt")
+		}
+	case StateCancelRequested:
+		if !claimed || !job.CancelRequested || job.Result != nil || job.Recovered {
+			return errf("corrupt")
+		}
+	case StateOutcomeUnknown:
+		if !claimed || !job.Recovered || job.Result != nil {
+			return errf("corrupt")
+		}
+	case StateCompleted:
+		if job.Result == nil || job.Result.Cancelled || job.Result.ErrorCode != "" {
+			return errf("corrupt")
+		}
+	case StateFailed:
+		if job.Result == nil || job.Result.Cancelled || job.Result.ErrorCode == "" {
+			return errf("corrupt")
+		}
+	case StateCancelled:
+		if !job.CancelRequested || claimed && (job.Result == nil || !job.Result.Cancelled) || !claimed && job.Result != nil {
+			return errf("corrupt")
+		}
+	default:
+		return errf("corrupt")
+	}
 	return nil
 }
 
@@ -150,6 +231,7 @@ func splitRequestKey(key string) [2]string {
 
 func publicJob(rec *jobRecord) Job {
 	return Job{
+		Summary:         rec.Summary,
 		ID:              rec.ID,
 		RequestID:       rec.RequestID,
 		RequestDigest:   rec.RequestDigest,

@@ -1,18 +1,13 @@
 package dotqueue
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
-	"unicode"
-
-	"github.com/gofrs/flock"
 )
 
 type Store struct {
@@ -24,7 +19,7 @@ func Open(dir string, key []byte) (*Store, error) {
 	if len(key) != 32 {
 		return nil, errf("unknown")
 	}
-	if !filepath.IsAbs(dir) || len(dir) > 32768 || strings.ContainsFunc(dir, unicode.IsControl) {
+	if !localDir(dir) || checkAncestors(dir) != nil {
 		return nil, errf("unknown")
 	}
 	return &Store{dir: dir, key: append([]byte(nil), key...)}, nil
@@ -95,7 +90,7 @@ func (s *Store) Submit(clientID string, sub Submission) (Job, error) {
 			State:         StateQueued,
 			SessionID:     sub.SessionID,
 			Task:          sub.Task,
-			Messages:      append([]Message(nil), sub.Messages...),
+			Messages:      append([]Message{}, sub.Messages...),
 			CreatedAt:     now,
 			UpdatedAt:     now,
 			EventID:       eventID,
@@ -118,6 +113,9 @@ func (s *Store) Get(clientID, jobID string) (Job, error) {
 	}
 	var out Job
 	err := s.withLock(false, false, func(st *persistenceState) error {
+		if !st.Enabled {
+			return errf("disabled")
+		}
 		rec, err := s.jobForClient(st, clientID, jobID)
 		if err != nil {
 			return err
@@ -137,6 +135,9 @@ func (s *Store) ByRequest(clientID, requestID string) (Job, error) {
 	}
 	var out Job
 	err := s.withLock(false, false, func(st *persistenceState) error {
+		if !st.Enabled {
+			return errf("disabled")
+		}
 		jobID, ok := st.RequestIndex[requestKey(clientID, requestID)]
 		if !ok {
 			return errf("notfound")
@@ -221,12 +222,13 @@ func (s *Store) Progress(jobID, token, state, summary string) (Job, error) {
 		if rec == nil {
 			return errf("notfound")
 		}
-		if rec.ClaimToken != token {
+		if !validHex(token) || !validHex(rec.ClaimToken) || rec.ClaimToken != token {
 			return errf("conflict")
 		}
 		switch rec.State {
 		case StateClaimed, StateRunning, StateWaitingUser, StateCancelRequested:
 			rec.State = state
+			rec.Summary = summary
 			if rec.CancelRequested {
 				rec.State = StateCancelRequested
 			}
@@ -260,14 +262,19 @@ func (s *Store) Complete(jobID, token string, result Result) (Job, error) {
 		if rec == nil {
 			return errf("notfound")
 		}
-		if rec.ClaimToken != token {
+		if !validHex(token) || !validHex(rec.ClaimToken) || rec.ClaimToken != token {
 			return errf("conflict")
 		}
-		if terminalState(rec.State) {
+		if terminalState(rec.State) && rec.State != StateOutcomeUnknown {
 			if rec.ResultDigest == digest {
 				out = publicJob(rec)
 				return nil
 			}
+			return errf("conflict")
+		}
+		switch rec.State {
+		case StateClaimed, StateRunning, StateWaitingUser, StateCancelRequested, StateOutcomeUnknown:
+		default:
 			return errf("conflict")
 		}
 		if result.Cancelled {
@@ -283,7 +290,7 @@ func (s *Store) Complete(jobID, token string, result Result) (Job, error) {
 		}
 		rec.Result = &Result{
 			Text:      result.Text,
-			Artifacts: append([]Artifact(nil), result.Artifacts...),
+			Artifacts: append([]Artifact{}, result.Artifacts...),
 			ErrorCode: result.ErrorCode,
 			Cancelled: result.Cancelled,
 		}
@@ -311,7 +318,7 @@ func (s *Store) Cancel(clientID, jobID string) (Job, error) {
 		if err != nil {
 			return err
 		}
-		if terminalState(rec.State) {
+		if terminalState(rec.State) && rec.State != StateOutcomeUnknown {
 			out = publicJob(rec)
 			return nil
 		}
@@ -320,6 +327,8 @@ func (s *Store) Cancel(clientID, jobID string) (Job, error) {
 		switch rec.State {
 		case StateQueued:
 			rec.State = StateCancelled
+		case StateOutcomeUnknown:
+			// Preserve uncertainty while recording new cancellation intent.
 		default:
 			rec.State = StateCancelRequested
 		}
@@ -357,6 +366,9 @@ func (s *Store) Pending(queueID string) ([]Notice, error) {
 	}
 	var out []Notice
 	err := s.withLock(false, false, func(st *persistenceState) error {
+		if !st.Enabled {
+			return errf("disabled")
+		}
 		for _, id := range st.Order {
 			rec := st.Jobs[id]
 			if rec == nil || rec.QueueID != queueID || rec.State != StateQueued {
@@ -395,21 +407,34 @@ func (s *Store) withLock(allowCreate bool, mutate bool, fn func(*persistenceStat
 		return errf("unknown")
 	}
 	info, statErr := f.Stat()
-	if statErr != nil || rejectHardlink(f, info) != nil {
+	if statErr != nil || !info.Mode().IsRegular() || rejectHardlink(f, info) != nil {
 		f.Close()
 		return errf("unknown")
 	}
-	if f.Close() != nil || privatePath(lockPath, false) != nil {
+	defer f.Close()
+	if privatePath(lockPath, false) != nil {
 		return errf("unknown")
 	}
-	lock := flock.New(lockPath)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	ok, err := lock.TryLockContext(ctx, 10*time.Millisecond)
-	if err != nil || !ok {
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		ok, e := tryHandleLock(f)
+		if e != nil {
+			return errf("unknown")
+		}
+		if ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			return errf("unknown")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	defer unlockHandle(f)
+	// Verify the locked handle still names the checked private regular file.
+	current, e := os.Lstat(lockPath)
+	if e != nil || rejectLink(current) != nil || !os.SameFile(info, current) || rejectHardlink(f, info) != nil {
 		return errf("unknown")
 	}
-	defer lock.Unlock()
 
 	st, err := s.loadState(allowCreate)
 	if err != nil {
@@ -448,6 +473,10 @@ func (s *Store) loadState(allowCreate bool) (*persistenceState, error) {
 		}
 		return nil, errf("corrupt")
 	}
+	markerData, err := s.readPrivate(marker, 16)
+	if err != nil || string(markerData) != "1\n" {
+		return nil, errf("corrupt")
+	}
 	if err := regularFile(statePath); err != nil {
 		return nil, wrapUnknown(err)
 	}
@@ -459,6 +488,9 @@ func (s *Store) loadState(allowCreate bool) (*persistenceState, error) {
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() || rejectHardlink(f, info) != nil {
 		return nil, errf("corrupt")
+	}
+	if privatePath(statePath, false) != nil {
+		return nil, errf("unknown")
 	}
 	if info.Size() > maxStateBytes {
 		return nil, errf("corrupt")
@@ -524,7 +556,7 @@ func (s *Store) ensureMarker() error {
 			return errf("unknown")
 		}
 		info, statErr := f.Stat()
-		if statErr != nil || rejectHardlink(f, info) != nil {
+		if statErr != nil || !info.Mode().IsRegular() || rejectHardlink(f, info) != nil {
 			f.Close()
 			return errf("unknown")
 		}
@@ -550,7 +582,7 @@ func (s *Store) ensureMarker() error {
 }
 
 func (s *Store) checkDir(create bool) error {
-	if !filepath.IsAbs(s.dir) || len(s.dir) > 32768 || strings.ContainsFunc(s.dir, unicode.IsControl) {
+	if !localDir(s.dir) || checkAncestors(s.dir) != nil {
 		return errf("unknown")
 	}
 	if create {
@@ -565,7 +597,7 @@ func (s *Store) checkDir(create bool) error {
 	if err != nil || !info.IsDir() || rejectLink(info) != nil {
 		return errf("unknown")
 	}
-	if create && privatePath(s.dir, true) != nil {
+	if privatePath(s.dir, true) != nil {
 		return errf("unknown")
 	}
 	return nil

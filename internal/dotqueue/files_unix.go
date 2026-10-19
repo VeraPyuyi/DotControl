@@ -3,6 +3,7 @@
 package dotqueue
 
 import (
+	"golang.org/x/sys/unix"
 	"os"
 	"syscall"
 )
@@ -30,6 +31,14 @@ func rejectHardlink(f *os.File, info os.FileInfo) error {
 	return nil
 }
 
+func tryHandleLock(f *os.File) (bool, error) {
+	e := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+	if e == unix.EWOULDBLOCK || e == unix.EAGAIN {
+		return false, nil
+	}
+	return e == nil, e
+}
+func unlockHandle(f *os.File)           { _ = unix.Flock(int(f.Fd()), unix.LOCK_UN) }
 func replaceFile(from, to string) error { return os.Rename(from, to) }
 
 func syncDirectory(path string) error {

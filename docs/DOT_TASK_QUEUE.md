@@ -1,42 +1,27 @@
-# Dot task queue (`internal/dotqueue`)
+# Dot task queue
 
-Task 1 delivers a durable, encrypted filesystem queue for DotControl routing work. Network exposure, MCP tools, vault wiring, and runtime gates are intentionally out of scope here.
+`internal/dotqueue` is a trusted local Go backend. It persists work and stable event notices; it does not expose routing, implement authentication, fetch artifact URLs, or establish Dot readiness.
 
-## API surface
+Call `Open(dir, key)` with a caller-managed 32-byte key and explicitly call `Initialize(enabled)` for a new store. Open copies the key and never persists it or automatically recovers work. Initialize on an existing valid store sets enabled; a missing, malformed, or unsupported initialized marker/state fails closed. `SetEnabled` changes the persisted gate. `ConfigStatus()` returns only `Enabled` and remains available while disabled. Get, ByRequest, Pending, Submit, Claim, Progress, Complete, Cancel and Recover all check enabled under the transaction lock.
 
-- `Open(dir, key)` — absolute state directory and 32-byte AES-256-GCM key supplied by caller (never persisted).
-- `Store.Initialize(enabled)` — explicit first-time setup; writes `dot_queue.initialized` and refuses silent re-init if state is missing after the marker exists.
-- `Store.SetEnabled(bool)` — toggles whether sensitive mutations are accepted.
-- `Submit`, `Get`, `ByRequest`, `Claim`, `Progress`, `Complete`, `Cancel`, `Recover`, `Pending` — semantics match `docs/superpowers/specs/2026-10-19-dot-routing-design.md` and the task brief.
+Submission IDs (including client, queue, worker and optional session IDs) use `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`. Answer mode requires messages; task mode requires nonblank Task. The supported message roles are system, user and assistant. At most 32 messages are accepted. Combined Task and message content is at most 262144 UTF-8 bytes. Invalid UTF-8 is rejected before hashing. Canonical JSON uses fixed field order and empty arrays for nil message/artifact lists; SHA-256 identifies the complete submission/result.
 
-Exported structs use JSON snake_case field names. Public `Job` values omit claim tokens and other worker secrets.
+Same client/request ID with identical content returns the original job; changed content conflicts. Queue ID is derived from client ID. Retained capacity is exactly 100 jobs, including terminal jobs, with no eviction or request-ID reuse. Acceptance and a single stable EventID are written atomically. Pending returns queued notices; retries and reopening preserve their IDs. Delivery/notification acknowledgment belongs to a later slice.
 
-## Storage and concurrency
+Claim binds a random 256-bit token to a job and worker. Same-worker retries return the original token; competing workers conflict. Worker mutations reject empty, malformed and incorrect tokens, and Complete requires a claimed lifecycle source. Public Job omits token and original submission; Claim contains both and must not be logged or forwarded as a public job response.
 
-- Private directory (`0700`) and files (`0600`) with Windows current-user DACL, matching `internal/historyaccess` patterns.
-- Cross-process `flock` on `dot_queue.lock` (5s acquisition budget, 10ms retry interval).
-- All queue state is held in a single encrypted blob `queue.state.dq` (`D` + version byte + nonce + AES-GCM ciphertext). Prompts, results, and claim tokens are not stored in plaintext on disk.
-- Updates are read → validate → mutate → temp file → sync → atomic replace under the lock.
+Progress accepts claimed, running or waiting_user, stores `Job.Summary` durably (maximum 2048 UTF-8 bytes), and preserves cancel_requested while intent remains set. Cancel before claim yields cancelled; after claim it records intent. Cancellation of outcome_unknown retains uncertainty while recording intent. A worker may acknowledge cancellation only with `Result.Cancelled=true` after intent is recorded. A result without that acknowledgment can still complete/ fail while retaining the intent flag.
 
-## Lifecycle rules
+Recover is an explicit owner-startup action, never a routine client Open action. It changes claimed/running/waiting_user/cancel_requested to outcome_unknown once, preserving token and notice identity. Unknown work cannot be claimed or progressed into an active state. The original token can reconcile via Complete, including explicit cancellation acknowledgment. Final completed/failed/cancelled results permit identical retries and reject changed results. No lease, automatic reassignment or automatic execution retry exists.
 
-- **Idempotency:** same `client_id` + `request_id` + submission digest returns the same job; digest mismatch is `dot_queue_conflict`.
-- **Capacity:** at most 100 retained jobs; overflow returns conflict (no eviction).
-- **Claim:** `queued` → `claimed` with a 256-bit token; duplicate claim by the same worker returns the same token; another worker gets `dot_queue_claim_conflict`.
-- **Cancel:** before claim → `cancelled`; after claim → `cancel_requested` (progress does not clear cancel intent).
-- **Complete:** terminal and idempotent on identical result digest; mismatched terminal payloads conflict.
-- **Recover:** explicit only (not on `Open`); moves in-flight worker states to `outcome_unknown` once per job after restart uncertainty.
-- **Disabled:** sensitive operations return `dot_queue_disabled`; read APIs remain available.
+Result content has a total 262144-byte budget across Text, ErrorCode, artifact URLs and labels. ErrorCode, when present, uses the ID syntax (maximum 128 bytes), representing a stable caller-defined error identifier rather than diagnostic prose. Cancelled and ErrorCode cannot both be set. At most 16 artifacts are allowed, each label at most 256 bytes and URL at most 2048 bytes. All strings must be valid UTF-8. Artifacts require HTTPS without userinfo; localhost/local names, single-label names, private/loopback/link-local/unspecified/non-unicast literal addresses are rejected. Hostnames are not DNS-resolved here. Any future fetcher must validate DNS addresses at connection time and constrain redirects; this backend's syntactic policy is not a network safety guarantee.
 
-## Error codes
+State is AES-256-GCM encrypted with a random nonce. The `D`/version header is authenticated as additional data; encrypted JSON also requires state_version 1. Nested schemas reject unknown, duplicate, missing required, null and wrongly typed fields. Every loaded job validates payload/result budgets and digests, lifecycle/claim/cancellation/result consistency, timestamps, unique events/tokens, capacity, order and the job/request-index bijection. Empty arrays are persisted explicitly. Earlier development fixtures without Summary or header AAD are incompatible and fail closed; there is no silent migration or reset.
 
-Stable `dotqueue.Error.Code` values include: `disabled`, `conflict`, `notfound`, `corrupt`, `claim_conflict`, `unknown`.
+Every transaction validates a canonical local absolute non-root directory and all existing ancestors against symlinks/reparse points. UNC/device paths, alternate streams, relative paths and noncanonical paths are rejected. Parents must be trusted directories administered by the user or OS; callers must select a dedicated queue directory. Directory privacy is reapplied for every operation (0700 on Unix, protected current-user-only DACL on Windows), as is 0600/current-user privacy on owned files. Marker contents must be exactly `1\n` and every load checks regularity, link count and version. State, marker and lock reject hardlinks and symlinks/reparse points.
 
-## Tests
+The installed flock version exposes only pathname-based constructors and keeps its handle private. The queue therefore locks its own validated open handle using OS flock on Unix or LockFileEx on Windows, with a five-second acquisition budget, and checks that the locked handle still identifies the current lock path. This prevents the previous close-and-reopen gap. Read/validate/mutate/encrypt/temp write/sync/atomic replacement is one locked transaction. Windows uses MoveFileEx with WRITE_THROUGH; Unix uses rename plus directory sync. All temporary payloads are ciphertext. Private parents and ACLs protect against other OS principals; this design does **not** isolate a malicious same-user process that can replace directories, inspect process memory or obtain the caller's key. Path checks do not claim adversarial same-user race resistance.
 
-Package tests cover encryption round-trip, reopen persistence, idempotency, claim/complete conflicts, cancel/recover, disabled gating, corrupt/missing state, bounds, concurrency across two `Store` handles, and capacity limits. Run:
+Errors are sanitized `*dotqueue.Error`, with short `Code` values such as disabled, conflict, notfound, corrupt, claim_conflict and unknown; Error() adds `dot_queue_`. A nonnil error always means callers must discard any returned value. This API does not authenticate clientID/workerID arguments: future adapters must derive these identities from authenticated scope and keep Initialize/SetEnabled/Recover privileged.
 
-```text
-go test ./internal/dotqueue/ -count=1
-python run_checks.py <repo> dotqueue-race go test ./internal/dotqueue/ -race -count=1
-```
+Tests use temporary directories and a fixed fake key. They include compile-safe behavioral regression cases, authenticated malformed-state fixtures, Windows ACL repair/reparse fixtures, actual child-process same-request submission/competing claim, literal size and capacity boundaries, persisted results and cancellation acknowledgment, encryption/tamper checks, and two-handle races. Run the package with the isolated runner and `go test ./internal/dotqueue -count=1 -v`; enable CGO and a compiler for `-race`. Exact retained RED/GREEN commands and review mappings are in the task report. No fixture establishes live account or routing readiness.

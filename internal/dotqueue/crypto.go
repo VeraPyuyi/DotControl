@@ -25,7 +25,7 @@ func seal(key []byte, plaintext []byte) ([]byte, error) {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, errf("unknown")
 	}
-	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+	ciphertext := gcm.Seal(nil, nonce, plaintext, []byte{'D', envelopeVersion})
 	out := make([]byte, 2+len(nonce)+len(ciphertext))
 	out[0] = 'D'
 	out[1] = envelopeVersion
@@ -54,7 +54,7 @@ func openEnvelope(key []byte, data []byte) ([]byte, error) {
 	}
 	nonce := data[2 : 2+gcm.NonceSize()]
 	ciphertext := data[2+gcm.NonceSize():]
-	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plain, err := gcm.Open(nil, nonce, ciphertext, data[:2])
 	if err != nil {
 		return nil, errf("corrupt")
 	}
