@@ -30,6 +30,7 @@ type Config struct {
 	TerminalProfileID  string  `json:"terminal_profile_id,omitempty"`
 	TerminalServerID   string  `json:"terminal_server_id,omitempty"`
 	TerminalConfigHash string  `json:"terminal_config_hash,omitempty"`
+	DotBridgeEnabled   bool    `json:"dot_bridge_enabled,omitempty"`
 }
 
 // Network affects only the official tunnel control plane. ProxyURL is never a

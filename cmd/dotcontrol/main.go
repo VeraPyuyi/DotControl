@@ -161,6 +161,8 @@ func run(args []string) error {
 			return errors.New("local_credential_missing")
 		}
 		return mcpserver.New(localapi.Client{Address: c.Listen, Token: token}).Run(ctx, &mcp.StdioTransport{})
+	case "bridge":
+		return bridgeCLI(ctx, *dir, c, v, args[1:])
 	case "pair":
 		return pair(*dir, c, v, args[1:])
 	case "probe":
@@ -208,6 +210,7 @@ dotcontrol [--state DIRECTORY] COMMAND
   pause       Stop future input and interrupt the current task
   resume      Resume admission; fresh observations are still required
   revoke      Pause, stop the tunnel, and rotate its local access credential
+  bridge      enable/disable/status/pair/revoke-client/probe/jobs/get/cancel
   pair        init / add / list / revoke: pair devices for the optional gateway
   mcp         Stdio bridge for local MCP testing (not official Dot acceptance)
   probe       Local API diagnostics with JSON on stdin
@@ -322,6 +325,9 @@ func (unavailableDriver) Execute(context.Context, model.Action, model.View, stri
 func (unavailableDriver) Release(context.Context) error { return nil }
 
 func serveLegacy(ctx context.Context, dir string, c config.Config, v vault.Vault, args []string) error {
+	if c.DotBridgeEnabled {
+		return errors.New("task_bridge_gateway_unsupported")
+	}
 	f := flags("serve")
 	gatewayMode := f.Bool("gateway", false, "Serve the explicitly paired device directory")
 	withoutTunnel := f.Bool("no-tunnel", false, "Local development/diagnostics only")
