@@ -17,6 +17,7 @@ import (
 // Service owns bridge lifecycle, local API auth, and delivery worker wiring.
 type Service struct {
 	mu            sync.Mutex
+	capacityEpoch uint64 // guarded by mu; invalidates reads across enable/disable
 	ctx           context.Context
 	cancel        context.CancelFunc
 	root          string
@@ -164,6 +165,7 @@ func (s *Service) Enable() error {
 		return err
 	}
 	s.state.Enabled = true
+	s.capacityEpoch++
 	return s.saveState()
 }
 
@@ -177,31 +179,38 @@ func (s *Service) Disable() error {
 		return err
 	}
 	s.state.Enabled = false
+	s.capacityEpoch++
 	return s.saveState()
 }
 
-func (s *Service) bridgeCapacity() (*CapacityDTO, error) {
+// bridgeCapacity captures a candidate only. Callers publish it under mu using
+// the same final authorization snapshot as the rest of their response.
+func (s *Service) bridgeCapacity() (*CapacityDTO, uint64, error) {
 	s.mu.Lock()
-	enabled := s.state.Enabled
+	enabled, epoch := s.capacityAllowedLocked(), s.capacityEpoch
 	s.mu.Unlock()
 	if !enabled {
-		return nil, nil
+		return nil, epoch, nil
 	}
 	cap, err := s.queue.Capacity()
 	if err != nil {
-		return nil, err
+		return nil, epoch, err
 	}
-	s.mu.Lock()
-	still := s.state.Enabled
-	s.mu.Unlock()
-	if !still {
-		return nil, nil
-	}
-	return &CapacityDTO{Limit: cap.Limit, Retained: cap.Retained, Remaining: cap.Remaining}, nil
+	return &CapacityDTO{Limit: cap.Limit, Retained: cap.Retained, Remaining: cap.Remaining}, epoch, nil
+}
+
+func (s *Service) capacityAllowedLocked() bool {
+	return s.state.Enabled && (s.paused == nil || !s.paused()) && (s.revoked == nil || !s.revoked())
 }
 
 func (s *Service) AdminStatus() (map[string]any, error) {
+	cap, epoch, err := s.bridgeCapacity()
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	allowed := s.capacityAllowedLocked() && epoch == s.capacityEpoch
+	if err != nil && allowed {
+		return nil, err
+	}
 	paired := 0
 	for _, policy := range s.state.Clients {
 		if !policy.Revoked {
@@ -209,18 +218,13 @@ func (s *Service) AdminStatus() (map[string]any, error) {
 		}
 	}
 	enabled := s.state.Enabled
-	s.mu.Unlock()
 	out := map[string]any{
 		"version": APIVersion,
 		"enabled": enabled,
 		"paired":  paired > 0,
 		"clients": paired,
 	}
-	cap, err := s.bridgeCapacity()
-	if err != nil {
-		return nil, err
-	}
-	if cap != nil {
+	if allowed && cap != nil {
 		out["capacity"] = cap
 	}
 	return out, nil
@@ -241,7 +245,12 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	// never combine its subscription with a previously captured proof.
 	eventStatus, e := s.events.Status(policy.QueueID, policy.QueueID)
 	gateOK := s.clientGate(policy.ClientID) == nil
-	capacity, capErr := s.bridgeCapacity()
+	var capacity *CapacityDTO
+	var epoch uint64
+	var capErr error
+	if gateOK {
+		capacity, epoch, capErr = s.bridgeCapacity()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, exists := s.state.Clients[policy.ClientID]
@@ -252,7 +261,7 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	if active {
 		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires}
 	}
-	if capErr == nil && capacity != nil {
+	if gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() && epoch == s.capacityEpoch && capErr == nil {
 		out.Capacity = capacity
 	}
 	if !gateOK || !s.state.Enabled || !exists || current.Revoked || !active || e != nil || !eventStatus.Subscribed || !eventStatus.CallbackVerified || (s.paused != nil && s.paused()) || (s.revoked != nil && s.revoked()) {

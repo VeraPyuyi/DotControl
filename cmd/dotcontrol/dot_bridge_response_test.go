@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,10 +21,44 @@ type errReader struct{ err error }
 func (e errReader) Read([]byte) (int, error) { return 0, e.err }
 
 func TestBridgeClientResponseEscapedResultComplete(t *testing.T) {
-	body := strings.Repeat("x", 1573333)
-	data, err := readBridgeResponseBody(strings.NewReader(body))
-	if err != nil || len(data) != len(body) {
-		t.Fatalf("escaped result: err=%v len=%d", err, len(data))
+	want := strings.Repeat("<", 256<<10)
+	body, err := json.Marshal(dotbridge.JobDTO{Version: 1, JobID: "job.fixture", Result: &dotbridge.ResultDTO{Text: want}})
+	if err != nil || len(body) <= 1<<20 {
+		t.Fatalf("escaped fixture: size=%d err=%v", len(body), err)
+	}
+	for _, overflow := range []bool{false, true} {
+		t.Run(fmt.Sprint(overflow), func(t *testing.T) {
+			wire := body
+			if overflow {
+				wire = append(append([]byte(nil), body...), bytes.Repeat([]byte{' '}, dotbridge.MaxWireResponseBytes+1-len(body))...)
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(wire) }))
+			defer srv.Close()
+			// A regular file avoids blocking stdout on a full pipe buffer.
+			out, err := os.CreateTemp(t.TempDir(), "stdout")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer out.Close()
+			old := os.Stdout
+			os.Stdout = out
+			callErr := bridgeClientRequest(context.Background(), strings.TrimPrefix(srv.URL, "http://"), "fixture-token", http.MethodGet, "/dot-bridge/v1/jobs/job.fixture", nil)
+			os.Stdout = old
+			data, err := os.ReadFile(out.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if overflow {
+				if callErr == nil || callErr.Error() != "bridge_response_too_large" || len(data) != 0 {
+					t.Fatalf("overflow: err=%v output=%d", callErr, len(data))
+				}
+				return
+			}
+			var got dotbridge.JobDTO
+			if callErr != nil || json.Unmarshal(data, &got) != nil || got.Result == nil || got.Result.Text != want {
+				t.Fatalf("incomplete CLI JSON: err=%v bytes=%d", callErr, len(data))
+			}
+		})
 	}
 }
 

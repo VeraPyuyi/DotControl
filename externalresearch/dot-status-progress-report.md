@@ -70,3 +70,22 @@ Observed: all scoped tests PASS.
 - I2 gateway journal namespace pairing identity
 - GUI rendering/controller wiring beyond additive DTO fields
 - Archive/eviction semantics for retained jobs
+
+## Capacity publication review fix — 2026-10-19
+
+Addressed Important I1 and the scoped test observations in `dot-status-progress-review.md`. The earlier implementation's enabled checks did not protect the final publication: a revoked client could receive counts and admin enabled/counts could describe different lifecycle snapshots. This was a production defect, not waived as a minor test issue.
+
+`bridgeCapacity` now returns a candidate plus the service enable epoch, without holding the service mutex during queue I/O. Enable/Disable advance that epoch. AdminStatus builds enabled, client totals and capacity inclusion together under its final lock. Paired status attaches counts only under its final lock when enabled, unpaused, access not revoked, current client still authorized with the same credential identity, and the epoch matches. A disable/re-enable invalidates old counts even if final enabled is true. Client revocation suppresses paired counts and reports paired:false; authenticated admin aggregate visibility survives individual client revocation. Capacity storage errors still propagate for an authorized admin; intervening access changes suppress stale data/error publication.
+
+RED: `go test ./internal/dotbridge -run TestCapacityPublicationAccessChanges -count=1` failed on paired revoke/pause/access revoke/disable-enable and admin disable/disable-enable/pause/access revoke. GREEN: the same matrix passes after the production change. Deterministic hooks run after real queue I/O and before publication; additional channel-blocked tests execute Disable/RevokeClient in another goroutine before releasing the captured result. Disabled-before tests assert zero Capacity calls. No queue I/O is performed while holding the service mutex.
+
+CLI fixture now uses json.Marshal of a 256 KiB raw '<' result (encoded body exceeds 1 MiB), serves it over actual HTTP, captures stdout in a regular file and decodes the complete result. Its HTTP overflow variant asserts bridge_response_too_large and zero stdout. Existing exact 2 MiB/+1 helper boundaries and short HTTP body tests remain.
+
+Verification on the final fix:
+
+- `go test ./internal/dotbridge ./cmd/dotcontrol -run 'TestCapacity|TestAdminAndPaired|TestBridgeClientResponse|TestReadBridgeResponse' -count=1` PASS.
+- `go test -race ./internal/dotbridge ./cmd/dotcontrol -run 'TestCapacity|TestAdminAndPaired|TestBridgeClientResponse|TestReadBridgeResponse' -count=1` PASS (CGO_ENABLED=1, CC=C:\msys64\mingw64\bin\gcc.exe; final run 7.241s / 1.887s).
+- `go test ./internal/dotbridge -count=1` PASS (6.620s).
+- `git diff --check` PASS.
+
+No GUI, Magpie identity/client, queue storage/proof, ACL, raw-content or wire-budget production semantics changed. These checks establish the scoped regression fix, not live Dot or whole-branch completion.
