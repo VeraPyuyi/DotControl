@@ -56,6 +56,18 @@ type persistenceState struct {
 	Subscriptions map[string]*subscriptionRecord `json:"subscriptions"`
 	Deliveries    map[string]*deliveryRecord     `json:"deliveries"`
 	QueueStatus   map[string]*queueStatus        `json:"queue_status"`
+	// LastSubscribe records the most recent verification failure so operators
+	// can see why a subscription was refused after it was discarded.
+	LastSubscribe *subscribeFailure `json:"last_subscribe,omitempty"`
+}
+
+// subscribeFailure is bounded, secret-free diagnostics for the last failed
+// events/subscribe attempt.
+type subscribeFailure struct {
+	At        time.Time `json:"at"`
+	Principal string    `json:"principal"`
+	Reason    string    `json:"reason"`
+	Stage     string    `json:"stage"`
 }
 
 func newPersistenceState() *persistenceState {
@@ -78,6 +90,11 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 	}
 	if st.StateVersion != stateVersion || st.Subscriptions == nil || st.Deliveries == nil || st.QueueStatus == nil || len(st.Subscriptions) > maxActiveSubs || len(st.Deliveries) > maxDeliveryRecords || len(st.QueueStatus) > maxDeliveryRecords {
 		return nil, errf("corrupt")
+	}
+	if f := st.LastSubscribe; f != nil {
+		if f.At.IsZero() || f.At.Year() < 1 || f.At.Year() > 9999 || validateID(f.Principal) != nil || diagnosticReason(f.Reason) != f.Reason || verifyStage(f.Reason) != f.Stage {
+			return nil, errf("corrupt")
+		}
 	}
 	for id, sub := range st.Subscriptions {
 		if sub != nil && !sub.VerifiedUntil.IsZero() {

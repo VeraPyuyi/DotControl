@@ -33,7 +33,11 @@ func TestCompleteFixtureValidationZeroIO(t *testing.T) {
 			p := testParams("alice")
 			c.mutate(&p)
 			_, e := m.Subscribe(context.Background(), c.principal, p)
-			if e == nil || asEventsError(e).Code != "unknown" {
+			want := "unknown"
+			if c.name == "private" || c.name == "fragment" {
+				want = "callback"
+			}
+			if e == nil || asEventsError(e).Code != want {
 				t.Fatalf("validation error %v", e)
 			}
 			if calls.Load() != 0 {

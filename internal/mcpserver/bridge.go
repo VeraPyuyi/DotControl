@@ -12,6 +12,7 @@ import (
 	"github.com/dotcontrol/dotcontrol/internal/dotevents"
 	"github.com/dotcontrol/dotcontrol/internal/dotqueue"
 	"github.com/dotcontrol/dotcontrol/internal/service"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -39,49 +40,30 @@ type TaskStatusArgs struct {
 	Token string `json:"token"`
 }
 
-// callbackError is the MCP Events protocol failure shape: the specification
-// requires JSON-RPC -32015 with a categorized data.reason so the platform can
-// report why a subscription was refused.
-type callbackError struct {
-	code   int
-	reason string
-	msg    string
-}
-
-func (e *callbackError) Error() string { return e.msg }
-
-// callbackReason classifies a failed subscription verification. Unknown local
-// failures are not mislabeled as endpoint errors; only transport, challenge and
-// timeout categories are reported.
-func callbackReason(err error) string {
-	if err == nil {
-		return ""
-	}
-	var ev *dotevents.Error
-	if !errors.As(err, &ev) {
-		return "server_error"
-	}
-	switch ev.Code {
-	case "network":
-		return "timeout"
-	case "verification":
-		return "challenge_failed"
-	case "callback":
-		return "url_rejected"
-	case "disabled", "capacity", "stale":
-		return "server_error"
-	default:
-		return "server_error"
-	}
-}
-
-// eventsError converts a subscription failure into the MCP Events error shape.
+// eventsError preserves the SDK's structured JSON-RPC error contract.
 func eventsError(err error) error {
 	if err == nil {
 		return nil
 	}
-	reason := callbackReason(err)
-	return &callbackError{code: -32015, reason: reason, msg: "dot_events_" + reason}
+	var ev *dotevents.Error
+	if !errors.As(err, &ev) {
+		return &jsonrpc.Error{Code: -32603, Message: "Subscription unavailable"}
+	}
+	reason := ""
+	switch ev.Code {
+	case "timeout":
+		reason = "timeout"
+	case "network":
+		reason = "network_error"
+	case "verification":
+		reason = "challenge_failed"
+	case "callback":
+		reason = "url_rejected"
+	default:
+		return &jsonrpc.Error{Code: -32603, Message: "Subscription unavailable"}
+	}
+	data, _ := json.Marshal(map[string]string{"reason": reason})
+	return &jsonrpc.Error{Code: -32015, Message: "CallbackEndpointError", Data: data}
 }
 
 type EventsListParams struct {

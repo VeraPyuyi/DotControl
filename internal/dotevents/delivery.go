@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -101,7 +102,16 @@ func (d *Delivery) post(ctx context.Context, sub *subscriptionRecord, id string,
 	setWebhookHeaders(req, id, stamp, signPayload(sub, id, body, stamp), sub.ID)
 	resp, e := d.httpClient().Do(req)
 	if e != nil {
+		var networkError net.Error
+		timedOut := errors.Is(e, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) || (errors.As(e, &networkError) && networkError.Timeout())
 		cancel()
+		var callbackErr *Error
+		if errors.As(e, &callbackErr) && callbackErr.Code == "callback" {
+			return nil, errf("callback")
+		}
+		if timedOut {
+			return nil, errf("timeout")
+		}
 		return nil, errf("network")
 	}
 	resp.Body = &cancelBody{ReadCloser: resp.Body, cancel: cancel}

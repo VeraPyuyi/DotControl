@@ -117,28 +117,28 @@ func parseTTL(raw json.RawMessage) (int64, error) {
 
 func validateCallbackURL(raw string) error {
 	if len(raw) > maxCallbackURLBytes || !utf8.ValidString(raw) || strings.ContainsAny(raw, "\\\\#") {
-		return errf("unknown")
+		return errf("callback")
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" || u.Opaque != "" || u.Host == "" {
-		return errf("unknown")
+		return errf("callback")
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") {
-		return errf("unknown")
+		return errf("callback")
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if !publicIP(ip) {
-			return errf("unknown")
+			return errf("callback")
 		}
 		return nil
 	}
 	if !hostPattern.MatchString(host) || !strings.Contains(host, ".") || strings.Contains(host, "..") {
-		return errf("unknown")
+		return errf("callback")
 	}
 	for _, label := range strings.Split(host, ".") {
 		if len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
-			return errf("unknown")
+			return errf("callback")
 		}
 	}
 	return nil

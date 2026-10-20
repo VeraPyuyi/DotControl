@@ -260,6 +260,14 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	out := StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: exists && !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
 	if active {
 		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires}
+	} else if eventStatus.SubscribeFailure != nil && gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() {
+		// A refused subscription is not silently "inactive": expose why the
+		// callback verification failed so an operator can fix the cause.
+		out.SubscribeFailure = &SubscribeFailureDTO{
+			At:     eventStatus.SubscribeFailure.At,
+			Reason: eventStatus.SubscribeFailure.Reason,
+			Stage:  eventStatus.SubscribeFailure.Stage,
+		}
 	}
 	if gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() && epoch == s.capacityEpoch && capErr == nil {
 		out.Capacity = capacity

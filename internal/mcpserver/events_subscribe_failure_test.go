@@ -50,7 +50,7 @@ func TestEventsSubscribeCallbackFailureIsClassified(t *testing.T) {
 		"arguments": map[string]string{"queue_id": "client.a"},
 		"delivery": map[string]string{
 			"mode":   "webhook",
-			"url":    "https://127.0.0.1.1/hook",
+			"url":    "https://127.0.0.1/hook",
 			"secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
 		},
 		"cursor": nil,

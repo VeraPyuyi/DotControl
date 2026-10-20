@@ -46,6 +46,17 @@ func (m *Manager) Subscribe(ctx context.Context, principal string, p Params) (Su
 
 func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clock func() time.Time) (Subscription, error) {
 	if e := validateParams(principal, p); e != nil {
+		if asEventsError(e).Code == "callback" {
+			if saveErr := m.store.withLock(false, true, func(st *persistenceState) error {
+				if !st.Enabled {
+					return errf("disabled")
+				}
+				st.LastSubscribe = &subscribeFailure{At: clock().UTC(), Principal: principal, Reason: "callback", Stage: "callback_url"}
+				return nil
+			}); saveErr != nil {
+				return Subscription{}, saveErr
+			}
+		}
 		return Subscription{}, e
 	}
 	ttl, _ := parseTTL(p.TTL)
@@ -107,6 +118,10 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		// Restore a previously accepted refresh only if no revoke/refresh won
 		// the generation race. Never extend its TTL or cache after failure.
 		restoreErr := m.store.withLock(false, true, func(st *persistenceState) error {
+			// Persist bounded, secret-free diagnostics before any rollback so an
+			// operator can see why the platform was refused.
+			code := asEventsError(e).Code
+			st.LastSubscribe = &subscribeFailure{At: clock().UTC(), Principal: principal, Reason: diagnosticReason(code), Stage: verifyStage(code)}
 			current := st.Subscriptions[id]
 			if !st.Enabled {
 				return errf("disabled")
@@ -146,6 +161,31 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		return Subscription{}, e
 	}
 	return Subscription{ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
+}
+
+// diagnosticReason accepts only stable categories, never arbitrary error text.
+func diagnosticReason(code string) string {
+	switch code {
+	case "callback", "network", "timeout", "verification":
+		return code
+	default:
+		return "unknown"
+	}
+}
+
+// verifyStage maps an internal callback error code to the phase that failed:
+// URL validation, DNS/network reachability, or the challenge exchange itself.
+func verifyStage(code string) string {
+	switch code {
+	case "callback":
+		return "callback_url"
+	case "network", "timeout":
+		return "network"
+	case "verification":
+		return "challenge"
+	default:
+		return "unknown"
+	}
 }
 
 // Never extend an accepted verification proof on refresh, even after a
@@ -357,6 +397,13 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 			out.Attempts = r.Attempts
 			out.Acknowledged = r.Acknowledged
 			out.LastCode = r.LastCode
+		}
+		if f := st.LastSubscribe; f != nil && f.Principal == principal && !out.CallbackVerified {
+			out.SubscribeFailure = &SubscribeFailure{
+				At:     f.At.UTC().Format(time.RFC3339),
+				Reason: f.Reason,
+				Stage:  f.Stage,
+			}
 		}
 		return nil
 	})

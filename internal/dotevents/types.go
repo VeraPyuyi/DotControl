@@ -54,4 +54,15 @@ type Status struct {
 	Attempts         int    `json:"attempts"`
 	Acknowledged     bool   `json:"acknowledged"`
 	LastCode         string `json:"last_code,omitempty"`
+	// SubscribeFailure explains the most recent refused subscription once it
+	// is no longer active. It carries no secret or callback URL.
+	SubscribeFailure *SubscribeFailure `json:"subscribe_failure,omitempty"`
+}
+
+// SubscribeFailure is bounded, secret-free diagnostics for the last refused
+// events/subscribe attempt.
+type SubscribeFailure struct {
+	At     string `json:"at"`
+	Reason string `json:"reason"`
+	Stage  string `json:"stage"`
 }

@@ -73,21 +73,30 @@ type CapacityDTO struct {
 }
 
 type StatusDTO struct {
-	Version      int             `json:"version"`
-	Enabled      bool            `json:"enabled"`
-	Paired       bool            `json:"paired"`
-	Ready        bool            `json:"ready"`
-	Code         string          `json:"code"`
-	VerifiedAt   *time.Time      `json:"verified_at,omitempty"`
-	ExpiresAt    *time.Time      `json:"expires_at,omitempty"`
-	Subscription SubscriptionDTO `json:"subscription"`
-	Capabilities CapPolicy       `json:"capabilities"`
-	Capacity     *CapacityDTO    `json:"capacity,omitempty"`
+	Version          int                  `json:"version"`
+	Enabled          bool                 `json:"enabled"`
+	Paired           bool                 `json:"paired"`
+	Ready            bool                 `json:"ready"`
+	Code             string               `json:"code"`
+	VerifiedAt       *time.Time           `json:"verified_at,omitempty"`
+	ExpiresAt        *time.Time           `json:"expires_at,omitempty"`
+	Subscription     SubscriptionDTO      `json:"subscription"`
+	Capabilities     CapPolicy            `json:"capabilities"`
+	Capacity         *CapacityDTO         `json:"capacity,omitempty"`
+	SubscribeFailure *SubscribeFailureDTO `json:"subscribe_failure,omitempty"`
 }
 
 type SubscriptionDTO struct {
 	State     string     `json:"state"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
+// SubscribeFailureDTO reports the most recent refused subscription attempt
+// without exposing secrets or the callback URL.
+type SubscribeFailureDTO struct {
+	At     string `json:"at"`
+	Reason string `json:"reason"`
+	Stage  string `json:"stage"`
 }
 
 type JobDTO struct {

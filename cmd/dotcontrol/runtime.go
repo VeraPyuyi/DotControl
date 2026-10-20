@@ -56,6 +56,7 @@ type runtimeOwner struct {
 	eng                      *engine.Engine
 	bridge                   *codexbridge.Bridge
 	dotBridge                *dotbridge.Service
+	dotBridgeError           string
 	monitor                  *activity.Managed
 	native                   *driver.Cua
 	sup                      *tunnel.Supervisor
@@ -182,7 +183,15 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	}
 	owner := &runtimeOwner{ctx: ctx, stop: cancel, dir: dir, cfg: c, vault: v, eng: eng, monitor: monitor, sup: &tunnel.Supervisor{}, revoked: revErr == nil, noTunnel: *noTunnel, repair: make(chan struct{}, 1)}
 	if c.DotBridgeEnabled {
-		owner.dotBridge, _ = openRuntimeDotBridge(ctx, dir, c, v, func() bool { return eng.Device().Paused }, func() bool { owner.mu.Lock(); defer owner.mu.Unlock(); return owner.revoked })
+		// A bridge that fails to open must be visible: silently falling back to
+		// the 13-tool catalog would leave events/task tools missing with no
+		// operator-visible cause.
+		opened, openErr := openRuntimeDotBridge(ctx, dir, c, v, func() bool { return eng.Device().Paused }, func() bool { owner.mu.Lock(); defer owner.mu.Unlock(); return owner.revoked })
+		if openErr != nil {
+			owner.dotBridgeError = "bridge_open_failed"
+		} else {
+			owner.dotBridge = opened
+		}
 	}
 	if owner.revoked {
 		_ = eng.Pause(true)
@@ -302,7 +311,12 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 			}
 		case "/admin/bridge/status":
 			if owner.dotBridge == nil {
-				e = errors.New("bridge_unavailable")
+				// Surface the open failure instead of reporting a generic code.
+				if owner.dotBridgeError != "" {
+					out = map[string]any{"enabled": false, "available": false, "error": owner.dotBridgeError}
+				} else {
+					e = errors.New("bridge_unavailable")
+				}
 			} else {
 				out, e = owner.dotBridge.AdminStatus()
 			}
