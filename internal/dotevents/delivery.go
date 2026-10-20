@@ -163,6 +163,9 @@ func (d *Delivery) deliverBytes(ctx context.Context, sub *subscriptionRecord, id
 	}
 }
 func eventBodyBytes(n Notice) []byte {
+	// A top-level "type" identifies only protocol control notifications such as
+	// the verification challenge. An event occurrence carries eventId/name/
+	// timestamp/data and a null cursor.
 	return mustMarshal(struct {
 		EventID   string    `json:"eventId"`
 		Name      string    `json:"name"`

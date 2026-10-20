@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -36,6 +37,51 @@ type TaskCompleteArgs struct {
 type TaskStatusArgs struct {
 	JobID string `json:"job_id"`
 	Token string `json:"token"`
+}
+
+// callbackError is the MCP Events protocol failure shape: the specification
+// requires JSON-RPC -32015 with a categorized data.reason so the platform can
+// report why a subscription was refused.
+type callbackError struct {
+	code   int
+	reason string
+	msg    string
+}
+
+func (e *callbackError) Error() string { return e.msg }
+
+// callbackReason classifies a failed subscription verification. Unknown local
+// failures are not mislabeled as endpoint errors; only transport, challenge and
+// timeout categories are reported.
+func callbackReason(err error) string {
+	if err == nil {
+		return ""
+	}
+	var ev *dotevents.Error
+	if !errors.As(err, &ev) {
+		return "server_error"
+	}
+	switch ev.Code {
+	case "network":
+		return "timeout"
+	case "verification":
+		return "challenge_failed"
+	case "callback":
+		return "url_rejected"
+	case "disabled", "capacity", "stale":
+		return "server_error"
+	default:
+		return "server_error"
+	}
+}
+
+// eventsError converts a subscription failure into the MCP Events error shape.
+func eventsError(err error) error {
+	if err == nil {
+		return nil
+	}
+	reason := callbackReason(err)
+	return &callbackError{code: -32015, reason: reason, msg: "dot_events_" + reason}
 }
 
 type EventsListParams struct {
@@ -131,7 +177,7 @@ func NewWithBridge(backend service.Backend, bridge *dotbridge.Service) (*mcp.Ser
 		_ = queueID
 		sub, err := bridge.EventsSubscribe(ctx, principal, dotevents.Params{Name: params.Name, Arguments: params.Arguments, Delivery: params.Delivery, Cursor: params.Cursor, TTL: params.TTL})
 		if err != nil {
-			return nil, err
+			return nil, eventsError(err)
 		}
 		return &EventsSubscribeResult{ID: sub.ID, RefreshBefore: sub.ExpiresAt, Cursor: nil, Truncated: false}, nil
 	}); err != nil {
