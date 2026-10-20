@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,7 +32,13 @@ var retrySchedule = []time.Duration{time.Second, 2 * time.Second, 4 * time.Secon
 
 // Delivery's zero value uses the public HTTPS transport. Test fixtures may
 // supply a custom HTTP client through NewDelivery.
-type Delivery struct{ client *http.Client }
+type Delivery struct {
+	client *http.Client
+	// resolver is built lazily for the production transport and then reused, so
+	// verified answers are memoized across deliveries and retries.
+	resolver     *dohResolver
+	resolverOnce sync.Once
+}
 
 // NewDelivery constructs a delivery transport with an explicit HTTP client.
 // Production callers should pass nil to use the public HTTPS transport.
@@ -46,7 +53,17 @@ func (d *Delivery) httpClient() *http.Client {
 	if d != nil && d.client != nil {
 		return d.client
 	}
-	return &http.Client{Timeout: maxHTTPTimeout, Transport: publicTransport(net.DefaultResolver.LookupIPAddr, (&net.Dialer{Timeout: maxHTTPTimeout}).DialContext), CheckRedirect: noRedirect}
+	// Resolve callback hostnames over DoH first. Networks running fake-ip DNS
+	// (Clash, sing-box, Surge) answer every name with a synthetic address that
+	// the public-address guard must reject, which would make every subscription
+	// fail before a connection was attempted. The system resolver remains the
+	// fallback, and the guard itself is unchanged.
+	//
+	// The resolver is built once and reused: it memoizes verified answers, so a
+	// burst of deliveries and retries shares one resolution instead of repeating
+	// the provider handshakes.
+	d.resolverOnce.Do(func() { d.resolver = newDoHResolver() })
+	return &http.Client{Timeout: maxHTTPTimeout, Transport: publicTransport(d.resolver.lookup, (&net.Dialer{Timeout: maxHTTPTimeout}).DialContext), CheckRedirect: noRedirect}
 }
 func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
@@ -65,6 +82,14 @@ func publicTransport(resolve resolveFunc, dial dialFunc) *http.Transport {
 		} else {
 			addrs, e = resolve(ctx, host)
 			if e != nil {
+				// Preserve the resolver's own classification. A network or
+				// timeout failure must not be reported as a URL policy
+				// rejection, which would send the operator looking for a
+				// nonexistent configuration problem.
+				var eventsErr *Error
+				if errors.As(e, &eventsErr) {
+					return nil, eventsErr
+				}
 				return nil, errf("callback")
 			}
 		}
