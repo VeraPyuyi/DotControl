@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/dotcontrol/dotcontrol/internal/dotevents"
 )
 
 // The events/list result keeps an array even when the bridge is disabled, and a
@@ -46,12 +48,26 @@ func TestEventsListGateShapes(t *testing.T) {
 	}
 }
 
-func TestEventsListExcludesRevokedClientCatalog(t *testing.T) {
+// A revoked client cannot subscribe, but the authenticated MCP consumer still
+// discovers the catalog; authorization is enforced at subscribe time.
+func TestEventsListStaysDiscoverableForRevokedClient(t *testing.T) {
 	s := openBridgeForMCPTest(t)
 	if err := s.RevokeClient("client.a"); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.EventsList("client.a"); len(got) != 0 {
-		t.Fatalf("revoked client sees catalog: %#v", got)
+	if got := s.EventsList("client.a"); len(got) != 1 {
+		t.Fatalf("catalog must remain discoverable: %#v", got)
+	}
+	params := dotevents.Params{
+		Name:      dotevents.EventName,
+		Arguments: dotevents.Arguments{QueueID: "client.a"},
+		Delivery: dotevents.Callback{
+			Mode:   "webhook",
+			URL:    "https://callback.example/hook",
+			Secret: "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		},
+	}
+	if _, err := s.EventsSubscribe(t.Context(), "client.a", params); err == nil {
+		t.Fatal("revoked client must not subscribe")
 	}
 }

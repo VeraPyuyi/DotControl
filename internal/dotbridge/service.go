@@ -360,8 +360,11 @@ func (s *Service) MCPPrincipal() (string, string, error) {
 	return s.mcpQueue, s.mcpQueue, nil
 }
 
+// EventsList advertises the catalog whenever the bridge is enabled. Queue
+// authorization is enforced on subscribe, not on discovery: the authenticated
+// MCP consumer must be able to discover events before it can pick a queue.
 func (s *Service) EventsList(principal string) []dotevents.Definition {
-	if s.authorizeQueue(principal) != nil {
+	if s.gate() != nil {
 		return []dotevents.Definition{}
 	}
 	return dotevents.Catalog()
