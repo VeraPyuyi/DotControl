@@ -32,8 +32,11 @@ type Subscription struct {
 }
 
 type Definition struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description"`
+	Delivery      []string       `json:"delivery"`
+	InputSchema   map[string]any `json:"inputSchema"`
+	PayloadSchema map[string]any `json:"payloadSchema"`
 }
 
 type Notice struct {

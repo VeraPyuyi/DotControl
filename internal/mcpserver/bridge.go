@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/dotcontrol/dotcontrol/internal/dotbridge"
 	"github.com/dotcontrol/dotcontrol/internal/dotevents"
@@ -57,7 +58,10 @@ type EventsSubscribeParams struct {
 
 type EventsSubscribeResult struct {
 	mcp.ResultBase
-	Subscription dotevents.Subscription `json:"subscription"`
+	ID            string    `json:"id"`
+	RefreshBefore time.Time `json:"refreshBefore"`
+	Cursor        any       `json:"cursor"`
+	Truncated     bool      `json:"truncated"`
 }
 
 type EventsUnsubscribeParams struct {
@@ -129,7 +133,7 @@ func NewWithBridge(backend service.Backend, bridge *dotbridge.Service) (*mcp.Ser
 		if err != nil {
 			return nil, err
 		}
-		return &EventsSubscribeResult{Subscription: sub}, nil
+		return &EventsSubscribeResult{ID: sub.ID, RefreshBefore: sub.ExpiresAt, Cursor: nil, Truncated: false}, nil
 	}); err != nil {
 		return nil, err
 	}

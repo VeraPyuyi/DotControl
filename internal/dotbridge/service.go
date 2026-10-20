@@ -361,10 +361,10 @@ func (s *Service) MCPPrincipal() (string, string, error) {
 }
 
 func (s *Service) EventsList(principal string) []dotevents.Definition {
-	if s.gate() != nil {
-		return nil
+	if s.authorizeQueue(principal) != nil {
+		return []dotevents.Definition{}
 	}
-	return []dotevents.Definition{{Name: dotevents.EventName, Description: "Availability notices for an authorized paired queue."}}
+	return dotevents.Catalog()
 }
 func (s *Service) EventsSubscribe(ctx context.Context, principal string, params dotevents.Params) (dotevents.Subscription, error) {
 	queue := params.Arguments.QueueID

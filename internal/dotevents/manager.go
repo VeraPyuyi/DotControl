@@ -179,9 +179,36 @@ func (m *Manager) Unsubscribe(ctx context.Context, principal string, p Params) e
 }
 func (m *Manager) List(principal string) []Definition {
 	if validateID(principal) != nil {
-		return nil
+		return []Definition{}
 	}
-	return []Definition{{Name: EventName, Description: "A queued task is available; retrieve it using authorized queue tools."}}
+	return []Definition{Catalog()[0]}
+}
+
+// Catalog returns the immutable discovery definition served over MCP Events.
+func Catalog() []Definition {
+	return []Definition{{
+		Name:        EventName,
+		Description: "Availability notices for an authorized paired queue.",
+		Delivery:    []string{"webhook"},
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"queue_id": map[string]any{"type": "string", "description": "Authorized task queue ID."},
+			},
+			"required":             []string{"queue_id"},
+			"additionalProperties": false,
+		},
+		PayloadSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"queue_id": map[string]any{"type": "string"},
+				"job_id":   map[string]any{"type": "string"},
+				"mode":     map[string]any{"type": "string", "enum": []string{"answer", "task"}},
+			},
+			"required":             []string{"queue_id", "job_id", "mode"},
+			"additionalProperties": false,
+		},
+	}}
 }
 func (m *Manager) Deliver(ctx context.Context, principal, queueID string, n Notice) error {
 	if n.OccurredAt.IsZero() || n.OccurredAt.Year() < 1 || n.OccurredAt.Year() > 9999 || validateID(principal) != nil || principal != queueID || n.QueueID != queueID || validateID(n.EventID) != nil || validateID(n.JobID) != nil || (n.Mode != "answer" && n.Mode != "task") {
