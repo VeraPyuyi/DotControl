@@ -68,6 +68,7 @@ type subscribeFailure struct {
 	Principal string    `json:"principal"`
 	Reason    string    `json:"reason"`
 	Stage     string    `json:"stage"`
+	Rule      string    `json:"rule,omitempty"`
 }
 
 func newPersistenceState() *persistenceState {
@@ -92,7 +93,7 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 		return nil, errf("corrupt")
 	}
 	if f := st.LastSubscribe; f != nil {
-		if f.At.IsZero() || f.At.Year() < 1 || f.At.Year() > 9999 || validateID(f.Principal) != nil || diagnosticReason(f.Reason) != f.Reason || verifyStage(f.Reason) != f.Stage {
+		if f.At.IsZero() || f.At.Year() < 1 || f.At.Year() > 9999 || validateID(f.Principal) != nil || diagnosticReason(f.Reason) != f.Reason || verifyStage(f.Reason) != f.Stage || !validCallbackRule(f.Rule) {
 			return nil, errf("corrupt")
 		}
 	}

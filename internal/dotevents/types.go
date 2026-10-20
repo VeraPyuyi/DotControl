@@ -65,4 +65,5 @@ type SubscribeFailure struct {
 	At     string `json:"at"`
 	Reason string `json:"reason"`
 	Stage  string `json:"stage"`
+	Rule   string `json:"rule,omitempty"`
 }

@@ -97,6 +97,7 @@ type SubscribeFailureDTO struct {
 	At     string `json:"at"`
 	Reason string `json:"reason"`
 	Stage  string `json:"stage"`
+	Rule   string `json:"rule,omitempty"`
 }
 
 type JobDTO struct {

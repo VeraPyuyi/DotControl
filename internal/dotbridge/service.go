@@ -267,6 +267,7 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 			At:     eventStatus.SubscribeFailure.At,
 			Reason: eventStatus.SubscribeFailure.Reason,
 			Stage:  eventStatus.SubscribeFailure.Stage,
+			Rule:   eventStatus.SubscribeFailure.Rule,
 		}
 	}
 	if gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() && epoch == s.capacityEpoch && capErr == nil {

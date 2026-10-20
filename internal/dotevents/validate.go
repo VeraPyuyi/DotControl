@@ -116,32 +116,56 @@ func parseTTL(raw json.RawMessage) (int64, error) {
 }
 
 func validateCallbackURL(raw string) error {
-	if len(raw) > maxCallbackURLBytes || !utf8.ValidString(raw) || strings.ContainsAny(raw, "\\\\#") {
+	if callbackURLRule(raw) != "" {
 		return errf("callback")
 	}
+	return nil
+}
+
+// callbackURLRule returns only a fixed policy category, never URL content.
+func callbackURLRule(raw string) string {
+	if len(raw) > maxCallbackURLBytes {
+		return "url_length"
+	}
+	if !utf8.ValidString(raw) || strings.ContainsAny(raw, "\\#") {
+		return "url_characters"
+	}
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" || u.Opaque != "" || u.Host == "" {
-		return errf("callback")
+	if err != nil {
+		return "url_parse"
+	}
+	if u.Scheme != "https" {
+		return "https_required"
+	}
+	if u.User != nil || u.Fragment != "" || u.Opaque != "" || u.Host == "" {
+		return "url_structure"
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") {
-		return errf("callback")
+		return "local_hostname"
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if !publicIP(ip) {
-			return errf("callback")
+			return "nonpublic_address"
 		}
-		return nil
+		return ""
 	}
 	if !hostPattern.MatchString(host) || !strings.Contains(host, ".") || strings.Contains(host, "..") {
-		return errf("callback")
+		return "hostname_structure"
 	}
 	for _, label := range strings.Split(host, ".") {
 		if len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
-			return errf("callback")
+			return "hostname_label"
 		}
 	}
-	return nil
+	return ""
+}
+func validCallbackRule(rule string) bool {
+	switch rule {
+	case "", "url_length", "url_characters", "url_parse", "https_required", "url_structure", "local_hostname", "nonpublic_address", "hostname_structure", "hostname_label":
+		return true
+	}
+	return false
 }
 
 func publicIP(ip netip.Addr) bool {

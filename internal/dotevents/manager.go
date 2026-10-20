@@ -51,7 +51,7 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 				if !st.Enabled {
 					return errf("disabled")
 				}
-				st.LastSubscribe = &subscribeFailure{At: clock().UTC(), Principal: principal, Reason: "callback", Stage: "callback_url"}
+				st.LastSubscribe = &subscribeFailure{At: clock().UTC(), Principal: principal, Reason: "callback", Stage: "callback_url", Rule: callbackURLRule(p.Delivery.URL)}
 				return nil
 			}); saveErr != nil {
 				return Subscription{}, saveErr
@@ -403,6 +403,7 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 				At:     f.At.UTC().Format(time.RFC3339),
 				Reason: f.Reason,
 				Stage:  f.Stage,
+				Rule:   f.Rule,
 			}
 		}
 		return nil
