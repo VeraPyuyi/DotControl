@@ -272,7 +272,7 @@ func TestTaskModeHTTPIndependentProofs(t *testing.T) {
 	f.status(t, false, false)
 	f.paused.Store(false)
 	f.subscribe(t)
-	f.status(t, false, false)
+	f.status(t, true, true)
 }
 func TestTaskModeHTTPUnsuccessfulProbes(t *testing.T) {
 	for _, outcome := range []string{"cancelled", "failed", "wrong_nonce", "subscription_rotated"} {
@@ -289,6 +289,7 @@ func TestTaskModeHTTPUnsuccessfulProbes(t *testing.T) {
 			case "wrong_nonce":
 				r.Text = "wrong"
 			case "subscription_rotated":
+				f.rpc("events/unsubscribe", map[string]any{"name": dotevents.EventName, "arguments": map[string]any{"queue_id": f.pair.QueueID}, "delivery": map[string]any{"mode": "webhook", "url": "https://callback.example/hook"}})
 				f.subscribe(t)
 			}
 			f.complete(t, c, r)

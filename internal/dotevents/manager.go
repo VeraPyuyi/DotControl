@@ -65,14 +65,18 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 	if e != nil {
 		return Subscription{}, e
 	}
-	now := clock().UTC()
 	var previous *subscriptionRecord
 	var cached bool
-	rec := &subscriptionRecord{ID: id, Generation: gen, Principal: principal, Params: p, Secret: p.Delivery.Secret, ExpiresAt: now.Add(time.Duration(ttl) * time.Millisecond), CreatedAt: now, UpdatedAt: now}
+	rec := &subscriptionRecord{TrustEpoch: gen, ID: id, Generation: gen, Principal: principal, Params: p, Secret: p.Delivery.Secret}
 	if e = m.store.withLock(false, true, func(st *persistenceState) error {
 		if !st.Enabled {
 			return errf("disabled")
 		}
+		// Eligibility and the new grant start at the serialized mutation, not
+		// request arrival: acquiring the store lock may outlive the old lease.
+		now := clock().UTC()
+		rec.ExpiresAt = now.Add(time.Duration(ttl) * time.Millisecond)
+		rec.CreatedAt, rec.UpdatedAt = now, now
 		for k, s := range st.Subscriptions {
 			if !s.ExpiresAt.After(now) {
 				delete(st.Subscriptions, k)
@@ -97,6 +101,11 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 			return errf("capacity")
 		}
 		if old != nil {
+			// Only the exact continuously authorized binding retains mode trust.
+			// Secret replacement deliberately starts a new epoch, even on a cache hit.
+			if old.CallbackVerified && old.TrustEpoch != "" && old.Secret == rec.Secret {
+				rec.TrustEpoch = old.TrustEpoch
+			}
 			rec.CreatedAt = old.CreatedAt
 			if old.Secret != rec.Secret {
 				rec.PreviousSecret = old.Secret
@@ -106,13 +115,32 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 				rec.RotateUntil = old.RotateUntil
 			}
 		}
+		if cached && st.LastSubscribe != nil && st.LastSubscribe.Principal == principal {
+			st.LastSubscribe = nil
+		}
 		st.Subscriptions[id] = rec
 		return nil
 	}); e != nil {
 		return Subscription{}, e
 	}
 	if cached {
-		return Subscription{ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
+		err := m.store.withLock(false, true, func(st *persistenceState) error {
+			now := clock().UTC()
+			s := st.Subscriptions[id]
+			if !st.Enabled || s == nil || s.Generation != gen || !s.CallbackVerified || !s.ExpiresAt.After(now) {
+				return errf("stale")
+			}
+			// The cached path also reacquires the lock after persistence. A
+			// delayed finalization cannot carry trust past the source lease.
+			if previous != nil && !previous.ExpiresAt.After(now) {
+				s.TrustEpoch, rec.TrustEpoch = gen, gen
+			}
+			return nil
+		})
+		if err != nil {
+			return Subscription{}, err
+		}
+		return Subscription{TrustEpoch: rec.TrustEpoch, ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
 	}
 	if e = m.delivery.verify(ctx, rec); e != nil {
 		// Restore a previously accepted refresh only if no revoke/refresh won
@@ -148,19 +176,27 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		if !st.Enabled {
 			return errf("disabled")
 		}
+		now := clock().UTC()
 		s := st.Subscriptions[id]
-		if s == nil || s.Generation != gen || !s.ExpiresAt.After(clock()) {
+		if s == nil || s.Generation != gen || !s.ExpiresAt.After(now) {
 			return errf("stale")
 		}
+		if previous != nil && !previous.ExpiresAt.After(now) {
+			s.TrustEpoch = gen
+			rec.TrustEpoch = gen
+		}
+		if st.LastSubscribe != nil && st.LastSubscribe.Principal == principal {
+			st.LastSubscribe = nil
+		}
 		s.CallbackVerified = true
-		s.UpdatedAt = clock().UTC()
+		s.UpdatedAt = now
 		s.VerifiedUntil = boundedVerificationDeadline(s.UpdatedAt.Add(verifiedCacheTTL), s.ExpiresAt, s.ExpiresAt, s.UpdatedAt)
 		return nil
 	})
 	if e != nil {
 		return Subscription{}, e
 	}
-	return Subscription{ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
+	return Subscription{TrustEpoch: rec.TrustEpoch, ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
 }
 
 // diagnosticReason accepts only stable categories, never arbitrary error text.
@@ -390,6 +426,9 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 				if s.Principal == principal && s.ExpiresAt.After(time.Now()) {
 					out.Subscribed = true
 					out.CallbackVerified = out.CallbackVerified || s.CallbackVerified
+					if s.CallbackVerified && s.TrustEpoch != "" {
+						out.Bindings = append(out.Bindings, TrustedBinding{ID: s.ID, Epoch: s.TrustEpoch, Expires: s.ExpiresAt, Refreshed: s.UpdatedAt})
+					}
 				}
 			}
 		}
@@ -398,7 +437,7 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 			out.Acknowledged = r.Acknowledged
 			out.LastCode = r.LastCode
 		}
-		if f := st.LastSubscribe; f != nil && f.Principal == principal && !out.CallbackVerified {
+		if f := st.LastSubscribe; f != nil && f.Principal == principal {
 			out.SubscribeFailure = &SubscribeFailure{
 				At:     f.At.UTC().Format(time.RFC3339),
 				Reason: f.Reason,

@@ -26,6 +26,7 @@ type Params struct {
 }
 
 type Subscription struct {
+	TrustEpoch       string    `json:"-"`
 	ID               string    `json:"id"`
 	ExpiresAt        time.Time `json:"expiresAt"`
 	CallbackVerified bool      `json:"callbackVerified"`
@@ -47,13 +48,21 @@ type Notice struct {
 	Mode       string
 }
 
+// TrustedBinding is internal evidence from encrypted subscription state. It
+// intentionally carries neither the callback URL nor any credential.
+type TrustedBinding struct {
+	ID, Epoch          string
+	Expires, Refreshed time.Time
+}
+
 type Status struct {
-	Subscribed       bool   `json:"subscribed"`
-	CallbackVerified bool   `json:"callback_verified"`
-	DotReady         bool   `json:"dot_ready"`
-	Attempts         int    `json:"attempts"`
-	Acknowledged     bool   `json:"acknowledged"`
-	LastCode         string `json:"last_code,omitempty"`
+	Bindings         []TrustedBinding `json:"-"`
+	Subscribed       bool             `json:"subscribed"`
+	CallbackVerified bool             `json:"callback_verified"`
+	DotReady         bool             `json:"dot_ready"`
+	Attempts         int              `json:"attempts"`
+	Acknowledged     bool             `json:"acknowledged"`
+	LastCode         string           `json:"last_code,omitempty"`
 	// SubscribeFailure explains the most recent refused subscription once it
 	// is no longer active. It carries no secret or callback URL.
 	SubscribeFailure *SubscribeFailure `json:"subscribe_failure,omitempty"`

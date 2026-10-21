@@ -81,7 +81,7 @@ func (s *Service) StartProbeMode(clientID, mode string) (ProbeResult, error) {
 	if !s.state.Enabled || !time.Now().Before(current.Expires) || current.Generation != subscription.Generation || !current.Expires.Equal(subscription.Expires) {
 		return ProbeResult{}, errors.New("subscription_changed")
 	}
-	policy.setProof(mode, ProbeProof{JobID: job.ID, AnswerHash: hashToken(answer), Generation: subscription.Generation, SubscriptionExpires: subscription.Expires})
+	policy.setProof(mode, ProbeProof{TrustEpoch: subscription.TrustEpoch, JobID: job.ID, AnswerHash: hashToken(answer), Generation: subscription.Generation, SubscriptionExpires: subscription.Expires})
 	s.state.Clients[clientID] = policy
 	if e := s.saveState(); e != nil {
 		return ProbeResult{}, e

@@ -110,7 +110,10 @@ func TestReadinessSubscriptionGenerationAndExpiry(t *testing.T) {
 		t.Fatal(e)
 	}
 	answer := c.Submission.Messages[0].Content[len("Reply with exactly this nonce: "):]
-	// Renewing a subscription invalidates claims made under its previous generation.
+	// Breaking the binding invalidates claims made under its previous generation.
+	if e = s.EventsUnsubscribe(context.Background(), id, testEventsParams(id)); e != nil {
+		t.Fatal(e)
+	}
 	VerifyTestSubscription(t, s, id)
 	if _, e = s.ClaimTask(id, p.JobID, "attempt"); e != nil {
 		t.Fatal(e)

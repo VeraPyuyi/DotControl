@@ -16,6 +16,7 @@ const (
 )
 
 type subscriptionRecord struct {
+	TrustEpoch       string    `json:"trust_epoch,omitempty"`
 	VerifiedUntil    time.Time `json:"verified_until"`
 	Generation       string    `json:"generation"`
 	ID               string    `json:"id"`
@@ -98,6 +99,7 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 		}
 	}
 	for id, sub := range st.Subscriptions {
+		if sub != nil && sub.TrustEpoch != "" && validateID(sub.TrustEpoch) != nil { return nil, errf("corrupt") }
 		if sub != nil && !sub.VerifiedUntil.IsZero() {
 			// Validate the persisted shape, not elapsed wall time. Legacy
 			// UpdatedAt predates lock/save/HTTP work, and wall clocks can step

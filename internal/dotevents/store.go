@@ -15,6 +15,8 @@ import (
 type store struct {
 	dir string
 	key []byte
+	// beforeLock permits deterministic lock-contention tests; nil in production.
+	beforeLock func()
 }
 
 func openStore(dir string, key []byte) (*store, error) {
@@ -50,6 +52,9 @@ func (s *store) withLock(allowCreate bool, mutate bool, fn func(*persistenceStat
 	lock := flock.New(lockPath)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	if s.beforeLock != nil {
+		s.beforeLock()
+	}
 	ok, err := lock.TryLockContext(ctx, 10*time.Millisecond)
 	if err != nil || !ok {
 		return errf("unknown")

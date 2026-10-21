@@ -149,10 +149,13 @@ func (s *Service) completeTask(jobID, token string, result dotqueue.Result) (dot
 		return dotqueue.Job{}, errors.New("bridge_paused")
 	}
 	proof := policy.proof(job.Mode)
-	if s.state.Enabled && active && sub.Generation == b.Generation && proof.Generation == b.Generation && !sub.Expires.After(proof.SubscriptionExpires) && proof.JobID == jobID && proof.AnswerHash == hashToken(result.Text) && !proof.Consumed && proof.Verified.IsZero() && job.State == dotqueue.StateCompleted && (job.Mode == dotqueue.ModeAnswer || job.Mode == dotqueue.ModeTask) {
+	if s.state.Enabled && active && sub.Generation == b.Generation && proof.Generation == b.Generation && (proof.TrustEpoch != "" && proof.TrustEpoch == sub.TrustEpoch || !sub.Expires.After(proof.SubscriptionExpires)) && proof.JobID == jobID && proof.AnswerHash == hashToken(result.Text) && !proof.Consumed && proof.Verified.IsZero() && job.State == dotqueue.StateCompleted && (job.Mode == dotqueue.ModeAnswer || job.Mode == dotqueue.ModeTask) {
 		// Use the durable queue terminal timestamp, never the retry time.
 		proof.Verified = job.UpdatedAt
 		proof.Expires = job.UpdatedAt.Add(probeValidity)
+		if proof.TrustEpoch != "" {
+			proof.Expires = sub.Expires
+		}
 		proof.Consumed = true
 		proof.SubscriptionExpires = sub.Expires
 		if sub.Expires.Before(proof.Expires) {

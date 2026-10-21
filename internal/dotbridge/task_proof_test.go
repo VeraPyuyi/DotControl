@@ -43,6 +43,8 @@ func testProbeReplay(t *testing.T, mode string) {
 	proof := policy.proof(mode)
 	proof.Verified = past
 	proof.Expires = past.Add(time.Minute)
+	// Exercise fail-closed legacy proof: no durable binding evidence.
+	proof.TrustEpoch = ""
 	policy.setProof(mode, proof)
 	s.state.Clients[id] = policy
 	if err = s.saveState(); err != nil {
@@ -140,7 +142,7 @@ func TestProbeStatusRenewalCannotMixGenerations(t *testing.T) {
 	}
 	s.events = renewingStatusEvents{EventsAPI: s.events, renew: func() { VerifyTestSubscription(t, s, id) }}
 	status, _ := s.StatusForClient(id)
-	if status.Ready {
-		t.Fatal("status combined old proof with renewed subscription")
+	if !status.Ready {
+		t.Fatal("continuous same-binding renewal lost verified proof")
 	}
 }

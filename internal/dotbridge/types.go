@@ -22,12 +22,14 @@ type ClientPolicy struct {
 	ProbeGeneration          uint64     `json:"probe_generation,omitempty"`
 	ProbeSubscriptionExpires time.Time  `json:"probe_subscription_expires_at,omitempty"`
 	ProbeConsumed            bool       `json:"probe_consumed,omitempty"`
+	ProbeTrustEpoch          string     `json:"probe_trust_epoch,omitempty"`
 	TaskProbe                ProbeProof `json:"task_probe,omitempty"`
 }
 
 // ProbeProof is bounded private state for one mode's latest challenge.
 // Consumed survives expiry and subscription rotation; retries cannot renew proof.
 type ProbeProof struct {
+	TrustEpoch          string    `json:"trust_epoch,omitempty"`
 	JobID               string    `json:"job_id,omitempty"`
 	AnswerHash          string    `json:"answer_hash,omitempty"`
 	Verified            time.Time `json:"verified_at,omitempty"`
@@ -41,13 +43,14 @@ func (p ClientPolicy) proof(mode string) ProbeProof {
 	if mode == "task" {
 		return p.TaskProbe
 	}
-	return ProbeProof{JobID: p.ProbeJobID, AnswerHash: p.ProbeAnswer, Verified: p.ProbeVerified, Expires: p.ProbeExpires, Generation: p.ProbeGeneration, SubscriptionExpires: p.ProbeSubscriptionExpires, Consumed: p.ProbeConsumed}
+	return ProbeProof{TrustEpoch: p.ProbeTrustEpoch, JobID: p.ProbeJobID, AnswerHash: p.ProbeAnswer, Verified: p.ProbeVerified, Expires: p.ProbeExpires, Generation: p.ProbeGeneration, SubscriptionExpires: p.ProbeSubscriptionExpires, Consumed: p.ProbeConsumed}
 }
 func (p *ClientPolicy) setProof(mode string, proof ProbeProof) {
 	if mode == "task" {
 		p.TaskProbe = proof
 		return
 	}
+	p.ProbeTrustEpoch = proof.TrustEpoch
 	p.ProbeJobID, p.ProbeAnswer = proof.JobID, proof.AnswerHash
 	p.ProbeVerified, p.ProbeExpires = proof.Verified, proof.Expires
 	p.ProbeGeneration, p.ProbeSubscriptionExpires, p.ProbeConsumed = proof.Generation, proof.SubscriptionExpires, proof.Consumed
@@ -59,9 +62,10 @@ type CapPolicy struct {
 }
 
 type PersistedState struct {
-	Version int                     `json:"version"`
-	Enabled bool                    `json:"enabled"`
-	Clients map[string]ClientPolicy `json:"clients"`
+	Version       int                          `json:"version"`
+	Enabled       bool                         `json:"enabled"`
+	Clients       map[string]ClientPolicy      `json:"clients"`
+	Subscriptions map[string]subscriptionProof `json:"trusted_subscriptions,omitempty"`
 }
 
 // CapacityDTO reports global retained job counts for operator visibility.
@@ -87,8 +91,11 @@ type StatusDTO struct {
 }
 
 type SubscriptionDTO struct {
-	State     string     `json:"state"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	RefreshBefore   *time.Time `json:"refresh_before,omitempty"`
+	LastRefreshedAt *time.Time `json:"last_refreshed_at,omitempty"`
+	RenewalState    string     `json:"renewal_state,omitempty"`
+	State           string     `json:"state"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
 }
 
 // SubscribeFailureDTO reports the most recent refused subscription attempt

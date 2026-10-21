@@ -257,12 +257,28 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	sub := s.subscriptions[current.QueueID]
 	now := time.Now()
 	active := now.Before(sub.Expires)
+	if sub.TrustEpoch != "" {
+		active = false
+		for _, b := range eventStatus.Bindings {
+			if b.ID == sub.BindingID && b.Epoch == sub.TrustEpoch && sub.AuthHash == current.TokenHash && sub.Consumer == s.mcpQueue && now.Before(b.Expires) {
+				if b.Expires.Before(sub.Expires) {
+					sub.Expires = b.Expires
+				}
+				sub.Refreshed = b.Refreshed
+				// Both stores must authorize the effective lease. An event-only
+				// renewal cannot extend the bridge's last committed grant.
+				active = now.Before(sub.Expires)
+			}
+		}
+	}
 	out := StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: exists && !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
 	if active {
-		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires}
-	} else if eventStatus.SubscribeFailure != nil && gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() {
+		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires, RefreshBefore: &sub.Expires, LastRefreshedAt: &sub.Refreshed, RenewalState: "current"}
+	}
+	if eventStatus.SubscribeFailure != nil && gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() {
 		// A refused subscription is not silently "inactive": expose why the
 		// callback verification failed so an operator can fix the cause.
+		out.Subscription.RenewalState = "failed"
 		out.SubscribeFailure = &SubscribeFailureDTO{
 			At:     eventStatus.SubscribeFailure.At,
 			Reason: eventStatus.SubscribeFailure.Reason,
@@ -273,15 +289,32 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	if gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() && epoch == s.capacityEpoch && capErr == nil {
 		out.Capacity = capacity
 	}
+	if !sub.Expires.IsZero() && !active {
+		out.Code = "subscription_expired"
+		out.Subscription.State = "expired"
+	}
+	if !s.state.Enabled {
+		out.Code = "disabled"
+	}
+	if s.paused != nil && s.paused() {
+		out.Code = "bridge_paused"
+	}
+	if current.Revoked || (s.revoked != nil && s.revoked()) {
+		out.Code = "access_revoked"
+	}
 	if !gateOK || !s.state.Enabled || !exists || current.Revoked || !active || e != nil || !eventStatus.Subscribed || !eventStatus.CallbackVerified || (s.paused != nil && s.paused()) || (s.revoked != nil && s.revoked()) {
 		return out
 	}
 	for _, mode := range []string{dotqueue.ModeAnswer, dotqueue.ModeTask} {
 		proof := current.proof(mode)
-		if proof.Verified.IsZero() || !proof.Consumed || proof.Generation != sub.Generation || !now.Before(proof.Expires) || !proof.SubscriptionExpires.Equal(sub.Expires) {
+		trusted := proof.TrustEpoch != "" && proof.TrustEpoch == sub.TrustEpoch
+		if proof.Verified.IsZero() || !proof.Consumed || proof.Generation != sub.Generation || ((proof.TrustEpoch != "" || sub.TrustEpoch != "") && !trusted) || (!trusted && (!now.Before(proof.Expires) || !proof.SubscriptionExpires.Equal(sub.Expires))) {
 			continue
 		}
 		expiry := proof.Expires
+		if trusted {
+			expiry = sub.Expires
+		}
 		if sub.Expires.Before(expiry) {
 			expiry = sub.Expires
 		}
@@ -383,6 +416,9 @@ func (s *Service) EventsSubscribe(ctx context.Context, principal string, params 
 	if e := s.authorizeQueue(queue); e != nil {
 		return dotevents.Subscription{}, e
 	}
+	s.mu.Lock()
+	epoch := s.capacityEpoch
+	s.mu.Unlock()
 	sub, e := s.events.Subscribe(ctx, queue, params)
 	if e != nil {
 		return sub, e
@@ -396,15 +432,36 @@ func (s *Service) EventsSubscribe(ctx context.Context, principal string, params 
 	if p.Revoked {
 		return dotevents.Subscription{}, errors.New("access_revoked")
 	}
+	if !s.capacityAllowedLocked() || epoch != s.capacityEpoch {
+		return dotevents.Subscription{}, errors.New("bridge_disabled")
+	}
+	if reader, ok := s.events.(interface {
+		TrustedBindings(string) ([]dotevents.TrustedBinding, error)
+	}); ok {
+		bindings, readErr := reader.TrustedBindings(queue)
+		matched := false
+		for _, b := range bindings {
+			if b.ID == sub.ID && b.Epoch == sub.TrustEpoch && b.Expires.Equal(sub.ExpiresAt) {
+				matched = true
+			}
+		}
+		if readErr != nil || !matched {
+			return dotevents.Subscription{}, errors.New("subscription_changed")
+		}
+	}
 	old := s.subscriptions[queue]
-	s.subscriptions[queue] = subscriptionProof{Expires: sub.ExpiresAt, Generation: old.Generation + 1}
-	// Keep consumed timestamps for audit/replay protection. Generation binding
-	// invalidates both modes without erasing their first verification time.
-	p.Capabilities = CapPolicy{}
-	p.ProbeExpires = time.Time{}
-	p.TaskProbe.Expires = time.Time{}
+	generation := old.Generation + 1
+	if sub.TrustEpoch != "" && sub.TrustEpoch == old.TrustEpoch && old.BindingID == sub.ID && old.AuthHash == p.TokenHash && old.Consumer == s.mcpQueue {
+		generation = old.Generation
+	}
+	s.subscriptions[queue] = subscriptionProof{Expires: sub.ExpiresAt, Generation: generation, BindingID: sub.ID, TrustEpoch: sub.TrustEpoch, AuthHash: p.TokenHash, Consumer: s.mcpQueue, Refreshed: time.Now().UTC()}
+	if generation != old.Generation {
+		p.Capabilities = CapPolicy{}
+		p.ProbeExpires = time.Time{}
+		p.TaskProbe.Expires = time.Time{}
+	}
 	s.state.Clients[queue] = p
-	return sub, nil
+	return sub, s.saveState()
 }
 func (s *Service) EventsUnsubscribe(ctx context.Context, principal string, params dotevents.Params) error {
 	queue := params.Arguments.QueueID
@@ -417,6 +474,9 @@ func (s *Service) EventsUnsubscribe(ctx context.Context, principal string, param
 	old.Expires = time.Time{}
 	old.Generation++
 	s.subscriptions[queue] = old
+	if saveErr := s.saveState(); e == nil {
+		e = saveErr
+	}
 	s.mu.Unlock()
 	if post := s.authorizeQueue(queue); post != nil {
 		return post
@@ -456,10 +516,26 @@ func (s *Service) loadState() error {
 		st.Clients = map[string]ClientPolicy{}
 	}
 	s.state = st
+	if st.Version != APIVersion {
+		return errors.New("bridge_state_corrupt")
+	}
+	if st.Subscriptions != nil {
+		for queue, sub := range st.Subscriptions {
+			policy, ok := st.Clients[queue]
+			if !ok || policy.QueueID != queue || sub.Generation == 0 {
+				return errors.New("bridge_state_corrupt")
+			}
+			if sub.TrustEpoch != "" && (len(sub.BindingID) != 64 || sub.AuthHash == "" || sub.Consumer == "") {
+				return errors.New("bridge_state_corrupt")
+			}
+		}
+		s.subscriptions = st.Subscriptions
+	}
 	return nil
 }
 
 func (s *Service) saveState() error {
+	s.state.Subscriptions = s.subscriptions
 	data, err := json.MarshalIndent(s.state, "", "  ")
 	if err != nil {
 		return err
