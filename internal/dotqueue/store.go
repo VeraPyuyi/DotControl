@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+// lockWait bounds how long a transaction waits for another to finish. It is
+// generous enough for a race-enabled test writing a large result, while still
+// failing closed rather than blocking forever.
+const lockWait = 30 * time.Second
+
 type Store struct {
 	dir string
 	key []byte
@@ -416,7 +421,10 @@ func (s *Store) withLock(allowCreate bool, mutate bool, fn func(*persistenceStat
 	if privatePath(lockPath, false) != nil {
 		return errf("unknown")
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	// The wait stays bounded, but one transaction that rewrites a large state
+	// file can take several seconds under the race detector on a slow CI
+	// runner; five seconds made a concurrent read fail with unknown.
+	deadline := time.Now().Add(lockWait)
 	for {
 		ok, e := tryHandleLock(f)
 		if e != nil {
