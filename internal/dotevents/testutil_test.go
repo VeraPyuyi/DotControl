@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -15,9 +16,21 @@ const fixtureCallbackURL = "https://callback.example/hook?opaque=ok"
 
 var testKey = []byte("01234567890123456789012345678901")
 
+// physicalTemp resolves the test's temporary root: macOS temporary directories
+// sit under the system /var symlink, which the store deliberately rejects as
+// an ancestor. Production symlink rejection is unchanged.
+func physicalTemp(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func openTestManager(t *testing.T) (*Manager, string) {
 	t.Helper()
-	dir := t.TempDir()
+	dir := physicalTemp(t)
 	m, e := Open(dir, testKey, nil)
 	if e != nil {
 		t.Fatal(e)
@@ -50,7 +63,7 @@ func withFixtureServerURL(t *testing.T, h http.HandlerFunc) (*Manager, string, f
 		}
 		return (&net.Dialer{Timeout: time.Second}).DialContext(ctx, network, s.Listener.Addr().String())
 	}
-	dir := t.TempDir()
+	dir := physicalTemp(t)
 	m, e := Open(dir, testKey, &Delivery{client: &http.Client{Timeout: maxHTTPTimeout, Transport: tr, CheckRedirect: noRedirect}})
 	if e != nil {
 		t.Fatal(e)
