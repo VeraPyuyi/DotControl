@@ -128,7 +128,7 @@ func TestBridgeOperatorJobsRequestPath(t *testing.T) {
 		_, _ = w.Write([]byte(`{"version":1,"jobs":[]}`))
 	}))
 	defer srv.Close()
-	dir := t.TempDir()
+	dir := physicalTemp(t)
 	bridgeRoot := filepath.Join(dir, "dot-bridge")
 	pairingPath := filepath.Join(bridgeRoot, "pairing-client.fixture.json")
 	if err := os.MkdirAll(bridgeRoot, 0700); err != nil {

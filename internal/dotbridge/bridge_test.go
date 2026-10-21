@@ -32,12 +32,7 @@ func openTestBridgeWithPause(t *testing.T, paused func() bool) (*Service, string
 
 func openTestBridgeWithGates(t *testing.T, paused, revoked func() bool) (*Service, string, string) {
 	t.Helper()
-	// macOS temporary roots sit under the system /var symlink; the bridge
-	// deliberately rejects symlinked ancestors, so fixtures use physical paths.
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := physicalTemp(t)
 	vault := NewFakeVault()
 	if err := EnsureStateKey(vault); err != nil {
 		t.Fatal(err)

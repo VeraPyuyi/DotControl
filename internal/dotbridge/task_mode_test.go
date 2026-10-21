@@ -58,7 +58,7 @@ func newTaskFixture(t *testing.T) *taskFixture {
 		t.Fatal(err)
 	}
 	var err error
-	f.s, err = dotbridge.Open(context.Background(), dotbridge.Config{Root: filepath.Join(t.TempDir(), "bridge"), Listen: "127.0.0.1:9317", Vault: v, MCPQueue: "device.task-fixture", EventsDelivery: delivery, Paused: f.paused.Load})
+	f.s, err = dotbridge.Open(context.Background(), dotbridge.Config{Root: filepath.Join(physicalTemp(t), "bridge"), Listen: "127.0.0.1:9317", Vault: v, MCPQueue: "device.task-fixture", EventsDelivery: delivery, Paused: f.paused.Load})
 	if err != nil {
 		t.Fatal(err)
 	}

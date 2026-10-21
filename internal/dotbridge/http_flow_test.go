@@ -51,7 +51,7 @@ func TestReviewHTTPPairedQueueRoundTrip(t *testing.T) {
 		t.Fatal(e)
 	}
 	var paused atomic.Bool
-	s, e := dotbridge.Open(context.Background(), dotbridge.Config{Root: filepath.Join(t.TempDir(), "bridge"), Listen: "127.0.0.1:9317", Vault: v, MCPQueue: "device.distinct", EventsDelivery: delivery, Paused: paused.Load})
+	s, e := dotbridge.Open(context.Background(), dotbridge.Config{Root: filepath.Join(physicalTemp(t), "bridge"), Listen: "127.0.0.1:9317", Vault: v, MCPQueue: "device.distinct", EventsDelivery: delivery, Paused: paused.Load})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -168,4 +168,16 @@ func TestReviewHTTPPairedQueueRoundTrip(t *testing.T) {
 	if status.Ready {
 		t.Fatal("ready while paused")
 	}
+}
+
+// physicalTemp resolves the test's temporary root: macOS temporary directories
+// sit under the system /var symlink, which the bridge deliberately rejects as
+// an ancestor. Production symlink rejection is unchanged.
+func physicalTemp(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }

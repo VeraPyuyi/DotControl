@@ -33,7 +33,7 @@ func TestPairingOperatorRejectHardlink(t *testing.T) {
 }
 
 func TestPairingOperatorAtomicRoundTrip(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "bridge")
+	root := filepath.Join(physicalTemp(t), "bridge")
 	original := PairingFile{Version: APIVersion, ClientID: "client.fixture", QueueID: "client.fixture", Token: "fixture-secret", Listen: "127.0.0.1:9317"}
 	if _, err := writePairingFile(root, original); err != nil {
 		t.Fatal(err)

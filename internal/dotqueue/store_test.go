@@ -19,11 +19,11 @@ var testKey = []byte{
 func openTestStore(t *testing.T) (*Store, string) {
 	// macOS temporary roots sit under the system /var symlink; the store
 	// deliberately rejects symlinked ancestors, so fixtures use physical paths.
-	dir, err := filepath.EvalSymlinks(t.TempDir())
+	physical, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	abs, err := filepath.Abs(dir)
+	abs, err := filepath.Abs(physical)
 	if err != nil {
 		t.Fatal(err)
 	}
