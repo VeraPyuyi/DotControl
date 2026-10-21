@@ -21,7 +21,7 @@ func (bridgeNoopBackend) Call(context.Context, string, service.Request) (any, er
 
 func openBridgeForMCPTest(t *testing.T) *dotbridge.Service {
 	t.Helper()
-	root := t.TempDir()
+	root := physicalTemp(t)
 	vault := dotbridge.NewFakeVault()
 	if err := dotbridge.EnsureStateKey(vault); err != nil {
 		t.Fatal(err)
@@ -95,4 +95,16 @@ func TestNewWithBridgeAddsTaskTools(t *testing.T) {
 	if len(list.Tools) != 17 {
 		t.Fatalf("tool count=%d want 17", len(list.Tools))
 	}
+}
+
+// physicalTemp resolves the test's temporary root: macOS temporary directories
+// sit under the system /var symlink, which the stores deliberately reject as
+// an ancestor. Production symlink rejection is unchanged.
+func physicalTemp(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }

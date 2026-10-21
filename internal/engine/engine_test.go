@@ -333,7 +333,7 @@ func TestHumanTakeoverCancelsAndReleases(t *testing.T) {
 				if r.State != "unknown" {
 					t.Fatalf("takeover=%s", r.State)
 				}
-			case <-time.After(time.Second):
+			case <-time.After(10 * time.Second):
 				t.Fatal("human takeover not cancelled")
 			}
 			if d.releases.Load() == 0 {

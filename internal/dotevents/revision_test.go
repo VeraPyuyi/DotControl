@@ -62,7 +62,7 @@ func TestReviewIdentityTimestampAndCache(t *testing.T) {
 	}
 }
 func TestReviewNewStoreDisabledAndMarker(t *testing.T) {
-	m, e := Open(t.TempDir(), testKey, nil)
+	m, e := Open(physicalTemp(t), testKey, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
