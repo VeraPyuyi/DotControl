@@ -48,7 +48,8 @@ type Notice struct {
 	Mode       string
 }
 
-// TrustedBinding is internal evidence from encrypted subscription state. It
+// TrustedBinding is internal evidence from encrypted subscription state. An
+// empty Epoch identifies a verified legacy lease, not durable mode trust. It
 // intentionally carries neither the callback URL nor any credential.
 type TrustedBinding struct {
 	ID, Epoch          string

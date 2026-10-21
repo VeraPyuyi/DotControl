@@ -421,13 +421,19 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 	}
 	var out Status
 	e := m.store.withLock(false, false, func(st *persistenceState) error {
+		var verifiedUpdated time.Time
 		if st.Enabled {
 			for _, s := range st.Subscriptions {
 				if s.Principal == principal && s.ExpiresAt.After(time.Now()) {
 					out.Subscribed = true
 					out.CallbackVerified = out.CallbackVerified || s.CallbackVerified
-					if s.CallbackVerified && s.TrustEpoch != "" {
+					if s.CallbackVerified {
+						// Legacy verified leases remain real grants, but an empty
+						// epoch supplies no evidence of durable mode trust.
 						out.Bindings = append(out.Bindings, TrustedBinding{ID: s.ID, Epoch: s.TrustEpoch, Expires: s.ExpiresAt, Refreshed: s.UpdatedAt})
+						if s.UpdatedAt.After(verifiedUpdated) {
+							verifiedUpdated = s.UpdatedAt
+						}
 					}
 				}
 			}
@@ -437,7 +443,10 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 			out.Acknowledged = r.Acknowledged
 			out.LastCode = r.LastCode
 		}
-		if f := st.LastSubscribe; f != nil && f.Principal == principal {
+		// Pre-epoch binaries could retain a failure after a later successful
+		// refresh. Suppress only diagnostics strictly older than a verified
+		// active binding for this queue; preserve newer refused renewals.
+		if f := st.LastSubscribe; f != nil && f.Principal == principal && !verifiedUpdated.After(f.At) {
 			out.SubscribeFailure = &SubscribeFailure{
 				At:     f.At.UTC().Format(time.RFC3339),
 				Reason: f.Reason,

@@ -274,6 +274,17 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	out := StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: exists && !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
 	if active {
 		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires, RefreshBefore: &sub.Expires, LastRefreshedAt: &sub.Refreshed, RenewalState: "current"}
+	} else if sub.Generation == 0 && sub.Expires.IsZero() && e == nil && gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() {
+		// Old binaries did not persist the bridge subscription map. Report the
+		// actual verified legacy lease without adopting it as authorization.
+		// Only an authenticated EventsSubscribe can create the new trust record;
+		// active stays false so consumed legacy proofs cannot authorize work.
+		for _, b := range eventStatus.Bindings {
+			if b.Epoch == "" && now.Before(b.Expires) && (out.Subscription.ExpiresAt == nil || b.Expires.After(*out.Subscription.ExpiresAt) || b.Expires.Equal(*out.Subscription.ExpiresAt) && b.Refreshed.After(*out.Subscription.LastRefreshedAt)) {
+				expires, refreshed := b.Expires, b.Refreshed
+				out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &expires, RefreshBefore: &expires, LastRefreshedAt: &refreshed, RenewalState: "current"}
+			}
+		}
 	}
 	if eventStatus.SubscribeFailure != nil && gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() {
 		// A refused subscription is not silently "inactive": expose why the
