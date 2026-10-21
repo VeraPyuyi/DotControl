@@ -7,9 +7,34 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"testing"
+	"unsafe"
 )
+
+// protectedUserACL reports whether sd is a protected DACL with exactly one
+// full-control entry for sid. It compares principals as SIDs: Windows renders
+// an account SID as a two-letter alias when it matches a well-known RID, so
+// text such as "LA" for the built-in administrator (the GitHub Windows runner
+// user) describes the same SID this process token holds.
+func protectedUserACL(sd *windows.SECURITY_DESCRIPTOR, sid *windows.SID) bool {
+	flags, _, e := sd.Control()
+	if e != nil || flags&windows.SE_DACL_PROTECTED == 0 {
+		return false
+	}
+	acl, _, e := sd.DACL()
+	if e != nil || acl == nil || acl.AceCount != 1 {
+		return false
+	}
+	var ace *windows.ACCESS_ALLOWED_ACE
+	if e = windows.GetAce(acl, 0, &ace); e != nil || ace == nil {
+		return false
+	}
+	principal := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+	ok := principal.IsValid() && principal.Equals(sid) && ace.Header.AceType == windows.ACCESS_ALLOWED_ACE_TYPE && ace.Mask == windows.STANDARD_RIGHTS_REQUIRED|windows.SYNCHRONIZE|0x1ff
+	runtime.KeepAlive(sd)
+	return ok
+}
 
 func TestWindowsStoreBoundary(t *testing.T) {
 	for _, p := range []string{`\\server\share\events`, `\\?\C:\events`, `\\.\C:\events`, `C:\events:stream`, `C:\events\NUL`, `C:\events\trailing.`, `C:\events\trailing `} {
@@ -55,11 +80,7 @@ func TestMinorWindowsCreatedAncestors(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		acl, _, e := sd.DACL()
-		if e != nil {
-			t.Fatal(e)
-		}
-		if acl.AceCount != 1 || !strings.Contains(sd.String(), "D:P") || !strings.Contains(sd.String(), user.User.Sid.String()) {
+		if !protectedUserACL(sd, user.User.Sid) {
 			t.Errorf("new ancestor lacks protected current-user ACL: %s %s", p, sd.String())
 		}
 	}
@@ -89,20 +110,12 @@ func TestWindowsPrivacyEveryTransaction(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		acl, _, e := sd.DACL()
-		if e != nil {
-			t.Fatal(e)
-		}
 		user, e := windows.GetCurrentProcessToken().GetTokenUser()
 		if e != nil {
 			t.Fatal(e)
 		}
-		text := sd.String()
-		if !strings.Contains(text, user.User.Sid.String()) || strings.Contains(text, ";;;WD") {
-			t.Errorf("not restricted to current user: %s", text)
-		}
-		if acl.AceCount != 1 {
-			t.Errorf("unexpected ACL entries for %s: %d", p, acl.AceCount)
+		if !protectedUserACL(sd, user.User.Sid) {
+			t.Errorf("not restricted to current user: %s", sd.String())
 		}
 	}
 }
