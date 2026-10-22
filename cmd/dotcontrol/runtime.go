@@ -22,6 +22,7 @@ import (
 	"github.com/dotcontrol/dotcontrol/internal/config"
 	"github.com/dotcontrol/dotcontrol/internal/connections"
 	"github.com/dotcontrol/dotcontrol/internal/desktop"
+	"github.com/dotcontrol/dotcontrol/internal/dotbridge"
 	"github.com/dotcontrol/dotcontrol/internal/driver"
 	"github.com/dotcontrol/dotcontrol/internal/engine"
 	"github.com/dotcontrol/dotcontrol/internal/gateway"
@@ -54,6 +55,8 @@ type runtimeOwner struct {
 	vault                    vault.Vault
 	eng                      *engine.Engine
 	bridge                   *codexbridge.Bridge
+	dotBridge                *dotbridge.Service
+	dotBridgeError           string
 	monitor                  *activity.Managed
 	native                   *driver.Cua
 	sup                      *tunnel.Supervisor
@@ -179,6 +182,17 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		return errors.New("revocation_state_unavailable")
 	}
 	owner := &runtimeOwner{ctx: ctx, stop: cancel, dir: dir, cfg: c, vault: v, eng: eng, monitor: monitor, sup: &tunnel.Supervisor{}, revoked: revErr == nil, noTunnel: *noTunnel, repair: make(chan struct{}, 1)}
+	if c.DotBridgeEnabled {
+		// A bridge that fails to open must be visible: silently falling back to
+		// the 13-tool catalog would leave events/task tools missing with no
+		// operator-visible cause.
+		opened, openErr := openRuntimeDotBridge(ctx, dir, c, v, func() bool { return eng.Device().Paused }, func() bool { owner.mu.Lock(); defer owner.mu.Unlock(); return owner.revoked })
+		if openErr != nil {
+			owner.dotBridgeError = "bridge_open_failed"
+		} else {
+			owner.dotBridge = opened
+		}
+	}
 	if owner.revoked {
 		_ = eng.Pause(true)
 	}
@@ -229,7 +243,17 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/onboard/", ui)
-	mux.Handle("/mcp", guard(mcpserver.HTTP(observedBackend{owner, upgrade})))
+	mcpHandler := mcpserver.HTTP(observedBackend{owner, upgrade})
+	if owner.dotBridge != nil {
+		mcpHandler, err = mcpserver.HTTPWithBridge(observedBackend{owner, upgrade}, owner.dotBridge)
+		if err != nil {
+			return err
+		}
+	}
+	mux.Handle("/mcp", guard(mcpHandler))
+	if owner.dotBridge != nil {
+		mux.Handle("/dot-bridge/", owner.dotBridge.Handler())
+	}
 	// The existing authenticated RPC remains separate from browser sessions.
 	mux.Handle("/rpc", guard(gateway.Handler(upgrade)))
 	mux.Handle("/admin/", localapi.Guard(adminToken, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,6 +293,77 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 			out, e = owner.Action(r.Context(), "repair")
 		case "/admin/pause", "/admin/resume", "/admin/revoke":
 			out, e = owner.Action(r.Context(), strings.TrimPrefix(r.URL.Path, "/admin/"))
+		case "/admin/bridge/enable":
+			if owner.dotBridge == nil {
+				e = errors.New("bridge_unavailable")
+			} else {
+				e = owner.dotBridge.Enable()
+				if e == nil {
+					out = map[string]bool{"enabled": true}
+				}
+			}
+		case "/admin/bridge/disable":
+			if owner.dotBridge == nil {
+				e = errors.New("bridge_unavailable")
+			} else {
+				e = owner.dotBridge.Disable()
+				out = map[string]bool{"enabled": false}
+			}
+		case "/admin/bridge/status":
+			if owner.dotBridge == nil {
+				// Surface the open failure instead of reporting a generic code.
+				if owner.dotBridgeError != "" {
+					out = map[string]any{"enabled": false, "available": false, "error": owner.dotBridgeError}
+				} else {
+					e = errors.New("bridge_unavailable")
+				}
+			} else {
+				out, e = owner.dotBridge.AdminStatus()
+			}
+		case "/admin/bridge/pair":
+			if owner.dotBridge == nil {
+				e = errors.New("bridge_unavailable")
+			} else {
+				file, path, err := owner.dotBridge.Pair("")
+				if err != nil {
+					e = err
+				} else {
+					out = map[string]any{"pairing_file": path, "client_id": file.ClientID, "queue_id": file.QueueID}
+				}
+			}
+		case "/admin/bridge/revoke-client":
+			var input struct {
+				ClientID string `json:"client_id"`
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			d := json.NewDecoder(r.Body)
+			d.DisallowUnknownFields()
+			if owner.dotBridge == nil {
+				e = errors.New("bridge_unavailable")
+			} else if d.Decode(&input) != nil || input.ClientID == "" {
+				e = errors.New("invalid_request")
+			} else {
+				e = owner.dotBridge.RevokeClient(input.ClientID)
+				out = map[string]bool{"revoked": e == nil}
+			}
+		case "/admin/bridge/probe":
+			var input struct {
+				ClientID string `json:"client_id"`
+				Mode     string `json:"mode"`
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			d := json.NewDecoder(r.Body)
+			d.DisallowUnknownFields()
+			if owner.dotBridge == nil {
+				e = errors.New("bridge_unavailable")
+			} else if d.Decode(&input) != nil || input.ClientID == "" {
+				e = errors.New("invalid_request")
+			} else {
+				if input.Mode == "" {
+					input.Mode = "answer"
+				}
+				out, e = owner.dotBridge.StartProbeMode(input.ClientID, input.Mode)
+			}
 		default:
 			http.NotFound(w, r)
 			return
@@ -295,6 +390,9 @@ func serve(ctx context.Context, dir string, c config.Config, v vault.Vault, args
 		// Official turns must finish their bounded interruption/reconciliation
 		// before the shared engine is closed. Unconfirmed stops remain journaled.
 		bridge.Close()
+		if owner.dotBridge != nil {
+			_ = owner.dotBridge.Close()
+		}
 		_ = eng.Close()
 		<-workerDone
 		owner.mu.Lock()

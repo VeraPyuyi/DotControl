@@ -116,6 +116,10 @@ func listProgramProcesses(ctx context.Context) ([]programProcess, error) {
 		p := programProcess{PID: int(entry.ProcessID), ParentPID: int(entry.ParentProcessID), Name: windows.UTF16ToString(entry.ExeFile[:])}
 		h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, entry.ProcessID)
 		if err == nil {
+			var created, exited, kernel, user windows.Filetime
+			if windows.GetProcessTimes(h, &created, &exited, &kernel, &user) == nil {
+				p.Created = uint64(created.HighDateTime)<<32 | uint64(created.LowDateTime)
+			}
 			buf := make([]uint16, 32768)
 			n := uint32(len(buf))
 			if windows.QueryFullProcessImageName(h, 0, &buf[0], &n) == nil {
