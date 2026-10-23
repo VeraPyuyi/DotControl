@@ -3,6 +3,7 @@ package dotbridge
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ func TestPermanentBridgeProofLoadFailsClosed(t *testing.T) {
 		{"past expiry", func(s *subscriptionProof) { s.Expires = time.Now().Add(-time.Hour) }},
 		{"empty trust epoch", func(s *subscriptionProof) { s.TrustEpoch = "" }},
 		{"short binding", func(s *subscriptionProof) { s.BindingID = "short" }},
+		{"non-hex binding", func(s *subscriptionProof) { s.BindingID = strings.Repeat("z", 64) }},
 		{"empty auth hash", func(s *subscriptionProof) { s.AuthHash = "" }},
 		{"empty consumer", func(s *subscriptionProof) { s.Consumer = "" }},
 	}

@@ -92,7 +92,17 @@ func completeSubscriptionProof(s subscriptionProof) bool {
 	if s.Permanent && (!s.Expires.IsZero() || s.TrustEpoch == "") {
 		return false
 	}
-	return s.TrustEpoch == "" || len(s.BindingID) == 64 && s.AuthHash != "" && s.Consumer != ""
+	return s.TrustEpoch == "" || hexBindingID(s.BindingID) && s.AuthHash != "" && s.Consumer != ""
+}
+
+// hexBindingID matches the subscription ids the event store derives, so a
+// syntactically valid but non-hexadecimal id cannot stand in for one.
+func hexBindingID(id string) bool {
+	if len(id) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(id)
+	return err == nil
 }
 
 // A permanent grant still needs an explicit flag: zero expiry alone also means revoked.
