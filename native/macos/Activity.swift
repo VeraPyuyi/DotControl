@@ -15,6 +15,8 @@ struct Activity: Encodable {
     let generation: UInt64
     let foreground_pid: Int32
     let foreground_window: String
+    let availability_reason: String
+    let input_monitoring_granted: Bool
 }
 var generation: UInt64 = 0
 var previousIdle: Double = 0
@@ -27,10 +29,12 @@ let timer = Timer(timeInterval: 0.02, repeats: true) { _ in
     let session = CGSessionCopyCurrentDictionary() as? [String: Any]
     let locked = session == nil || (session?["CGSSessionScreenIsLocked"] as? Bool ?? false)
     let app = NSWorkspace.shared.frontmostApplication
-    let state = Activity(available: idle.isFinite && idle >= 0 && app != nil && CGPreflightListenEventAccess(), locked: locked,
+    let granted = CGPreflightListenEventAccess()
+    let reason = !granted ? "permission_missing" : (!idle.isFinite || idle < 0) ? "invalid_sample" : app == nil ? "no_foreground_app" : "ready"
+    let state = Activity(available: reason == "ready", locked: locked,
                          idle_ms: idle.isFinite ? Int64(min(idle * 1000, Double(Int64.max / 2))) : 0,
                          generation: generation, foreground_pid: app?.processIdentifier ?? 0,
-                         foreground_window: "")
+                         foreground_window: "", availability_reason: reason, input_monitoring_granted: granted)
     if let data = try? JSONEncoder().encode(state) {
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data([10]))

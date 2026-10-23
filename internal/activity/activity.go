@@ -8,10 +8,12 @@ import (
 )
 
 type Monitor struct {
-	mu      sync.Mutex
-	state   model.Activity
-	sampled time.Time
-	close   func()
+	mu           sync.Mutex
+	state        model.Activity
+	sampled      time.Time
+	close        func()
+	diagnostic   Diagnostic
+	helperFailed bool
 }
 
 func (m *Monitor) Snapshot() model.Activity {
@@ -19,7 +21,7 @@ func (m *Monitor) Snapshot() model.Activity {
 	defer m.mu.Unlock()
 	s := m.state
 	// A stopped/crashed helper is never evidence that the user is idle.
-	if m.sampled.IsZero() || time.Since(m.sampled) > time.Second {
+	if m.helperFailed || m.sampled.IsZero() || time.Since(m.sampled) > time.Second {
 		s.Available = false
 	}
 	return s

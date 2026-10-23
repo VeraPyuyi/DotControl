@@ -44,15 +44,6 @@ func launchMissing(data []byte) bool {
 	s := strings.ToLower(string(data))
 	return strings.Contains(s, "could not find service") || strings.Contains(s, "service not found")
 }
-func launchField(data, key string) string {
-	for _, line := range strings.Split(data, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, key+" = ") {
-			return strings.Trim(strings.TrimPrefix(line, key+" = "), `"`)
-		}
-	}
-	return ""
-}
 func launchArguments(data string) []string {
 	var args []string
 	inside := false
@@ -227,17 +218,12 @@ func StartManaged(exe, state string) error {
 	if e != nil {
 		return e
 	}
-	if !s.BelongsToState(state) || !s.matchesExecutable(exe) {
-		return errors.New("managed_startup_unavailable")
+	action, e := s.launchStartAction(exe, state)
+	if e != nil || action == "" {
+		return e
 	}
-	if s.Loaded {
-		if launchField(s.LoadedText, "pid") != "" {
-			return nil
-		}
-		return launchChange("kickstart", launchService())
-	}
-	if s.Disabled {
-		return errors.New("managed_startup_disabled")
+	if action == "kickstart" {
+		return launchChange(action, launchService())
 	}
 	p := managedPlistPath()
 	if len(s.ManagedData) == 0 {

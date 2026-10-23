@@ -76,7 +76,7 @@ func RefreshStartupStatus(executable, state, managedMechanism string) {
 		result.Reason = "manual_start"
 		if s.Present() && !s.BelongsToState(state) {
 			result.Reason = "startup_other_instance"
-		} else if managedMechanism != "" && managedMechanism == result.Mechanism && s.matchesExecutable(executable) && (s.TaskRunning || s.Loaded) && managedParentCheck(executable) {
+		} else if managedMechanism != "" && managedMechanism == result.Mechanism && s.matchesExecutable(executable) && (s.TaskRunning || (!s.Disabled && s.launchRunning())) && managedParentCheck(executable) {
 			result.Managed = true
 			result.Reason = ""
 		}
