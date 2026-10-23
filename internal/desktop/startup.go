@@ -76,7 +76,7 @@ func RefreshStartupStatus(executable, state, managedMechanism string) {
 		result.Reason = "manual_start"
 		if s.Present() && !s.BelongsToState(state) {
 			result.Reason = "startup_other_instance"
-		} else if managedMechanism != "" && managedMechanism == result.Mechanism && s.matchesExecutable(executable) && (s.TaskRunning || s.Loaded) && managedParentCheck(executable) {
+		} else if managedMechanism != "" && managedMechanism == result.Mechanism && s.matchesExecutable(executable) && (s.TaskRunning || (!s.Disabled && s.launchRunning())) && managedParentCheck(executable) {
 			result.Managed = true
 			result.Reason = ""
 		}
@@ -198,12 +198,26 @@ func (s StartupSnapshot) matchesExecutable(exe string) bool {
 		t, e := parseTask(s.TaskXML)
 		return e == nil && strings.EqualFold(t.Actions.Exec[0].Command, exe)
 	}
-	data := s.ManagedData
-	if len(data) == 0 {
-		data = s.Data
+	// Neither the background nor the login definition may hide a stale path.
+	found := false
+	for _, data := range [][]byte{s.ManagedData, s.Data} {
+		if len(data) == 0 {
+			continue
+		}
+		a, e := plistArguments(data)
+		if e != nil || a[0] != exe {
+			return false
+		}
+		found = true
 	}
-	a, e := plistArguments(data)
-	return e == nil && a[0] == exe
+	// SnapshotStartup validates the loaded source and arguments against its
+	// plist; also compare the actual loaded program with the requested target.
+	if s.Loaded {
+		if program := launchField(s.LoadedText, "program"); program != "" && program != exe {
+			return false
+		}
+	}
+	return found
 }
 func (s StartupSnapshot) AutostartConfigured() bool {
 	if s.Value != "" {
