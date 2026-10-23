@@ -62,6 +62,7 @@ type CapPolicy struct {
 }
 
 type PersistedState struct {
+	Invitations   map[string]deviceInvitation  `json:"device_invitations,omitempty"`
 	Version       int                          `json:"version"`
 	Enabled       bool                         `json:"enabled"`
 	Clients       map[string]ClientPolicy      `json:"clients"`
