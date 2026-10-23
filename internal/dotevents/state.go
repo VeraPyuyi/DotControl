@@ -114,6 +114,14 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 		if sub == nil || sub.ID != id || sub.ID != subscriptionID(sub.Principal, sub.Params) || validateID(sub.Principal) != nil || validateParams(sub.Principal, sub.Params) != nil || validateSecret(sub.Secret) != nil || sub.Secret != sub.Params.Delivery.Secret || (sub.PreviousSecret != "" && validateSecret(sub.PreviousSecret) != nil) {
 			return nil, errf("corrupt")
 		}
+		// Permanence is accepted only when the retained request and expiry agree.
+		// A nullable legacy record without the flag remains a finite grant.
+		if sub.Permanent && (!sub.ExpiresAt.IsZero() || !explicitNullTTL(sub.Params.TTL)) {
+			return nil, errf("corrupt")
+		}
+		if !sub.Permanent && sub.ExpiresAt.IsZero() {
+			return nil, errf("corrupt")
+		}
 	}
 	for key, rec := range st.Deliveries {
 		if rec == nil || deliveryKey(rec.SubscriptionID, rec.EventID) != key || validateID(rec.SubscriptionID) != nil || validateID(rec.EventID) != nil || rec.Attempts < 1 || rec.Attempts > 4 || len(rec.Body) > maxEventBodyBytes || !json.Valid(rec.Body) {

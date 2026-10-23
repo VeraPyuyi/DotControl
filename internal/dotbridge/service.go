@@ -535,10 +535,7 @@ func (s *Service) loadState() error {
 	if st.Subscriptions != nil {
 		for queue, sub := range st.Subscriptions {
 			policy, ok := st.Clients[queue]
-			if !ok || policy.QueueID != queue || sub.Generation == 0 {
-				return errors.New("bridge_state_corrupt")
-			}
-			if sub.TrustEpoch != "" && (len(sub.BindingID) != 64 || sub.AuthHash == "" || sub.Consumer == "") {
+			if !ok || policy.QueueID != queue || sub.Generation == 0 || !completeSubscriptionProof(sub) {
 				return errors.New("bridge_state_corrupt")
 			}
 		}

@@ -86,6 +86,15 @@ func consumerWorker(consumer, worker string) string {
 	return "consumer." + hex.EncodeToString(h[:])
 }
 
+// A trusted record must carry complete binding evidence. Permanence is accepted
+// only with zero expiry and the same continuity evidence as any trust epoch.
+func completeSubscriptionProof(s subscriptionProof) bool {
+	if s.Permanent && (!s.Expires.IsZero() || s.TrustEpoch == "") {
+		return false
+	}
+	return s.TrustEpoch == "" || len(s.BindingID) == 64 && s.AuthHash != "" && s.Consumer != ""
+}
+
 // A permanent grant still needs an explicit flag: zero expiry alone also means revoked.
 func (s subscriptionProof) leaseActive(now time.Time) bool {
 	return s.Permanent || now.Before(s.Expires)
