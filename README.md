@@ -1,5 +1,7 @@
 # DotControl
 
+本地生命周期重建与内部配对基础见 [macOS 生命周期与配对说明](docs/MACOS_LIFECYCLE_PAIRING.md)。当前仍以官方私有插件/隧道为主路径；一次性设备配对接口仅是内部准备，不代表已实现无插件控制。签名公证、Mac 真机、源 Dot 图片与用户 Mac 执行仍待验收。
+
 让官方 Dot 通过每台设备自己的私有 MCP 插件与安全隧道，操作另一台 Windows 或 Mac。无需自建云服务器，不复制官方账号凭据或私有记忆；本地会话只在用户启用共享后按已保存范围只读返回。
 
 **0.2 系列：跨电脑终端任务与只读会话共享。** 页面分为概览、连接设置、Codex 和会话共享。内置 SSH／实验助手和旧审批转发已下线；用户原有配置、密钥及记录保留。[alpha.7](https://github.com/VeraPyuyi/DotControl/releases/tag/v0.2.0-alpha.7) 已发布，包含[复盘中的七项修复](docs/REVIEW_0_2.md)和用户级后台恢复。安装包及实际验证范围见[发布支持矩阵](docs/RELEASE_SUPPORT.md)。
