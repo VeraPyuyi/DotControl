@@ -1,0 +1,13 @@
+# Permanent MCP Events subscriptions
+
+Following https://developers.openai.com/apps-sdk/build/mcp-events, an explicit JSON `ttlMs: null` grants a subscription without time expiration and returns `refreshBefore: null`. Omitting the field retains the one-hour default. Numeric durations retain the existing accepted range of 60 seconds through 24 hours; out-of-range values are rejected. A numeric refresh of a permanent subscription grants a finite lease.
+
+Encrypted event records and bridge subscription proofs carry an explicit `Permanent` flag with zero expiry. Zero expiry alone never grants permanence: existing invalidation and legacy records remain inactive. Public status reports an active permanent subscription with `renewal_state: current` and omitted `expires_at` and `refresh_before`. The HTTP subscribe result always includes `refreshBefore`, including JSON null.
+
+Permanence changes only time expiration. Delivery still requires enabled state and callback verification. Unsubscribe, revocation, disable/re-enable, authentication continuity changes and signing-secret replacement retain existing generation and trust-epoch invalidation rules. Event and bridge grants are intersected: a permanent event-only renewal cannot extend a finite bridge grant, and a finite event grant bounds a permanent bridge grant.
+
+A subscription does not grant answer/task capabilities by itself. Each mode still requires completion of its nonce proof. Once proven, continuous proof remains valid within the same binding, auth/pairing identity, consumer and trust epoch; permanent leases therefore need no manual ten-minute proof churn. Restart preserves this evidence. Invalidating continuity requires a fresh proof, even if a new permanent subscription uses the same deterministic ID.
+
+Callback challenge caching is separate from continuous mode proof. It remains bounded to five minutes and any finite source/target grant. Permanence does not relax HTTPS/SSRF checks, signed challenges, delivery verification, maxActiveSubs, delivery-record limits or encrypted-state size bounds. Existing finite records with null request parameters are not retrospectively upgraded on restart.
+
+Client compatibility check: the available Magpie `feat/dot-automatic-routing` checkout and fetched `fork/main` (04c1910a) still declare expiry fields as `time.Time`, and `Status.Authorized` requires both dates to be future timestamps. This version rejects permanent statuses. The requested nullable-date client revision was not present in these refs; its DTO parsing and status-card tests must be run in that revision before rollout. No Magpie source was changed by this DC branch.

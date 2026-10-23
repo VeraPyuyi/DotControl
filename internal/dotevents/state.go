@@ -16,6 +16,7 @@ const (
 )
 
 type subscriptionRecord struct {
+	Permanent        bool      `json:"permanent,omitempty"`
 	TrustEpoch       string    `json:"trust_epoch,omitempty"`
 	VerifiedUntil    time.Time `json:"verified_until"`
 	Generation       string    `json:"generation"`
@@ -99,7 +100,9 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 		}
 	}
 	for id, sub := range st.Subscriptions {
-		if sub != nil && sub.TrustEpoch != "" && validateID(sub.TrustEpoch) != nil { return nil, errf("corrupt") }
+		if sub != nil && sub.TrustEpoch != "" && validateID(sub.TrustEpoch) != nil {
+			return nil, errf("corrupt")
+		}
 		if sub != nil && !sub.VerifiedUntil.IsZero() {
 			// Validate the persisted shape, not elapsed wall time. Legacy
 			// UpdatedAt predates lock/save/HTTP work, and wall clocks can step
@@ -171,10 +174,14 @@ func splitQueueKey(key string) [2]string {
 	return parts
 }
 
+func (s *subscriptionRecord) leaseActive(now time.Time) bool {
+	return s.Permanent || s.ExpiresAt.After(now)
+}
+
 func activeSubscriptions(st *persistenceState, now time.Time) int {
 	n := 0
 	for _, sub := range st.Subscriptions {
-		if sub != nil && sub.ExpiresAt.After(now) {
+		if sub != nil && sub.leaseActive(now) {
 			n++
 		}
 	}

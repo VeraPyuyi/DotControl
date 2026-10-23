@@ -86,10 +86,10 @@ type EventsSubscribeParams struct {
 
 type EventsSubscribeResult struct {
 	mcp.ResultBase
-	ID            string    `json:"id"`
-	RefreshBefore time.Time `json:"refreshBefore"`
-	Cursor        any       `json:"cursor"`
-	Truncated     bool      `json:"truncated"`
+	ID            string     `json:"id"`
+	RefreshBefore *time.Time `json:"refreshBefore"`
+	Cursor        any        `json:"cursor"`
+	Truncated     bool       `json:"truncated"`
 }
 
 type EventsUnsubscribeParams struct {
@@ -161,7 +161,11 @@ func NewWithBridge(backend service.Backend, bridge *dotbridge.Service) (*mcp.Ser
 		if err != nil {
 			return nil, eventsError(err)
 		}
-		return &EventsSubscribeResult{ID: sub.ID, RefreshBefore: sub.ExpiresAt, Cursor: nil, Truncated: false}, nil
+		var refreshBefore *time.Time
+		if !sub.Permanent {
+			refreshBefore = &sub.ExpiresAt
+		}
+		return &EventsSubscribeResult{ID: sub.ID, RefreshBefore: refreshBefore, Cursor: nil, Truncated: false}, nil
 	}); err != nil {
 		return nil, err
 	}

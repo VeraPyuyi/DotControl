@@ -75,10 +75,13 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		// Eligibility and the new grant start at the serialized mutation, not
 		// request arrival: acquiring the store lock may outlive the old lease.
 		now := clock().UTC()
-		rec.ExpiresAt = now.Add(time.Duration(ttl) * time.Millisecond)
+		rec.Permanent = ttl == 0
+		if !rec.Permanent {
+			rec.ExpiresAt = now.Add(time.Duration(ttl) * time.Millisecond)
+		}
 		rec.CreatedAt, rec.UpdatedAt = now, now
 		for k, s := range st.Subscriptions {
-			if !s.ExpiresAt.After(now) {
+			if !s.leaseActive(now) {
 				delete(st.Subscriptions, k)
 			}
 		}
@@ -90,7 +93,7 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		// Cache is scoped to authenticated principal plus exact URL and bounded
 		// by both verification lifetime and subscription expiry.
 		for _, s := range st.Subscriptions {
-			if s.Principal == principal && s.Params.Delivery.URL == p.Delivery.URL && s.CallbackVerified && s.VerifiedUntil.After(now) && s.ExpiresAt.After(now) {
+			if s.Principal == principal && s.Params.Delivery.URL == p.Delivery.URL && s.CallbackVerified && s.VerifiedUntil.After(now) && s.leaseActive(now) {
 				cached = true
 				rec.CallbackVerified = true
 				rec.VerifiedUntil = boundedVerificationDeadline(s.VerifiedUntil, s.ExpiresAt, rec.ExpiresAt, now)
@@ -127,12 +130,12 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		err := m.store.withLock(false, true, func(st *persistenceState) error {
 			now := clock().UTC()
 			s := st.Subscriptions[id]
-			if !st.Enabled || s == nil || s.Generation != gen || !s.CallbackVerified || !s.ExpiresAt.After(now) {
+			if !st.Enabled || s == nil || s.Generation != gen || !s.CallbackVerified || !s.leaseActive(now) {
 				return errf("stale")
 			}
 			// The cached path also reacquires the lock after persistence. A
 			// delayed finalization cannot carry trust past the source lease.
-			if previous != nil && !previous.ExpiresAt.After(now) {
+			if previous != nil && !previous.leaseActive(now) {
 				s.TrustEpoch, rec.TrustEpoch = gen, gen
 			}
 			return nil
@@ -140,7 +143,7 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		if err != nil {
 			return Subscription{}, err
 		}
-		return Subscription{TrustEpoch: rec.TrustEpoch, ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
+		return Subscription{Permanent: rec.Permanent, TrustEpoch: rec.TrustEpoch, ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
 	}
 	if e = m.delivery.verify(ctx, rec); e != nil {
 		// Restore a previously accepted refresh only if no revoke/refresh won
@@ -162,7 +165,7 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 				// original callback failure unless authorization was revoked.
 				return nil
 			}
-			if previous != nil && previous.CallbackVerified && previous.ExpiresAt.After(clock()) {
+			if previous != nil && previous.CallbackVerified && previous.leaseActive(clock()) {
 				st.Subscriptions[id] = previous
 			}
 			return nil
@@ -178,10 +181,10 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 		}
 		now := clock().UTC()
 		s := st.Subscriptions[id]
-		if s == nil || s.Generation != gen || !s.ExpiresAt.After(now) {
+		if s == nil || s.Generation != gen || !s.leaseActive(now) {
 			return errf("stale")
 		}
-		if previous != nil && !previous.ExpiresAt.After(now) {
+		if previous != nil && !previous.leaseActive(now) {
 			s.TrustEpoch = gen
 			rec.TrustEpoch = gen
 		}
@@ -196,7 +199,7 @@ func (m *Manager) subscribe(ctx context.Context, principal string, p Params, clo
 	if e != nil {
 		return Subscription{}, e
 	}
-	return Subscription{TrustEpoch: rec.TrustEpoch, ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
+	return Subscription{Permanent: rec.Permanent, TrustEpoch: rec.TrustEpoch, ID: id, ExpiresAt: rec.ExpiresAt, CallbackVerified: true}, nil
 }
 
 // diagnosticReason accepts only stable categories, never arbitrary error text.
@@ -229,7 +232,7 @@ func verifyStage(code string) string {
 // each reuse is capped by both subscription grants and the current cache TTL.
 func boundedVerificationDeadline(until, sourceExpiry, expiry, now time.Time) time.Time {
 	for _, bound := range []time.Time{sourceExpiry, expiry, now.Add(verifiedCacheTTL)} {
-		if bound.Before(until) {
+		if !bound.IsZero() && bound.Before(until) {
 			until = bound
 		}
 	}
@@ -296,7 +299,7 @@ func (m *Manager) Deliver(ctx context.Context, principal, queueID string, n Noti
 			return errf("disabled")
 		}
 		for id, s := range st.Subscriptions {
-			if s.Principal == principal && s.CallbackVerified && s.ExpiresAt.After(time.Now()) {
+			if s.Principal == principal && s.CallbackVerified && s.leaseActive(time.Now()) {
 				ids = append(ids, id)
 			}
 		}
@@ -330,7 +333,7 @@ func (m *Manager) deliverOne(ctx context.Context, principal, q, id string, n Not
 			return errf("disabled")
 		}
 		s := st.Subscriptions[id]
-		if s == nil || !s.CallbackVerified || !s.ExpiresAt.After(time.Now()) {
+		if s == nil || !s.CallbackVerified || !s.leaseActive(time.Now()) {
 			return errf("stale")
 		}
 		r := st.Deliveries[key]
@@ -385,7 +388,7 @@ func (m *Manager) deliverOne(ctx context.Context, principal, q, id string, n Not
 			return errf("disabled")
 		}
 		s := st.Subscriptions[id]
-		if s == nil || s.Generation != sub.Generation || !s.CallbackVerified || !s.ExpiresAt.After(time.Now()) {
+		if s == nil || s.Generation != sub.Generation || !s.CallbackVerified || !s.leaseActive(time.Now()) {
 			return errf("stale")
 		}
 		r := st.Deliveries[key]
@@ -424,13 +427,13 @@ func (m *Manager) Status(principal, q string) (Status, error) {
 		var verifiedUpdated time.Time
 		if st.Enabled {
 			for _, s := range st.Subscriptions {
-				if s.Principal == principal && s.ExpiresAt.After(time.Now()) {
+				if s.Principal == principal && s.leaseActive(time.Now()) {
 					out.Subscribed = true
 					out.CallbackVerified = out.CallbackVerified || s.CallbackVerified
 					if s.CallbackVerified {
 						// Legacy verified leases remain real grants, but an empty
 						// epoch supplies no evidence of durable mode trust.
-						out.Bindings = append(out.Bindings, TrustedBinding{ID: s.ID, Epoch: s.TrustEpoch, Expires: s.ExpiresAt, Refreshed: s.UpdatedAt})
+						out.Bindings = append(out.Bindings, TrustedBinding{Permanent: s.Permanent, ID: s.ID, Epoch: s.TrustEpoch, Expires: s.ExpiresAt, Refreshed: s.UpdatedAt})
 						if s.UpdatedAt.After(verifiedUpdated) {
 							verifiedUpdated = s.UpdatedAt
 						}

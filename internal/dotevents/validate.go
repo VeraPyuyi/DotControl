@@ -94,8 +94,12 @@ func validateCursor(raw json.RawMessage) error {
 }
 
 func parseTTL(raw json.RawMessage) (int64, error) {
-	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+	if len(raw) == 0 {
 		return defaultTTL, nil
+	}
+	// Zero is the internal duration sentinel for an explicitly permanent request.
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return 0, nil
 	}
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 || trimmed[0] < '0' || trimmed[0] > '9' {

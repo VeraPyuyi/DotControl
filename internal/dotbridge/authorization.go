@@ -10,6 +10,7 @@ import (
 )
 
 type subscriptionProof struct {
+	Permanent  bool
 	BindingID  string
 	TrustEpoch string
 	AuthHash   string
@@ -70,9 +71,7 @@ func (s *Service) activeSubscription(queue string) (subscriptionProof, bool) {
 			for _, b := range bindings {
 				if b.ID == sub.BindingID && b.Epoch == sub.TrustEpoch {
 					found = true
-					if b.Expires.Before(sub.Expires) {
-						sub.Expires = b.Expires
-					}
+					sub = intersectLease(sub, b)
 				}
 			}
 			if !found {
@@ -80,9 +79,23 @@ func (s *Service) activeSubscription(queue string) (subscriptionProof, bool) {
 			}
 		}
 	}
-	return sub, ok && time.Now().Before(sub.Expires)
+	return sub, ok && sub.leaseActive(time.Now())
 }
 func consumerWorker(consumer, worker string) string {
 	h := sha256.Sum256([]byte(consumer + "\x00" + worker))
 	return "consumer." + hex.EncodeToString(h[:])
+}
+
+// A permanent grant still needs an explicit flag: zero expiry alone also means revoked.
+func (s subscriptionProof) leaseActive(now time.Time) bool {
+	return s.Permanent || now.Before(s.Expires)
+}
+
+// Both stores must authorize the lease; an event-only refresh cannot extend it.
+func intersectLease(s subscriptionProof, b dotevents.TrustedBinding) subscriptionProof {
+	if !b.Permanent && (s.Permanent || b.Expires.Before(s.Expires)) {
+		s.Permanent = false
+		s.Expires = b.Expires
+	}
+	return s
 }
