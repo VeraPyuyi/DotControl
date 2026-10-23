@@ -22,8 +22,11 @@ func (s StartupSnapshot) launchRunning() bool {
 }
 
 func (s StartupSnapshot) launchStartAction(exe, state string) (string, error) {
-	if !s.BelongsToState(state) || !s.matchesExecutable(exe) {
+	if !s.BelongsToState(state) {
 		return "", errors.New("managed_startup_unavailable")
+	}
+	if !s.matchesExecutable(exe) {
+		return "", errors.New("conflicting_definition_paths")
 	}
 	if s.Disabled {
 		return "", errors.New("managed_startup_disabled")
