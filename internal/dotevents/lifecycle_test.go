@@ -173,13 +173,13 @@ func TestUnsubscribeExpiryEncryptionAndSignatures(t *testing.T) {
 	})
 	defer close()
 	p := testParams("alice")
-	p.TTL = json.RawMessage(`null`)
+	p.TTL = nil
 	sub, e := m.Subscribe(context.Background(), "alice", p)
 	if e != nil {
 		t.Fatal(e)
 	}
 	if time.Until(sub.ExpiresAt) > time.Hour {
-		t.Fatal("unbounded null ttl")
+		t.Fatal("unbounded default ttl")
 	}
 	if e = m.Deliver(context.Background(), "alice", "alice", Notice{EventID: "evt.signed", QueueID: "alice", JobID: "job.signed", Mode: "task", OccurredAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}); e != nil {
 		t.Fatal(e)

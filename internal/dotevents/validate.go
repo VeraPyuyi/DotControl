@@ -93,9 +93,19 @@ func validateCursor(raw json.RawMessage) error {
 	return nil
 }
 
+// explicitNullTTL distinguishes a requested permanent lease from omission;
+// parseTTL maps both to a duration, so persisted records need the raw form.
+func explicitNullTTL(raw json.RawMessage) bool {
+	return len(raw) != 0 && bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
+}
+
 func parseTTL(raw json.RawMessage) (int64, error) {
-	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+	if len(raw) == 0 {
 		return defaultTTL, nil
+	}
+	// Zero is the internal duration sentinel for an explicitly permanent request.
+	if explicitNullTTL(raw) {
+		return 0, nil
 	}
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 || trimmed[0] < '0' || trimmed[0] > '9' {

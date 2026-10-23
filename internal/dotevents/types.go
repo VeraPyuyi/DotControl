@@ -26,6 +26,7 @@ type Params struct {
 }
 
 type Subscription struct {
+	Permanent        bool      `json:"-"`
 	TrustEpoch       string    `json:"-"`
 	ID               string    `json:"id"`
 	ExpiresAt        time.Time `json:"expiresAt"`
@@ -52,6 +53,7 @@ type Notice struct {
 // empty Epoch identifies a verified legacy lease, not durable mode trust. It
 // intentionally carries neither the callback URL nor any credential.
 type TrustedBinding struct {
+	Permanent          bool
 	ID, Epoch          string
 	Expires, Refreshed time.Time
 }

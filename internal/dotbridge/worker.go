@@ -140,7 +140,7 @@ func (s *Service) completeTask(jobID, token string, result dotqueue.Result) (dot
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sub := s.subscriptions[b.QueueID]
-	active := time.Now().Before(sub.Expires)
+	active := sub.leaseActive(time.Now())
 	policy := s.state.Clients[b.QueueID]
 	if policy.Revoked || (s.revoked != nil && s.revoked()) {
 		return dotqueue.Job{}, errors.New("access_revoked")
@@ -158,7 +158,7 @@ func (s *Service) completeTask(jobID, token string, result dotqueue.Result) (dot
 		}
 		proof.Consumed = true
 		proof.SubscriptionExpires = sub.Expires
-		if sub.Expires.Before(proof.Expires) {
+		if !sub.Permanent && sub.Expires.Before(proof.Expires) {
 			proof.Expires = sub.Expires
 		}
 		policy.setProof(job.Mode, proof)

@@ -16,6 +16,7 @@ const (
 )
 
 type subscriptionRecord struct {
+	Permanent        bool      `json:"permanent,omitempty"`
 	TrustEpoch       string    `json:"trust_epoch,omitempty"`
 	VerifiedUntil    time.Time `json:"verified_until"`
 	Generation       string    `json:"generation"`
@@ -99,7 +100,9 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 		}
 	}
 	for id, sub := range st.Subscriptions {
-		if sub != nil && sub.TrustEpoch != "" && validateID(sub.TrustEpoch) != nil { return nil, errf("corrupt") }
+		if sub != nil && sub.TrustEpoch != "" && validateID(sub.TrustEpoch) != nil {
+			return nil, errf("corrupt")
+		}
 		if sub != nil && !sub.VerifiedUntil.IsZero() {
 			// Validate the persisted shape, not elapsed wall time. Legacy
 			// UpdatedAt predates lock/save/HTTP work, and wall clocks can step
@@ -109,6 +112,14 @@ func parsePersistenceState(data []byte) (*persistenceState, error) {
 			}
 		}
 		if sub == nil || sub.ID != id || sub.ID != subscriptionID(sub.Principal, sub.Params) || validateID(sub.Principal) != nil || validateParams(sub.Principal, sub.Params) != nil || validateSecret(sub.Secret) != nil || sub.Secret != sub.Params.Delivery.Secret || (sub.PreviousSecret != "" && validateSecret(sub.PreviousSecret) != nil) {
+			return nil, errf("corrupt")
+		}
+		// Permanence is accepted only when the retained request and expiry agree.
+		// A nullable legacy record without the flag remains a finite grant.
+		if sub.Permanent && (!sub.ExpiresAt.IsZero() || !explicitNullTTL(sub.Params.TTL)) {
+			return nil, errf("corrupt")
+		}
+		if !sub.Permanent && sub.ExpiresAt.IsZero() {
 			return nil, errf("corrupt")
 		}
 	}
@@ -171,10 +182,14 @@ func splitQueueKey(key string) [2]string {
 	return parts
 }
 
+func (s *subscriptionRecord) leaseActive(now time.Time) bool {
+	return s.Permanent || s.ExpiresAt.After(now)
+}
+
 func activeSubscriptions(st *persistenceState, now time.Time) int {
 	n := 0
 	for _, sub := range st.Subscriptions {
-		if sub != nil && sub.ExpiresAt.After(now) {
+		if sub != nil && sub.leaseActive(now) {
 			n++
 		}
 	}

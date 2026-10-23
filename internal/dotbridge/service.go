@@ -256,24 +256,25 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 	current, exists := s.state.Clients[policy.ClientID]
 	sub := s.subscriptions[current.QueueID]
 	now := time.Now()
-	active := now.Before(sub.Expires)
+	active := sub.leaseActive(now)
 	if sub.TrustEpoch != "" {
 		active = false
 		for _, b := range eventStatus.Bindings {
-			if b.ID == sub.BindingID && b.Epoch == sub.TrustEpoch && sub.AuthHash == current.TokenHash && sub.Consumer == s.mcpQueue && now.Before(b.Expires) {
-				if b.Expires.Before(sub.Expires) {
-					sub.Expires = b.Expires
-				}
+			if b.ID == sub.BindingID && b.Epoch == sub.TrustEpoch && sub.AuthHash == current.TokenHash && sub.Consumer == s.mcpQueue && (b.Permanent || now.Before(b.Expires)) {
+				sub = intersectLease(sub, b)
 				sub.Refreshed = b.Refreshed
 				// Both stores must authorize the effective lease. An event-only
 				// renewal cannot extend the bridge's last committed grant.
-				active = now.Before(sub.Expires)
+				active = sub.leaseActive(now)
 			}
 		}
 	}
 	out := StatusDTO{Version: APIVersion, Enabled: s.state.Enabled, Paired: exists && !current.Revoked, Code: "probe_required", Subscription: SubscriptionDTO{State: "inactive"}}
 	if active {
-		out.Subscription = SubscriptionDTO{State: "active", ExpiresAt: &sub.Expires, RefreshBefore: &sub.Expires, LastRefreshedAt: &sub.Refreshed, RenewalState: "current"}
+		out.Subscription = SubscriptionDTO{State: "active", LastRefreshedAt: &sub.Refreshed, RenewalState: "current"}
+		if !sub.Permanent {
+			out.Subscription.ExpiresAt, out.Subscription.RefreshBefore = &sub.Expires, &sub.Expires
+		}
 	} else if sub.Generation == 0 && sub.Expires.IsZero() && e == nil && gateOK && exists && !current.Revoked && current.TokenHash == policy.TokenHash && s.capacityAllowedLocked() {
 		// Old binaries did not persist the bridge subscription map. Report the
 		// actual verified legacy lease without adopting it as authorization.
@@ -326,10 +327,10 @@ func (s *Service) statusDTO(policy ClientPolicy) StatusDTO {
 		if trusted {
 			expiry = sub.Expires
 		}
-		if sub.Expires.Before(expiry) {
+		if !sub.Permanent && (expiry.IsZero() || sub.Expires.Before(expiry)) {
 			expiry = sub.Expires
 		}
-		if out.ExpiresAt == nil || expiry.Before(*out.ExpiresAt) {
+		if !expiry.IsZero() && (out.ExpiresAt == nil || expiry.Before(*out.ExpiresAt)) {
 			out.ExpiresAt = &expiry
 		}
 		verified := proof.Verified
@@ -452,7 +453,7 @@ func (s *Service) EventsSubscribe(ctx context.Context, principal string, params 
 		bindings, readErr := reader.TrustedBindings(queue)
 		matched := false
 		for _, b := range bindings {
-			if b.ID == sub.ID && b.Epoch == sub.TrustEpoch && b.Expires.Equal(sub.ExpiresAt) {
+			if b.ID == sub.ID && b.Epoch == sub.TrustEpoch && b.Permanent == sub.Permanent && b.Expires.Equal(sub.ExpiresAt) {
 				matched = true
 			}
 		}
@@ -465,7 +466,7 @@ func (s *Service) EventsSubscribe(ctx context.Context, principal string, params 
 	if sub.TrustEpoch != "" && sub.TrustEpoch == old.TrustEpoch && old.BindingID == sub.ID && old.AuthHash == p.TokenHash && old.Consumer == s.mcpQueue {
 		generation = old.Generation
 	}
-	s.subscriptions[queue] = subscriptionProof{Expires: sub.ExpiresAt, Generation: generation, BindingID: sub.ID, TrustEpoch: sub.TrustEpoch, AuthHash: p.TokenHash, Consumer: s.mcpQueue, Refreshed: time.Now().UTC()}
+	s.subscriptions[queue] = subscriptionProof{Permanent: sub.Permanent, Expires: sub.ExpiresAt, Generation: generation, BindingID: sub.ID, TrustEpoch: sub.TrustEpoch, AuthHash: p.TokenHash, Consumer: s.mcpQueue, Refreshed: time.Now().UTC()}
 	if generation != old.Generation {
 		p.Capabilities = CapPolicy{}
 		p.ProbeExpires = time.Time{}
@@ -483,6 +484,7 @@ func (s *Service) EventsUnsubscribe(ctx context.Context, principal string, param
 	s.mu.Lock()
 	old := s.subscriptions[queue]
 	old.Expires = time.Time{}
+	old.Permanent = false
 	old.Generation++
 	s.subscriptions[queue] = old
 	if saveErr := s.saveState(); e == nil {
@@ -533,10 +535,7 @@ func (s *Service) loadState() error {
 	if st.Subscriptions != nil {
 		for queue, sub := range st.Subscriptions {
 			policy, ok := st.Clients[queue]
-			if !ok || policy.QueueID != queue || sub.Generation == 0 {
-				return errors.New("bridge_state_corrupt")
-			}
-			if sub.TrustEpoch != "" && (len(sub.BindingID) != 64 || sub.AuthHash == "" || sub.Consumer == "") {
+			if !ok || policy.QueueID != queue || sub.Generation == 0 || !completeSubscriptionProof(sub) {
 				return errors.New("bridge_state_corrupt")
 			}
 		}
